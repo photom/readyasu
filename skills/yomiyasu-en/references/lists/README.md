@@ -5,7 +5,7 @@ The lint and diff scripts read these files. One phrase per line; an optional TAB
 - Matching ignores case. A space matches any run of whitespace, including a line break inside a paragraph.
 - A word ending with `*` matches any word ending (`delv*` matches delve, delves, delving, delved).
 - An apostrophe matches both ' and ’.
-- Matches inside code, URLs and blockquotes are ignored.
+- Matches inside code and URLs are ignored. Block quotations are ignored too, except callouts (`> **Note:**`, `> [!WARNING]`), which are the writer's own text.
 
 | File | Rule | Severity |
 |---|---|---|

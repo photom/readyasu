@@ -1,4 +1,4 @@
-# Role nouns. diff reports them when a rewrite adds an actor the original and material lack.
+# Role nouns. (The pronoun "I" is checked separately, case-sensitively.) diff reports them when a rewrite adds an actor the original and material lack.
 team
 manager
 managers
@@ -32,4 +32,3 @@ security team
 hr
 we
 you
-i

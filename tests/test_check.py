@@ -48,6 +48,9 @@ def test_attempts_and_mismatch(tmp_path: Path) -> None:
     p = run(["--source", src, "--final", fin, "--state-dir", st, "--no-words"], tmp_path)
     assert "attempt 2" in p.stdout.splitlines()[0]
     p = run(["run", "--source", src, "--final", fin, "--state-dir", st, "--no-words"], tmp_path)
+    assert "unchanged final draft" in p.stdout.splitlines()[0]
+    write(tmp_path / "f.md", "Hello, my friend.\n")
+    p = run(["run", "--source", src, "--final", fin, "--state-dir", st, "--no-words"], tmp_path)
     assert "exceeds the one-revision rule" in p.stdout.splitlines()[0]
     write(tmp_path / "f.md", "Changed after run.\n")
     v = run(["verify", "--final", fin, "--state-dir", st], tmp_path)
@@ -122,3 +125,41 @@ def test_default_state_dir_at_git_top(tmp_path: Path) -> None:
     assert run(["run", "--source", src, "--final", fin, "--no-words"], sub).returncode == 0
     assert (tmp_path / ".yomiyasu-en" / "state.json").is_file()
     assert run(["verify", "--final", fin], sub).returncode == 0
+
+
+def test_stdin_only_final_is_usage_error(tmp_path: Path) -> None:
+    p = run(["run", "--stdin", "--no-words"], tmp_path, "<<<yomiyasu-en:final>>>\nText.\n")
+    assert p.returncode == 2 and "not_run" in p.stdout
+
+
+def test_verify_tolerates_trailing_newlines(tmp_path: Path) -> None:
+    st = str(tmp_path / "st")
+    data = "<<<yomiyasu-en:original>>>\nThe job may fail.\n<<<yomiyasu-en:final>>>\nThe job can fail.\n\n\n"
+    assert run(["run", "--stdin", "--state-dir", st, "--no-words"], tmp_path, data).returncode == 0
+    assert run(["verify", "--final", "-", "--state-dir", st], tmp_path, "The job can fail.").returncode == 0
+    fin = write(tmp_path / "f.md", "The job can fail.\n")
+    assert run(["verify", "--final", fin, "--state-dir", st], tmp_path).returncode == 0
+
+
+def test_new_run_in_other_folder(tmp_path: Path) -> None:
+    st = str(tmp_path / "st")
+    a = tmp_path / "a"
+    b = tmp_path / "b"
+    a.mkdir()
+    b.mkdir()
+    for folder in (a, b):
+        write(folder / "o.md", "Same original.\n")
+        write(folder / "f.md", "Same final.\n")
+    run(["run", "--source", "o.md", "--final", "f.md", "--state-dir", st, "--no-words"], a)
+    p = run(["run", "--source", "o.md", "--final", "f.md", "--state-dir", st, "--no-words"], b)
+    assert "attempt 1" in p.stdout.splitlines()[0]
+
+
+def test_reference_lines_follow_doc_type(tmp_path: Path) -> None:
+    src = write(tmp_path / "o.md", "We're done and it's great!\n")
+    fin = write(tmp_path / "f.md", "We are done and it is great.\n")
+    p = run(["run", "--source", src, "--final", fin, "--state-dir", str(tmp_path / "st"), "--no-words",
+             "--doc-type", "formal"], tmp_path)
+    lines = p.stdout.splitlines()
+    assert "Stiffness check: reference 1" in lines
+    assert "Energy check: reference 1" in lines

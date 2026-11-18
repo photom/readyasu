@@ -9,10 +9,20 @@ seamless*	say what the user does not have to do
 robust	say what it withstands; keep in statistics and control engineering
 leverag*	"use" (keep the financial noun)
 realm	usually delete ("in AI")
-landscape	usually delete; keep "threat landscape" if the field uses it
+the evolving landscape	usually delete
+the ever-changing landscape	usually delete
+the digital landscape	usually delete
+the modern landscape	usually delete
+the current landscape	usually delete
 embark*	"start"
-foster*	say what people do
-underscor*	"shows", or state the point
+fosters	say what people do
+fostering	say what people do
+foster collaboration	say what people do
+foster innovation	say what people do
+foster a culture	say what people do
+underscores	"shows", or state the point
+underscored	"showed", or state the point
+underscoring	"showing", or state the point
 showcas*	"shows"
 intricate	name the parts
 intricacies	name the parts
@@ -35,7 +45,9 @@ vibrant	use a concrete detail
 bustling	use a concrete detail
 myriad	"many", or give the number
 plethora	"many", or give the number
-elevat*	"improve", or say what changes
+elevate	"improve", or say what changes
+elevates	"improves", or say what changes
+elevating	"improving", or say what changes
 empower*	"lets", "allows"
 crucial	say what depends on it
 vital	say what depends on it
@@ -50,8 +62,12 @@ key takeaways	keep only if the request asks for takeaways
 actionable insights	say what the reader learns
 valuable insights	say what the reader learns
 treasure trove	"collection", or name what it holds
-the power of	usually delete the frame
+harness the power of	usually delete the frame
+unleash the power of	usually delete the frame
+leverage the power of	usually delete the frame
 unwavering	use a concrete detail
 commendable	say what is good about it
 noteworthy	say what is notable
-journey	keep literal journeys; otherwise "process", "time"
+embark on a journey	"start"
+your journey	keep literal journeys; otherwise "process", "time"
+the journey of	keep literal journeys; otherwise "process", "time"

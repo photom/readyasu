@@ -3,16 +3,25 @@ unlock*	say what becomes possible; keep literal unlocking
 supercharg*	say what got faster or larger
 turbocharg*	say what got faster or larger
 unleash*	delete the frame
-harness*	"use"; keep a test harness
+harness the	"use"; keep a test harness
+harnessing the	"using"
+harnesses the	"uses"
 weav*	"combines"
-fuel*	say what it makes possible
+fuels	say what it makes possible
+fueled	say what it made possible
+fuelled	say what it made possible
+fueling	say what it makes possible
+fuelling	say what it makes possible
 tam* your	"reduce", "sort", "control"
 skyrocket*	"rose sharply" with the number if given
 bridg* the gap	say what connects to what
 pav* the way	say what becomes possible
 spearhead*	"led"
 catapult*	say what changed
-ignit*	say what started
+ignite	say what starts
+ignites	say what starts
+ignited	say what started
+igniting	say what starts
 revolutioniz*	state the change
 reimagin*	say what changed
 redefin*	say what changed

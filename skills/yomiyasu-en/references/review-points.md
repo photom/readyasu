@@ -26,7 +26,7 @@ Each item is tagged with its kind. Counted kinds make `--fail-on meaning-risk` f
 
 | Kind | What it means | What to do |
 |---|---|---|
-| number | A number was removed, added or changed (digits and number words). The whole-text line catches numbers in deleted or split sentences | Restore, unless it is a fill or correction from a source (fact-recovery.md), or an absolute date you added after a relative one |
+| number | A number was removed, added or changed: digits, number words, quarters and versions (Q3, v2), currency and magnitudes ($1.5M, 5k), percentages. The whole-text line catches numbers in deleted or split sentences | Restore, unless it is a fill or correction from a source (fact-recovery.md), or an absolute date you added after a relative one |
 | approximation | about, up to, at least, more than... on the same number changed | Restore the original approximation |
 | negation | The number of negations (not, no, never, n't, without, unless...) changed in the paired sentences | Read both. Removing "not only" or turning "not X but Y" into "Y" also changes the count; that is fine only when the rephrase test passes |
 | certainty | A hedge (may, might, could, likely, appears to, planned...) disappeared or was replaced by a stronger one | Restore the hedge at the same strength |
@@ -37,14 +37,14 @@ Each item is tagged with its kind. Counted kinds make `--fail-on meaning-risk` f
 | hearsay | reportedly, according to, said that... appeared or disappeared | Restore; hearsay is not assertion |
 | question | A question became a statement or the reverse | Restore the sentence type |
 | request | please, could you... disappeared | Restore the request form; a bare imperative changes politeness |
-| scope | A limiting word (only, solely) disappeared, or either/or ↔ both/all, or some → all | Restore the scope |
+| scope | A limiting word (only, solely) disappeared; either/or ↔ both/all; or a quantifier (some, most, many, often) disappeared or became all/every | Restore the scope |
 | correlation | A cause word was added to a sentence that stated only a correlation | Restore the correlation wording |
 | commitment | we will, we guarantee, will never happen again... was added | Remove it unless the request or material states the commitment |
 | citation | A citation ([1], (Smith, 2020)) changed | Restore; which source supports which claim must not move |
 | name_order | The same names appear in a different order | Check who does what to whom; restore if the roles swapped |
 | material_number | (compose) A number in the final draft is not in the material | Remove it or use the material's value |
 | contrast_reversed [not counted] | A word the original denied ("not X", "rather than X") now appears with focus, priority, first, both, and... | If X moved to the affirmative side, the claim flipped; restore the negation (rephrase-test.md section 3). A rewrite such as "First, reduce X" can also appear; read which side X is on |
-| protected [not counted] | Inline code, URLs, e-mail addresses, code blocks or quotations changed | Restore them exactly |
+| protected [not counted] | Inline code, URLs, e-mail addresses or code blocks changed | Restore them exactly |
 
 Some forms are not caught. Compare sentences without findings against your note too.
 
@@ -61,6 +61,7 @@ Some forms are not caught. Compare sentences without findings against your note 
 | booster | Certainty word added (in doc types where it is not counted). Remove guarantees the original lacks |
 | voice | Active/passive changed with the same names. Check who acts |
 | quote | Text in quotation marks changed or disappeared. Restore dialogue, quoted words and labels |
+| quote_changed | Text inside a block quotation (`>`) changed. Block quotations are compared sentence by sentence like the body, so their meaning risks are counted too. Restore quotations; callouts such as `> **Note:**` or `> [!WARNING]` are the writer's own text and may be revised |
 | feeling_added | A feeling word appeared that the original lacks. Do not add feelings, even in essays |
 | connection | A rewritten sentence starts with a connective or "this/it". Say what it connects to; fix or ask |
 | actor_added | A role (team, manager, we, you...) or a name appeared that is in neither the original nor the material. Remove invented actors, owners and recipients |
@@ -87,6 +88,10 @@ Shown when material was passed (`--material`, or material sections on standard i
 ### == Fact gaps ==
 
 With `--fact-gaps`: sentences of the final draft that give only a metaphor (figure), an effect (effect), a degree word (degree) or a change without values (change). The list is partial and not counted. Sentences with a number, a hedge or plan word, a vague quantity or a closing resolution are never listed. Fill only when a source has the content (fact-recovery.md); otherwise ask under "Fact check" or leave it. Not shown for essay and promo.
+
+### Attempts
+
+The first line counts attempts and revisions. Rerunning on an unchanged final draft (for example when verify did not match) is not a revision. A run continues the previous one only when the original is the same, the working folder is the same, and the previous run was less than two hours ago; otherwise a new run starts at attempt 1.
 
 ### == Lint findings on the final draft ==
 

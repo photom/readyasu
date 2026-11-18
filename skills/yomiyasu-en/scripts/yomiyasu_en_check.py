@@ -42,6 +42,7 @@ LINT = SCRIPTS / "yomiyasu_en_lint.py"
 DIFF = SCRIPTS / "yomiyasu_en_diff.py"
 MARKER = re.compile(r"^<<<yomiyasu-en:(original|final|material)(?:[ \t]+([^>\n]{1,200}))?>>>[ \t]*$")
 MARKER_ANY = re.compile(r"^<<<yomiyasu-en:")
+RUN_WINDOW_SECONDS = 2 * 60 * 60  # a run continues only within this time and the same working folder
 RUN_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 WINDOWS_NAMES = {"con", "prn", "aux", "nul"} | {f"com{i}" for i in range(1, 10)} | {f"lpt{i}" for i in range(1, 10)}
 KEPT_WORD_RULES = ("project_term", "ai_vocabulary", "metaphor_verb", "jargon")
@@ -216,6 +217,9 @@ def cmd_run(args: argparse.Namespace) -> int:
                 raise Usage("With --stdin, pass the texts on standard input, not --final or --source.")
             original, stdin_materials, final = parse_stdin(tx.read_text("-"))
             materials.extend(stdin_materials)
+            if original is None and not stdin_materials and not args.material:
+                raise Usage("Standard input needs a <<<yomiyasu-en:original>>> section (revising) or a "
+                            "<<<yomiyasu-en:material>>> section (composing) before the final draft.")
             final_label = "-"
             source_label = "-" if original is not None else None
         else:
@@ -324,6 +328,8 @@ def cmd_run(args: argparse.Namespace) -> int:
     status = "partial" if problems else ("unrecorded" if args.no_record else "executed")
     run_id = ""
     attempt = 0
+    revisions = 0
+    same_as_previous = False
     record_path: Optional[Path] = None
     folder = state_dir(args.state_dir)
     if not problems and not args.no_record:
@@ -334,20 +340,35 @@ def cmd_run(args: argparse.Namespace) -> int:
                 key = source_hash
             by_source = folder / "index" / "by-source" / f"{key}.json"
             previous = read_json(by_source) or {}
+            cwd = str(Path.cwd().resolve())
+            fresh = False
+            try:
+                age = now_utc().timestamp() - float(previous.get("updated_ts", 0))
+            except (TypeError, ValueError):
+                age = RUN_WINDOW_SECONDS + 1
             if args.run_id:
                 run_id = args.run_id
-            elif args.new_run or not previous.get("run"):
+                fresh = previous.get("run") != run_id
+            elif args.new_run or not previous.get("run") or age > RUN_WINDOW_SECONDS or previous.get("cwd") != cwd:
                 run_id = new_run_id()
+                fresh = True
             else:
                 run_id = str(previous["run"])
+            if fresh:
+                previous = {}
             run_dir = folder / "runs" / run_id
             existing = [int(m.group(1)) for p in run_dir.glob("attempt-*.json")
                         if (m := re.match(r"attempt-(\d+)\.json$", p.name))] if run_dir.is_dir() else []
             attempt = (max(existing) + 1) if existing else 1
+            same_as_previous = attempt > 1 and previous.get("last_final") == final_hash
+            revisions = int(previous.get("revisions", 0) or 0)
+            if attempt > 1 and not same_as_previous:
+                revisions += 1
             record_path = run_dir / f"attempt-{attempt}.json"
             record = {
                 "format": 1, "tool": TOOL, "version": __version__, "status": "executed",
-                "run": run_id, "attempt": attempt, "created": now_utc().isoformat(timespec="seconds"),
+                "run": run_id, "attempt": attempt, "revisions": revisions, "same_as_previous": same_as_previous,
+                "created": now_utc().isoformat(timespec="seconds"),
                 "mode": mode, "checks": checks, "final_sha256": final_hash, "source_sha256": source_hash or None,
                 "material_sha256": material_hashes, "adopted_material_as_original": adopted or None,
                 "final_path": None if final_label == "-" else str(Path(final_label).resolve()),
@@ -364,7 +385,8 @@ def cmd_run(args: argparse.Namespace) -> int:
             write_json(record_path, record)
             if diff is not None:
                 record_path.with_suffix(".diff.txt").write_text(str(diff.get("full_diff", "")) + "\n", encoding="utf-8")
-            write_json(by_source, {"run": run_id, "attempts": attempt})
+            write_json(by_source, {"run": run_id, "attempts": attempt, "revisions": revisions, "last_final": final_hash,
+                                   "cwd": cwd, "updated_ts": now_utc().timestamp()})
             write_json(folder / "index" / "by-final" / f"{final_hash}.json",
                        {"run": run_id, "attempt": attempt, "record": str(record_path.relative_to(folder))})
             write_json(folder / "state.json", {"last_run": run_id, "last_attempt": attempt,
@@ -386,7 +408,7 @@ def cmd_run(args: argparse.Namespace) -> int:
                         ("warn" in fail_on and (lint_counts.get("warn") or lint_counts.get("error")))):
         hit = True
 
-    first = first_line(status, attempt, args, problems, folder)
+    first = first_line(status, attempt, revisions, same_as_previous, args, problems, folder)
     if args.json:
         out = {"format": 1, "tool": TOOL, "version": __version__, "status": status, "first_line": first,
                "status_line": status_line, "run": run_id or None, "attempt": attempt or None,
@@ -403,7 +425,8 @@ def cmd_run(args: argparse.Namespace) -> int:
     return 1 if hit else 0
 
 
-def first_line(status: str, attempt: int, args: argparse.Namespace, problems: list[str], folder: Path) -> str:
+def first_line(status: str, attempt: int, revisions: int, same_as_previous: bool, args: argparse.Namespace,
+               problems: list[str], folder: Path) -> str:
     if problems:
         return ("Some checks did not finish: " + "; ".join(problems) + ". Report them under \"Checks not run\" "
                 "with the reason check_error.")
@@ -417,10 +440,13 @@ def first_line(status: str, attempt: int, args: argparse.Namespace, problems: li
         return ("Ran the checks (attempt 1). Check the findings below against the original and material. Revise at "
                 "most once: if you revise, run the same command again; if not, right before submitting and without "
                 f"changing the body, {verify} once.")
-    if attempt == 2:
-        return ("Ran the checks (attempt 2). That was your one revision: do not change the body again. Right before "
-                f"submitting, {verify} once.")
-    return (f"Ran the checks (attempt {attempt}). This exceeds the one-revision rule. Proceed only if this revision "
+    if same_as_previous:
+        return (f"Ran the checks again on an unchanged final draft (attempt {attempt}, revisions so far: {revisions}). "
+                f"Do not change the body. Right before submitting, {verify} once.")
+    if revisions <= 1:
+        return (f"Ran the checks (attempt {attempt}). That was your one revision: do not change the body again. Right "
+                f"before submitting, {verify} once.")
+    return (f"Ran the checks (attempt {attempt}, revision {revisions}). This exceeds the one-revision rule. Proceed only if this revision "
             "only reverted fills without a source (references/fact-recovery.md section 2, step 7), and say so in the "
             f"report. Right before submitting, {verify} once.")
 

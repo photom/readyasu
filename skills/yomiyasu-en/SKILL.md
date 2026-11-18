@@ -131,7 +131,7 @@ Follow the first line of the output.
 - Revise once only, and after revising, run the Step 3 command again. Do not change the body after that.
 
 ### Step 5: Match before submitting
-Check that every info finding left in the final draft's lint has a reason to stay. If the run or verify output lists "Flagged words kept", reread those sentences with the Step 2 questions and either ask under "Questions for the writer" or give the reason under "AI-like wording kept" (a reason alone is enough only for established usage and literal meaning). If you changed anything, run again. When the request is to update the original file, copy the final draft to the original's location as it is. Right before submitting, without changing the body, check once that the final draft is the one that was checked. If you change even one character after verify, run and verify again before submitting.
+Check that every info finding left in the final draft's lint has a reason to stay. If the output of the last run lists "Flagged words kept", reread those sentences with the Step 2 questions and either ask under "Questions for the writer" or give the reason under "AI-like wording kept" (a reason alone is enough only for established usage and literal meaning). If you changed anything, run again. When the request is to update the original file, copy the final draft to the original's location as it is. Right before submitting, without changing the body, check once that the final draft is the one that was checked. If you change even one character after verify, run and verify again before submitting.
 
 ```bash
 python3 ${CLAUDE_SKILL_DIR}/scripts/yomiyasu_en_check.py verify --final file-to-submit.md

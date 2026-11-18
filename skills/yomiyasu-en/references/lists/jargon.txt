@@ -3,7 +3,11 @@ circle back	"follow up", with when and about what
 touch base	"talk", "check in"
 move the needle	say what changes
 low-hanging fruit	"easy fixes", name them if given
-bandwidth	"time", "capacity" (keep network bandwidth)
+the bandwidth to	"the time to", "the capacity to"
+no bandwidth	"no time", "no capacity"
+my bandwidth	"my time", "my capacity"
+our bandwidth	"our time", "our capacity"
+more bandwidth	"more time", "more capacity" (keep network bandwidth)
 drive alignment	name who agrees on what
 north star	name the goal
 double-click on	"look at in detail"

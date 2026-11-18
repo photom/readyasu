@@ -117,3 +117,45 @@ def test_cli(tmp_path, capsys) -> None:  # noqa: ANN001
     assert diff.main(["--compose", str(b), "--no-words"]) == 2
     out = capsys.readouterr().out
     assert "Stiffness check:" in out and "Energy check:" in out
+
+
+def test_number_change_counted_once() -> None:
+    result = diff.compare("Wait 3 seconds.\n", "Wait 5 seconds.\n")
+    assert result.counted == 1
+
+
+@pytest.mark.parametrize(("orig", "rev"), [
+    ("Once the build finishes, deploy.\n", "After the build finishes, deploy.\n"),
+    ("First, open settings. Then click Save.\n", "Open settings and click Save.\n"),
+    ("Wait a second.\n", "Pause briefly.\n"),
+    ("Write to the target directory.\n", "Write to the output directory.\n"),
+    ("No one replied.\n", "Nobody replied.\n"),
+])
+def test_benign_word_changes_not_counted(orig: str, rev: str) -> None:
+    assert kinds(orig, rev) == []
+
+
+@pytest.mark.parametrize(("orig", "rev", "kind"), [
+    ("Most users prefer X.\n", "Users prefer X.\n", "scope"),
+    ("This applies for some customers.\n", "This applies for customers.\n", "scope"),
+    ("Ship in Q3.\n", "Ship in Q4.\n", "number"),
+    ("Use v2 of the API.\n", "Use v3 of the API.\n", "number"),
+    ("Budget is 5k.\n", "Budget is 5M.\n", "number"),
+    ("We raised $1.5M.\n", "We raised $1.5B.\n", "number"),
+    ("Alice approved Bob's request.\n", "Bob approved Alice's request.\n", "name_order"),
+    ("> **Warning:** Do not delete the bucket before 5 pm.\n", "> **Warning:** Delete the bucket after 6 pm.\n",
+     "negation"),
+])
+def test_more_meaning_risks(orig: str, rev: str, kind: str) -> None:
+    assert kind in kinds(orig, rev)
+
+
+def test_actor_false_positives() -> None:
+    got = review_kinds("The user can sign in.\n", "Users can sign in, i.e. log in.\n")
+    assert "actor_added" not in got
+    assert "actor_added" in review_kinds("The report is ready.\n", "I think the report is ready.\n")
+
+
+def test_changed_places_shows_line_counts() -> None:
+    out = diff.format_text(diff.compare("A one.\nB two.\n", "A one. B two.\n"))
+    assert "(2 lines → 1 lines)" in out.split("== Meaning risks")[0]

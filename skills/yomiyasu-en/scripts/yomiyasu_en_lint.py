@@ -170,16 +170,20 @@ _HEDGE_STACK = re.compile(
     r"|\bmight\s+(?:likely|probably)\b",
     re.IGNORECASE)
 
+_NEG_BE = (r"(?:['’]s\s+not|\s+is\s+not|\s+was\s+not|\s+are\s+not|\s+were\s+not|['’]re\s+not|"
+           r"\s+isn['’]t|\s+aren['’]t|\s+wasn['’]t|\s+weren['’]t)")
 _NEG_CONTRAST = (
     re.compile(
-        r"\b(?:it|this|that|these|they|which|he|she)(?:['’]s|\s+is|\s+was|\s+are|\s+were|['’]re)\s+not\s+"
+        r"\b(?:it|this|that|these|they|which|he|she)" + _NEG_BE + r"\s+"
         r"(?:just\s+|only\s+|merely\s+|simply\s+|about\s+)?[^.;:!?\n]{1,80}?[,;—–]\s*"
         r"(?:it|this|that|they|he|she)(?:['’]s|\s+is|\s+was|\s+are|\s+were|['’]re)\b", re.IGNORECASE),
     re.compile(
-        r"(?:^|(?<=[.!?]\s))(?:It|This|That|They|The\s+\w+(?:\s+\w+)?|What\s+\w+\s+\w+)\s+"
+        r"(?:^|(?<=[.!?]\s))(?:It|This|That|They|We|I|You|The\s+\w+(?:\s+\w+)?|What\s+\w+\s+\w+)\s+"
         r"(?:isn['’]t|is\s+not|wasn['’]t|was\s+not|aren['’]t|are\s+not|weren['’]t|doesn['’]t|don['’]t|didn['’]t)\b"
         r"[^.!?\n]{0,80}\.\s+(?:It|This|That|They|We|You)(?:['’]s|\s+is|\s+was|\s+are|\s+were|['’]re|\s+needed|\s+need)\b"),
     re.compile(r"\bnot\s+(?:just|only|merely|simply)\b[^.;!?\n]{1,60}?,?\s*\bbut\s+(?:also\s+)?", re.IGNORECASE),
+    re.compile(r"\b(?:doesn['’]t|don['’]t|didn['’]t|does\s+not|do\s+not|isn['’]t|aren['’]t)\s+(?:just|only|merely|simply)\s+"
+               r"[^.;:!?\n]{1,60}?[,;—–]\s*(?:it|they|this|we|he|she)\b", re.IGNORECASE),
     re.compile(r"\b(?:isn['’]t|is\s+not)\s+(?:just\s+|really\s+)?about\b[^.;!?\n]{1,60}?[.;,—–]\s*"
                r"(?:it['’]s|it\s+is)\s+about\b", re.IGNORECASE),
 )
@@ -290,9 +294,13 @@ def lint(text: str, doc_type: Optional[str] = None, reader: Optional[str] = None
     lists = [(rule, tx.load_list(name), courtesy) for rule, name, courtesy in LIST_RULES]
 
     for bi, block in enumerate(doc.blocks):
+        if block.kind == "quote":
+            continue  # quotations are not revised; callouts are checked like paragraphs
         masked, starts = block.joined(True)
         if not masked.strip():
             continue
+        plain, _ = block.joined(False)
+        bold_view = tx.mask(plain, "x")
 
         def add(rule: str, start: int, end: int, message: str, courtesy: bool = False,
                 _starts: list[tuple[int, int]] = starts, _masked: str = masked, _bi: int = bi) -> None:
@@ -349,7 +357,7 @@ def lint(text: str, doc_type: Optional[str] = None, reader: Optional[str] = None
                     f"Emoji ({m.group(0)}). Remove it if it is decoration; keep it if it carries meaning.")
 
         # bold rendering
-        for offset, snippet, reason in bold_problems(masked):
+        for offset, snippet, reason in bold_problems(bold_view):
             add("bold_unrendered", offset, offset + 2,
                 f'This bold markup will not render ("{snippet}"): {reason}.')
 
@@ -361,7 +369,7 @@ def lint(text: str, doc_type: Optional[str] = None, reader: Optional[str] = None
             continue
 
         # sentences in this block
-        if block.kind in ("para", "list"):
+        if block.kind in ("para", "list", "callout"):
             spans = tx.split_sentences(masked)
             for s, e in spans:
                 sent = masked[s:e].rstrip()
@@ -376,7 +384,7 @@ def lint(text: str, doc_type: Optional[str] = None, reader: Optional[str] = None
                 if sent.endswith("?") and word_count(sent) <= 6 and _SELF_Q.match(sent) and not nxt.endswith("?"):
                     add("self_answered_question", s, e,
                         f'Self-answered question "{sent}". Fold it into a statement unless the document type keeps it.')
-            if block.kind == "para":
+            if block.kind in ("para", "callout"):
                 _fragment_runs(doc, masked, spans, starts, bi, found)
 
     _block_rules(doc, found)
@@ -552,12 +560,16 @@ def _dedupe(found: list[Finding]) -> list[Finding]:
             continue
         seen.add(key)
         unique.append(f)
+    by_block: dict[int, list[Finding]] = {}
+    for f in unique:
+        if f.end and f.block >= 0:
+            by_block.setdefault(f.block, []).append(f)
     result: list[Finding] = []
     for f in unique:
         if f.end and f.block >= 0:
             covered = False
-            for g in unique:
-                if g is f or g.block != f.block or not g.end:
+            for g in by_block.get(f.block, []):
+                if g is f:
                     continue
                 if g.start <= f.start and f.end <= g.end and (g.end - g.start) > (f.end - f.start):
                     if g.rule == f.rule or (SEVERITY_ORDER[g.severity] < SEVERITY_ORDER[f.severity]):

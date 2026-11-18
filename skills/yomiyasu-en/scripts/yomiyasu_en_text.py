@@ -74,8 +74,13 @@ def normalize_newlines(text: str) -> str:
     return text.replace("\r\n", "\n").replace("\r", "\n")
 
 
+def canonical(text: str) -> str:
+    """The form that is hashed: newlines normalized, leading and trailing blank lines removed, one final newline."""
+    return normalize_newlines(text).strip("\n") + "\n"
+
+
 def sha256_text(text: str) -> str:
-    return hashlib.sha256(normalize_newlines(text).encode("utf-8")).hexdigest()
+    return hashlib.sha256(canonical(text).encode("utf-8")).hexdigest()
 
 
 # ---------------------------------------------------------------- masking
@@ -111,21 +116,24 @@ def protected_spans(text: str) -> list[tuple[int, int, str]]:
     return spans
 
 
-def mask(text: str) -> str:
-    """Replace protected spans with spaces, keeping offsets."""
+def mask(text: str, fill: str = " ") -> str:
+    """Replace protected spans with fill characters (spaces by default), keeping offsets."""
     if "`" not in text and "://" not in text and "www." not in text and "@" not in text \
             and "](" not in text and "<" not in text:
         return text
     chars = list(text)
     for start, end, _kind in protected_spans(text):
         for i in range(start, end):
-            chars[i] = " "
+            chars[i] = fill
     return "".join(chars)
 
 
 # ---------------------------------------------------------------- markdown
 
-_FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
+_FENCE = re.compile(r"^( {0,3})(`{3,}|~{3,})(.*)$")
+_LIST_FENCE = re.compile(r"^([ \t]{0,12})(`{3,}|~{3,})(.*)$")
+_CALLOUT = re.compile(r"^\s*(?:\[![A-Za-z]+\]|(?:\*\*|__)?(?:note|warning|tip|important|caution|info|danger|attention)"
+                      r"\b[^\n]{0,3}?(?::|(?:\*\*|__)))", re.IGNORECASE)
 _HEADING = re.compile(r"^ {0,3}(#{1,6})(?:[ \t]+(.*?))?[ \t]*#*[ \t]*$")
 _LIST = re.compile(r"^(\s*)([-*+]|\d{1,9}[.)])(?:[ \t]+(?:\[[ xX]\][ \t]+)?|$)")
 _QUOTE = re.compile(r"^ {0,3}>")
@@ -147,7 +155,7 @@ class Line:
 
 @dataclass
 class Block:
-    kind: str  # para heading list table
+    kind: str  # para heading list table quote callout
     lines: list[Line] = field(default_factory=list)
 
     @property
@@ -160,8 +168,10 @@ class Block:
         starts: list[tuple[int, int]] = []
         pos = 0
         for line in self.lines:
-            text = line.masked if masked else line.content
-            text = text.strip()
+            content = line.content
+            left = len(content) - len(content.lstrip())
+            right = len(content.rstrip())
+            text = (line.masked if masked else content)[left:right]
             starts.append((pos, line.no))
             parts.append(text)
             pos += len(text) + 1
@@ -202,9 +212,9 @@ def classify(text: str) -> list[Line]:
             continue
         if in_fence is not None:
             lines.append(Line(no, raw, "code"))
-            m = _FENCE.match(raw)
-            if m and m.group(1)[0] == in_fence[0] and len(m.group(1)) >= len(in_fence) \
-                    and not m.group(2).strip():
+            m = _LIST_FENCE.match(raw)
+            if m and m.group(2)[0] == in_fence[0] and len(m.group(2)) >= len(in_fence) \
+                    and not m.group(3).strip():
                 lines[-1].kind = "fence"
                 in_fence = None
             continue
@@ -213,9 +223,9 @@ def classify(text: str) -> list[Line]:
             if "-->" in raw:
                 in_html_comment = False
             continue
-        m = _FENCE.match(raw)
-        if m:
-            in_fence = m.group(1)
+        m = _FENCE.match(raw) or (_LIST_FENCE.match(raw) if in_list else None)
+        if m and not ("`" in m.group(3) and m.group(2)[0] == "`"):
+            in_fence = m.group(2)
             lines.append(Line(no, raw, "fence"))
             prev_kind = "code"
             continue
@@ -252,7 +262,8 @@ def classify(text: str) -> list[Line]:
             in_list = False
             continue
         if _QUOTE.match(raw):
-            lines.append(Line(no, raw, "quote", re.sub(r"^\s*(>\s?)+", "", raw)))
+            content = re.sub(r"^\s*(>\s?)+", "", raw)
+            lines.append(Line(no, raw, "quote", content, len(raw) - len(content)))
             prev_kind = "quote"
             continue
         if stripped.startswith("|") or (prev_kind == "table" and "|" in stripped) or \
@@ -290,7 +301,7 @@ def classify(text: str) -> list[Line]:
 
 
 def blocks(lines: list[Line]) -> list[Block]:
-    """Group lines into paragraph, heading, list-item and table-row blocks."""
+    """Group lines into paragraph, heading, list-item, table-row, quote and callout blocks."""
     result: list[Block] = []
     current: Optional[Block] = None
     for line in lines:
@@ -304,6 +315,16 @@ def blocks(lines: list[Line]) -> list[Block]:
             continue
         if line.kind == "list":
             current = Block("list", [line])
+            result.append(current)
+            continue
+        if line.kind == "quote":
+            if current is not None and current.kind in ("quote", "callout") and line.content.strip():
+                current.lines.append(line)
+                continue
+            if not line.content.strip():
+                current = None
+                continue
+            current = Block("callout" if _CALLOUT.match(line.content) else "quote", [line])
             result.append(current)
             continue
         if line.kind == "heading":
@@ -573,7 +594,8 @@ _EMOJI_RANGES = (
     (0x1F000, 0x1FAFF), (0x2600, 0x27BF), (0x2B00, 0x2BFF), (0x231A, 0x231B),
     (0x23E9, 0x23FA), (0x2190, 0x21FF), (0x1F1E6, 0x1F1FF),
 )
-_EMOJI_EXCLUDE = {0x2190, 0x2191, 0x2192, 0x2193, 0x2194, 0x21D2, 0x21D4, 0x2022}
+# Symbols common in ordinary documents: arrows, bullets, check marks, ballot boxes and stars.
+_EMOJI_EXCLUDE = {0x2022, 0x2605, 0x2606, 0x2610, 0x2611, 0x2612, 0x2713, 0x2717}
 
 
 def is_emoji(ch: str) -> bool:

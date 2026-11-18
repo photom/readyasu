@@ -53,7 +53,7 @@ HELP_EPILOG = """Meaning risks counted by --fail-on meaning-risk:
   citation          a citation ([1], (Smith, 2020)) changed
   name_order        the same names appear in a different order (check who does what)
   material_number   (compose mode) a number in the final draft is not in the material
-Reported but not counted: changes to code, URLs and quotations; a denied word moved to the
+Reported but not counted: changes to inline code, code blocks, URLs and e-mail addresses; a denied word moved to the
 affirmative side; certainty weakened; causal links added; added feelings and actors.
 
 Exit codes:
@@ -69,14 +69,15 @@ def _rx(pattern: str) -> re.Pattern[str]:
     return re.compile(pattern, re.IGNORECASE)
 
 
-NUMBER = re.compile(r"(?<![\w.])\d+(?:,\d{3})*(?:[.:]\d+)*(?![\w])|(?<![\w.])\d+(?:,\d{3})*(?:[.:]\d+)*(?=%|st\b|nd\b|rd\b|th\b|[a-zA-Z]{1,3}\b)")
+NUMBER = re.compile(r"(?<![\w.$€£¥#])(?P<prefix>[$€£¥#]|[QqVv](?=\d))?(?P<num>\d+(?:,\d{3})*(?:[.:]\d+)*)"
+                    r"(?P<suffix>%|[kKmMbB](?![A-Za-z])|(?:st|nd|rd|th)\b)?")
 NUMBER_WORDS = {
     "zero": "0", "one": "1", "two": "2", "three": "3", "four": "4", "five": "5", "six": "6", "seven": "7",
     "eight": "8", "nine": "9", "ten": "10", "eleven": "11", "twelve": "12", "thirteen": "13", "fourteen": "14",
     "fifteen": "15", "sixteen": "16", "seventeen": "17", "eighteen": "18", "nineteen": "19", "twenty": "20",
     "thirty": "30", "forty": "40", "fifty": "50", "sixty": "60", "seventy": "70", "eighty": "80", "ninety": "90",
     "hundred": "100", "thousand": "1000", "million": "1000000", "billion": "1000000000", "dozen": "12",
-    "half": "0.5", "once": "1x", "twice": "2x", "thrice": "3x", "first": "1st", "second": "2nd", "third": "3rd",
+    "half": "0.5", "twice": "2x", "thrice": "3x",
 }
 NUMBER_WORD = re.compile(r"\b(" + "|".join(NUMBER_WORDS) + r")\b", re.IGNORECASE)
 NEGATION = _rx(r"\b(?:not|no|never|none|nothing|nobody|nowhere|neither|nor|without|cannot|unless)\b|n['’]t\b")
@@ -87,7 +88,7 @@ CERTAINTY = (
             r"|\b(?:is|are)\s+expected\s+to\b|\bsuggests?\b|\bwe\s+(?:believe|think|suspect|estimate)\b"
             r"|\bi\s+(?:believe|think|suspect|guess)\b|\bestimated\b")),
     (3, _rx(r"\bplan(?:s|ned)?\s+to\b|\bplanned\b|\bscheduled\b|\bintend(?:s|ed)?\s+to\b|\baim(?:s|ed)?\s+to\b"
-            r"|\bgoing\s+to\b|\btarget(?:s|ed)?\b")),
+            r"|\bgoing\s+to\b|\btarget(?:s|ed)?\s+(?:to|for)\b|\bby\s+the\s+target\s+date\b")),
 )
 BOOSTER = _rx(r"\b(?:always|certainly|definitely|guaranteed?|surely|undoubtedly|invariably|reliably)\b"
               r"|\bwithout\s+(?:fail|exception|a\s+doubt)\b|\bensures?\b|\b100\s?%")
@@ -232,32 +233,39 @@ class DiffResult:
 # ---------------------------------------------------------------- extraction
 
 
+def number_key(m: re.Match[str]) -> str:
+    """Normalized number token: prefix (Q, v, currency) + digits without thousands separators + magnitude or %."""
+    prefix = (m.group("prefix") or "").lower()
+    suffix = (m.group("suffix") or "").lower()
+    if suffix in ("st", "nd", "rd", "th"):
+        suffix = ""
+    return prefix + m.group("num").replace(",", "") + suffix
+
+
 def numbers(text: str) -> Counter[str]:
     c: Counter[str] = Counter()
     for m in NUMBER.finditer(text):
-        c[m.group(0).replace(",", "")] += 1
+        c[number_key(m)] += 1
     for m in NUMBER_WORD.finditer(text):
         word = m.group(1).lower()
-        if word in ("one", "second", "first") and _ordinary_word_use(text, m):
+        if word == "one" and _ordinary_word_use(text, m):
             continue
         c[NUMBER_WORDS[word]] += 1
     return c
 
 
 def _ordinary_word_use(text: str, m: re.Match[str]) -> bool:
-    """Skip 'one' as a pronoun ('the one', 'one of') and 'second'/'first' as plain words."""
+    """Skip 'one' as a pronoun ('the one', 'one of', 'no one')."""
     before = text[max(0, m.start() - 12):m.start()].lower()
     after = text[m.end():m.end() + 6].lower()
-    word = m.group(1).lower()
-    if word == "one":
-        return bool(re.search(r"(?:the|this|that|which|every|any|no|some|each)\s+$", before)) or after.startswith(" of")
-    return False
+    return bool(re.search(r"(?:the|this|that|which|every|any|no|some|each)\s+$", before)) or after.startswith(" of") \
+        or after.startswith(" another")
 
 
 def approx_map(text: str) -> dict[str, set[str]]:
     result: dict[str, set[str]] = {}
     for m in NUMBER.finditer(text):
-        key = m.group(0).replace(",", "")
+        key = number_key(m)
         before = APPROX_BEFORE.search(text[max(0, m.start() - 20):m.start()])
         after = APPROX_AFTER.search(text[m.end():m.end() + 10])
         marks = result.setdefault(key, set())
@@ -300,7 +308,8 @@ def names(sentence: str, include_initial: bool = False) -> list[str]:
     found: list[str] = []
     for i, m in enumerate(tokens):
         word = m.group(0)
-        if (i == 0 and not include_initial) or not word[0].isupper() or word in NAME_STOP:
+        word = re.sub(r"['’]s?$", "", word)
+        if (i == 0 and not include_initial) or not word or not word[0].isupper() or word in NAME_STOP:
             continue
         found.append(word)
     return found
@@ -333,8 +342,6 @@ def protected_items(doc: tx.Document) -> Counter[str]:
         if fence:
             items["code block: " + "\n".join(fence).strip()] += 1
             fence = []
-        if line.kind == "quote":
-            items["quotation: " + line.content.strip()] += 1
         if line.kind in ("para", "list", "heading", "table"):
             for s, e, kind in tx.protected_spans(line.content):
                 if kind == "html":
@@ -528,8 +535,11 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
             (ALL_SCOPE.search(o) and not ALL_SCOPE.search(r) and CHOICE.search(r) and not CHOICE.search(o)):
         risk("scope", True, f'Choice scope changed: "{first(CHOICE, o) or first(ALL_SCOPE, o)}" → '
              f'"{first(CHOICE, r) or first(ALL_SCOPE, r)}"')
-    elif PARTIAL.search(o) and not PARTIAL.search(r) and count(TOTAL, r) > count(TOTAL, o):
-        risk("scope", True, f'Quantifier scope changed: "{first(PARTIAL, o)}" → "{first(TOTAL, r)}"')
+    elif PARTIAL.search(o) and not PARTIAL.search(r):
+        if count(TOTAL, r) > count(TOTAL, o):
+            risk("scope", True, f'Quantifier scope changed: "{first(PARTIAL, o)}" → "{first(TOTAL, r)}"')
+        else:
+            risk("scope", True, f'Quantifier "{first(PARTIAL, o)}" disappeared; the sentence may now cover everything')
 
     ca_o, ca_r = count(CAUSAL, o), count(CAUSAL, r)
     if ca_r > ca_o:
@@ -582,6 +592,10 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
         if word not in feelings_o and word not in _list_hits("feelings", orig_all):
             review("feeling_added", f'Feeling word added: "{word}". Do not add feelings the original does not state.')
 
+    if any(s.kind == "quote" for s in ch.orig + ch.rev):
+        review("quote_changed", "Text inside a block quotation changed. Restore it unless it is the writer's own note "
+               "rather than a quotation.")
+
     for s in ch.rev:
         start = s.masked.strip().lstrip("\"'“‘(*_")
         cm = CONNECTIVE.match(start)
@@ -613,9 +627,18 @@ def added_actors(orig: tx.Document, rev: tx.Document, materials: str, chunks: li
     seen: set[str] = set()
     for ch in chunks:
         for s in ch.rev:
-            for role in _list_hits("roles", s.masked):
-                if role in seen or re.search(r"(?<![\w-])" + re.escape(role) + r"(?![\w-])", o_low):
+            hits = _list_hits("roles", s.masked)
+            if re.search(r"(?<![\w.])I(?![\w.])", s.masked) and not re.search(r"(?<![\w.])I(?![\w.])", o_all):
+                hits.append("I")
+            for role in hits:
+                if role in seen:
                     continue
+                if role != "I":
+                    low = role.lower()
+                    stem = low[:-1] if low.endswith("s") and len(low) > 3 else low
+                    plural = "s?" if len(stem) > 3 else ""
+                    if re.search(r"(?<![\w-])" + re.escape(stem) + plural + r"(?![\w-])", o_low):
+                        continue
                 seen.add(role)
                 result.append(Review("actor_added", f'"{role}" is not in the original or material. Check that the '
                                      "rewrite did not create an actor, owner or recipient.", s.line, s.text))
@@ -838,12 +861,14 @@ def compare(orig_text: str, rev_text: str, doc_type: Optional[str] = None, reade
 
     # whole-text checks catch sentences that were deleted, added, split or moved
     o_nums, r_nums = numbers(orig_all), numbers(" ".join(s.masked for s in rev.sentences))
-    reported = Counter[str]()
+    reported_o: Counter[str] = Counter()
+    reported_r: Counter[str] = Counter()
     for r in risks:
-        if r.kind == "number":
-            reported.update(numbers(r.original))
-    lost = [n for n in (o_nums - r_nums).elements() if not reported.get(n)]
-    gained = [n for n in (r_nums - o_nums).elements() if not reported.get(n)]
+        if r.kind in ("number", "approximation"):
+            reported_o.update(numbers(r.original))
+            reported_r.update(numbers(r.revised))
+    lost = [n for n in (o_nums - r_nums).elements() if not reported_o.get(n)]
+    gained = [n for n in (r_nums - o_nums).elements() if not reported_r.get(n)]
     if lost or gained:
         risks.append(Risk("number", True, "Number missing from or added to the whole text: "
                           + ("removed " + ", ".join(sorted(lost)) if lost else "")
@@ -866,7 +891,7 @@ def compare(orig_text: str, rev_text: str, doc_type: Optional[str] = None, reade
         risks.append(Risk("protected", False, "Text that must not change is gone or changed: " + tx.display_width_cut(item, 120),
                           0, 0, item, ""))
     for item in sorted((pr_ - po).elements()):
-        risks.append(Risk("protected", False, "New or changed text in code, URLs or quotations: " + tx.display_width_cut(item, 120),
+        risks.append(Risk("protected", False, "New or changed text in code or URLs: " + tx.display_width_cut(item, 120),
                           0, 0, "", item))
 
     reviews.extend(added_actors(orig, rev, materials, chunks))
@@ -959,7 +984,10 @@ def format_sections(result: DiffResult) -> list[str]:
         if not result.changes:
             out.append("- None")
         for c in result.changes[:10]:
-            out.append(f"@ original line {c['orig_line']} → revised line {c['rev_line']}")
+            n_old = len(str(c["original"]).split("\n")) if c["original"] else 0
+            n_new = len(str(c["revised"]).split("\n")) if c["revised"] else 0
+            extra = f" ({n_old} lines → {n_new} lines)" if n_old != n_new else ""
+            out.append(f"@ original line {c['orig_line']} → revised line {c['rev_line']}{extra}")
             out.append(f"  original: {tx.display_width_cut(str(c['original']).replace(chr(10), ' / '), 120)}")
             out.append(f"  revised:  {tx.display_width_cut(str(c['revised']).replace(chr(10), ' / '), 120)}")
         if len(result.changes) > 10:

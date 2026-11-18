@@ -112,3 +112,38 @@ def test_json_output(tmp_path, capsys) -> None:  # noqa: ANN001
     data = json.loads(capsys.readouterr().out)
     assert data["tool"] == "yomiyasu-en-lint" and data["review_findings"] == 1
     assert data["findings"][0]["rule"] == "ai_vocabulary"
+
+
+@pytest.mark.parametrize("text", [
+    "This isn't just a tool, it's a platform.\n",
+    "We didn't need a new tool. We needed a shared way to use the old one.\n",
+    "The tool doesn't just store data, it transforms it.\n",
+])
+def test_negative_contrast_contractions(text: str) -> None:
+    assert "negative_contrast" in rules(text)
+
+
+@pytest.mark.parametrize("text", [
+    "Run **`make test`** before pushing.\n",
+    "Open **[the docs](https://example.com)** first.\n",
+    "The elevator and the elevation are fine. Use an underscore here.\n",
+    "Use the test harness. Check network bandwidth.\n",
+    "Fill the fuel tank. Turn the ignition switch.\n",
+    "Print in landscape orientation. Raise 2 to the power of 8.\n",
+    "Done ✓. Rated ★★★. ☐ Todo.\n",
+    "> We delve into this, as the author wrote.\n",
+])
+def test_more_no_false_positive(text: str) -> None:
+    assert rules(text) == []
+
+
+def test_callout_is_checked() -> None:
+    assert "ai_vocabulary" in rules("> **Note:** We delve into it.\n")
+
+
+def test_large_input_is_fast() -> None:
+    import time
+    text = "In today's fast-paced world, we delve into robust, seamless tools — truly.\n\n" * 1500
+    start = time.monotonic()
+    lint.lint(text)
+    assert time.monotonic() - start < 20

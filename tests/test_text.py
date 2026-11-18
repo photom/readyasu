@@ -32,7 +32,7 @@ def test_classify_fences_headings_lists_quotes() -> None:
     assert kinds == ["heading", "blank", "para", "blank", "fence", "code", "fence", "blank", "list", "quote"]
     texts = [s.text for s in doc.sentences]
     assert "code. More code." not in " ".join(texts)
-    assert "quoted" not in " ".join(texts)
+    assert [s.kind for s in doc.sentences if s.text == "quoted"] == ["quote"]
 
 
 def test_front_matter_is_skipped() -> None:
@@ -84,3 +84,24 @@ def test_read_text_rejects_non_utf8(tmp_path) -> None:  # noqa: ANN001
 def test_emoji_detection() -> None:
     assert tx.emoji_in("Launch 🚀 now ✅") == ["🚀", "✅"]
     assert tx.emoji_in("A → B, © 2026") == []
+
+
+def test_fence_inside_list_item() -> None:
+    text = "1. Install the tool:\n\n    ```bash\n    pip install foo==2.0 — now\n    ```\n\n2. Run it.\n"
+    doc = tx.parse(text)
+    assert [ln.kind for ln in doc.lines][2:5] == ["fence", "code", "fence"]
+    assert all("pip" not in s.text for s in doc.sentences)
+
+
+def test_callout_and_quote_blocks() -> None:
+    doc = tx.parse("> **Warning:** Do not delete it.\n\n> She said hello.\n")
+    assert [b.kind for b in doc.blocks] == ["callout", "quote"]
+
+
+def test_hash_ignores_trailing_newlines() -> None:
+    assert tx.sha256_text("A.\n\n\n") == tx.sha256_text("A.") == tx.sha256_text("A.\r\n")
+
+
+def test_joined_offsets_with_trailing_code() -> None:
+    doc = tx.parse("Run `make test`\nthen deploy.\n")
+    assert doc.sentences[0].text == "Run `make test` then deploy."
