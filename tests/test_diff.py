@@ -242,3 +242,21 @@ def test_pronoun_one_not_a_number() -> None:
 def test_compose_risk_has_no_original_line() -> None:
     out = diff.format_text(diff.compose("Wait 3 seconds.\n", "Wait 5 seconds.\n"))
     assert "original line 0" not in out
+
+
+@pytest.mark.parametrize(("orig", "rev"), [
+    ("One of the servers failed.\n", "Some of the servers failed.\n"),
+    ("Exactly one is allowed.\n", "Several are allowed.\n"),
+    ("At most one can run.\n", "Any number can run.\n"),
+    ("We chose one.\n", "We chose several.\n"),
+    ("Approve one, then wait.\n", "Approve them, then wait.\n"),
+    ("Use the one remaining node.\n", "Use the remaining nodes.\n"),
+])
+def test_one_as_count_is_compared(orig: str, rev: str) -> None:
+    assert "number" in kinds(orig, rev)
+
+
+def test_one_as_pronoun_is_not() -> None:
+    assert kinds("No one replied.\n", "Nobody replied.\n") == []
+    assert kinds("They help one another.\n", "They help each other.\n") == []
+    assert kinds("Pick the one that works.\n", "Pick the option that works.\n") == []

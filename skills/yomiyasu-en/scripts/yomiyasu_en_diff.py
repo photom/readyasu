@@ -273,18 +273,18 @@ def numbers(text: str) -> Counter[str]:
 
 
 def _ordinary_word_use(text: str, m: re.Match[str]) -> bool:
-    """Skip 'one' as a pronoun ('the one', 'one of', 'no one')."""
+    """Skip "one" only where it is clearly a pronoun: "no one", "one another", and "the/old/new ... one"
+    at the end of a phrase or before who/that/which. "One of", "only one", "exactly one" stay numbers."""
     before = text[max(0, m.start() - 12):m.start()].lower()
-    if re.search(r"(?:the|this|that|which|every|any|no|some|each)\s+$", before):
+    rest = text[m.end():]
+    if re.search(r"\bno\s+$", before) or re.match(r"\s+another\b", rest, re.IGNORECASE):
         return True
-    if re.search(r"\b(?:an?|the|this|that|old|new|other|last|next|same|right|wrong|big|small|main|"
-                 r"better|best|bad|good|little|blue|red|green|white|black)\s+$", before):
-        return True
-    nxt = re.match(r"\s+([A-Za-z]+)", text[m.end():])
-    if nxt is None:
-        return True  # "one" before punctuation or at the end is a pronoun ("the old one.")
-    return nxt.group(1).lower() in ("of", "another", "that", "which", "who", "and", "or", "is", "was", "can",
-                                    "could", "will", "would", "should", "might", "may", "must", "does", "did")
+    after_det = re.search(r"\b(?:the|this|that|which|every|any|each|an?|old|new|other|last|next|same|right|wrong|big|"
+                          r"small|main|better|best|bad|good|little|blue|red|green|white|black)\s+$", before)
+    if not after_det:
+        return False
+    nxt = re.match(r"\s+([A-Za-z]+)", rest)
+    return nxt is None or nxt.group(1).lower() in ("who", "that", "which")
 
 
 def approx_map(text: str) -> dict[str, set[str]]:

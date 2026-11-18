@@ -20,6 +20,7 @@
 - Sentences are paired by similarity. When a rewrite reorders or merges many sentences, a change may be reported against a neighboring sentence, or a number may be listed as removed in one place and added in another.
 - Negation, hedges, permission, obligation and scope are compared by counting marker words in paired sentences. Changes expressed without those words (an antonym such as "succeeded" → "failed", a verb that changes direction, "increase" → "decrease") are not caught. Read every changed sentence.
 - "Names in a different order" uses capitalized words; swapped roles described with common nouns ("the client asked the vendor") are not caught.
+- "One" is treated as a pronoun, not the number 1, only in "no one", "one another", and after "the", "this", "old", "new" and similar words at the end of a phrase or before "who", "that" or "which" ("the old one."). A count written that way ("keep the one.") is not compared.
 - Added actors are found from a list of role words and capitalized names.
 - Fact gaps are a partial list of figures, effects, degree words and changes without values.
 
