@@ -53,7 +53,7 @@ python3 yomiyasu_en_check.py verify --final FINAL|- [--state-dir DIR] [--json]
 - `--source` (or `--original`): the original. Must be a different file from the final draft.
 - `--material` (repeatable): material files. Lines `<<<yomiyasu-en:material SOURCE>>>` inside them are separators and are not compared.
 - With only `--material` (compose mode), if one material is very close to the final draft, it is used as the original and diff runs too; the output says so.
-- `--stdin`: read everything from standard input, separated by lines that are exactly `<<<yomiyasu-en:original>>>`, `<<<yomiyasu-en:material SOURCE>>>` (SOURCE optional, up to 200 characters) and `<<<yomiyasu-en:final>>>`. Any other line starting with `<<<yomiyasu-en:` stops with exit 2. An original or material section is required.
+- `--stdin`: read everything from standard input, separated by lines that are exactly `<<<yomiyasu-en:original>>>`, `<<<yomiyasu-en:material SOURCE>>>` (SOURCE optional, up to 200 characters) and `<<<yomiyasu-en:final>>>`. Any other line starting with `<<<yomiyasu-en:` stops with exit 2. An original or material section is required, unless `--material FILE` is also given.
 
 ### Options
 
@@ -74,7 +74,7 @@ python3 yomiyasu_en_check.py verify --final FINAL|- [--state-dir DIR] [--json]
 
 1. What to do next (attempt and revision count, and the verify command to run).
 2. The status line: `yomiyasu-en-check: executed via=run run=ID attempt=N final=sha256:XXXXXXXXXXXX mode=rewrite|compose checks=lint,diff[,material] meaning_risk=N`. Other statuses: `unrecorded`, `partial` (with `reason=check_error`), `not_run reason=usage_error`.
-3. `Checks run:`, the record path, `Stiffness check:`, `Energy check:`, `Review findings: original N → final M`, and when present `Flagged words kept:` and `Flagged words added by the rewrite:`.
+3. `Checks run:`, the record path, `Stiffness check:` and `Energy check:` (not in compose mode), `Review findings: original N → final M`, and when present `Flagged words kept:` and `Flagged words added by the rewrite:`.
 4. The diff sections and the lint findings on the final draft.
 5. The first line and the status line again.
 

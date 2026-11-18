@@ -116,7 +116,10 @@ APPROX_AFTER = _rx(r"^\s*(?:\+|or\s+so|or\s+more|or\s+less|or\s+fewer|or\s+above
 CHOICE = _rx(r"\b(?:either|or|one\s+of|any\s+one\s+of|whichever)\b")
 ALL_SCOPE = _rx(r"\b(?:both|all|every|each)\b")
 LIMITER = _rx(r"\b(?:only|solely|exclusively|merely)\b|\bjust\s+(?=(?:a|an|the|for|when|if|in|on|one|two|\d))")
-PARTIAL_DET = _rx(r"\b(?:some|several|many|most|few|certain)\b|\bpart\s+of\b")
+PARTIAL_DET = _rx(r"\b(?:some|several|many|few)\b|\bpart\s+of\b"
+                  r"|(?<!\bthe\s)(?<!\bat\s)\bmost\s+(?=of\b|people\b|data\b|code\b|work\b|software\b|[a-z]+s\b)(?![a-z]+ly\b)"
+                  r"|(?<!\bbe\s)(?<!\bam\s)(?<!['’]m\s)(?<!\bis\s)(?<!\bare\s)(?<!\bwas\s)(?<!\bfeel\s)(?<!\bnot\s)"
+                  r"\bcertain\s+(?!that\b|of\b|about\b)(?=[a-z])")
 PARTIAL_ADV = _rx(r"\b(?:often|usually|mostly|partly|partially)\b|\bin\s+some\s+cases\b")
 STILL_PARTIAL = _rx(r"\b(?:some|several|many|most|few|certain|often|usually|mostly|partly|partially|typically|generally|"
                     r"normally|commonly|frequently|numerous|majority|specific|rarely|seldom|various|occasionally|"
@@ -290,7 +293,27 @@ def approx_map(text: str) -> dict[str, set[str]]:
     return result
 
 
+APPROX_GROUPS = (
+    ("at most", ("at most", "no more than", "not more than", "up to", "a maximum of", "maximum of", "within")),
+    ("at least", ("at least", "no less than", "not less than", "no fewer than", "a minimum of", "minimum of",
+                  "upwards of")),
+    ("about", ("about", "approximately", "approx.", "approx", "around", "roughly", "~", "circa", "some", "close to",
+               "or so")),
+    ("more than", ("more than", "over", "above", "just over", "+", "or more")),
+    ("less than", ("less than", "under", "below", "fewer than", "just under", "or less", "or fewer")),
+)
+_APPROX_INDEX = {re.sub(r"\s+", " ", w): g for g, words in APPROX_GROUPS for w in words}
+NOT_NEGATION = _rx(r"\bno\s+(?:more|less|fewer|later|earlier|sooner)\s+than\b|\bnot\s+(?:more|less)\s+than\b"
+                   r"|\bno\s+one\s+else\b|\bno\s+doubt\b")
+
+
+def approx_group(word: str) -> str:
+    return _APPROX_INDEX.get(re.sub(r"\s+", " ", word.strip().lower()), word.strip().lower())
+
+
 def count(pattern: re.Pattern[str], text: str) -> int:
+    if pattern is NEGATION:
+        text = NOT_NEGATION.sub(" ", text)
     return len(pattern.findall(text))
 
 
@@ -478,7 +501,7 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
     else:
         oa, ra = approx_map(o), approx_map(r)
         for key in sorted(set(oa) & set(ra)):
-            if oa[key] != ra[key]:
+            if {approx_group(w) for w in oa[key]} != {approx_group(w) for w in ra[key]}:
                 before = ", ".join(sorted(oa[key])) or "none"
                 after = ", ".join(sorted(ra[key])) or "none"
                 risk("approximation", True, f"Approximation on {key} changed: {before} → {after}")
@@ -549,11 +572,12 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
             (ALL_SCOPE.search(o) and not ALL_SCOPE.search(r) and CHOICE.search(r) and not CHOICE.search(o)):
         risk("scope", True, f'Choice scope changed: "{first(CHOICE, o) or first(ALL_SCOPE, o)}" → '
              f'"{first(CHOICE, r) or first(ALL_SCOPE, r)}"')
-    elif PARTIAL.search(o) and not STILL_PARTIAL.search(r):
+    elif (PARTIAL_DET.search(o) or PARTIAL_ADV.search(o)) and not STILL_PARTIAL.search(r):
         if count(TOTAL, r) > count(TOTAL, o):
-            risk("scope", True, f'Quantifier scope changed: "{first(PARTIAL, o)}" → "{first(TOTAL, r)}"')
+            word = first(PARTIAL_DET, o) or first(PARTIAL_ADV, o)
+            risk("scope", True, f'Quantifier scope changed: "{word.strip()}" → "{first(TOTAL, r)}"')
         elif PARTIAL_DET.search(o):
-            risk("scope", True, f'Quantifier "{first(PARTIAL_DET, o)}" disappeared; the sentence may now cover everything')
+            risk("scope", True, f'Quantifier "{first(PARTIAL_DET, o).strip()}" disappeared; the sentence may now cover everything')
         else:
             review("quantifier_gone", f'"{first(PARTIAL_ADV, o)}" disappeared. Check that the sentence did not become '
                    "always true.")

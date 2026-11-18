@@ -182,3 +182,24 @@ def test_adverb_quantifier_drop_is_review() -> None:
 
 def test_currency_with_country_prefix() -> None:
     assert "number" in kinds("It costs US$5.\n", "It costs US$6.\n")
+
+
+@pytest.mark.parametrize(("orig", "rev"), [
+    ("The most important step is testing.\n", "The key step is testing.\n"),
+    ("This is the most common error.\n", "This is the usual error.\n"),
+    ("Most importantly, back up first.\n", "Above all, back up first.\n"),
+    ("Retry at most 3 times.\n", "Retry no more than 3 times.\n"),
+    ("I'm certain the fix works.\n", "I'm sure the fix works.\n"),
+])
+def test_non_quantity_most_certain(orig: str, rev: str) -> None:
+    assert kinds(orig, rev) == []
+
+
+def test_certain_as_quantifier_still_counted() -> None:
+    assert "scope" in kinds("It fails under certain loads.\n", "It fails under load.\n")
+
+
+def test_approximation_groups() -> None:
+    assert kinds("It takes about 30 minutes.\n", "It takes approximately 30 minutes.\n") == []
+    assert "approximation" in kinds("Retry at most 3 times.\n", "Retry at least 3 times.\n")
+    assert "negation" not in kinds("Use no more than 3.\n", "Use at most 3.\n")

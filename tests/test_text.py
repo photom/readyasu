@@ -113,3 +113,8 @@ def test_indented_fence_inside_top_level_fence() -> None:
     doc = tx.parse(text)
     assert doc.lines[-1].kind == "para"
     assert any("leverage" in s.text for s in doc.sentences)
+
+
+def test_word_list_line_limit(tmp_path) -> None:  # noqa: ANN001
+    (tmp_path / "allow.txt").write_text("w\n" * tx.MAX_WORD_LINES, encoding="utf-8")
+    assert len(tx.load_words(str(tmp_path), False).allow) == tx.MAX_WORD_LINES

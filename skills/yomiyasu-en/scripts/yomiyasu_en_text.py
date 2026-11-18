@@ -557,6 +557,8 @@ def load_words(folder: Optional[str], no_words: bool) -> Words:
         content = normalize_newlines(decode(raw, str(file)))
         digest.update(name.encode() + b"\0" + content.encode("utf-8") + b"\0")
         rows = content.split("\n")
+        if rows and rows[-1] == "":
+            rows.pop()
         if len(rows) > MAX_WORD_LINES:
             raise InputError(f"{file} has more than {MAX_WORD_LINES} lines.")
         for number, row in enumerate(rows, 1):
