@@ -91,7 +91,7 @@ Stacked hedges ("may potentially", "could possibly", "it seems that it might") b
 
 ### Step 1: Document type and reader
 - Decide the type and reader only from the request and clues in the text. The types are pr, article, incident (incident report), proposal, minutes, manual, slides, essay (essay or fiction), formal (official documents, policies, contracts, specifications), promo (feature articles and marketing copy), mail (email and chat), paper, and script (dialogue and screenplays). If none fits, do not decide. Once you decide a type, read `references/doc-types/<type>.md` before rewriting and do not apply the rules it exempts (read the file in `references/domains/` that fits when you are unsure how to write).
-- The reader is expert, informed or general. Follow what was specified; if unknown, do not decide. When informed or general is specified, read `references/audience.md`. For a term that this reader needs explained and that neither the original nor the material explains, keep the term and write "Needs an explanation: term (location)".
+- The reader is expert, informed or general. Follow what was specified; if unknown, do not decide, except for the inferences in `references/audience.md` section 3. When informed or general is specified, read `references/audience.md`. For a term that this reader needs explained and that neither the original nor the material explains, keep the term and write "Needs an explanation: term (location)".
 - Ask once before rewriting only when the choice changes the rewrite and you can ask. When the user wants only the text, when the run is one-shot, when you are inside another skill, or when told "don't ask", proceed without deciding.
 - Use the writer's role and relationship to the reader (manager, client) only when the request states it, and read `references/register.md` before rewriting. Without that, do not change politeness or the writer's subject on the basis of a relationship, and do not mention in your answer that you left register alone.
 - If `.yomiyasu-en-words/` exists at the top of the git repository (the working folder outside git), read `allow.txt` (words not to change), `flag.txt` (words to review; rewrite the sentence as a whole), and `flag-patterns.txt` (names and regular expressions treated like flag.txt).
@@ -157,7 +157,7 @@ When the user wants only the text, add no reasons, questions, notes or check rec
 ### AI-like wording kept (only when you kept wording for meaning or weight; otherwise omit the heading)
 - (the wording you kept and why)
 
-### Questions for the writer (only when the body depends on an answer, up to three; otherwise omit the heading)
+### Questions for the writer (only when the body depends on an answer, up to three, or when there are "Needs an explanation" lines or register notices; otherwise omit the heading)
 - (when there are more, choose in this order: places where meaning or who does what changes, values or steps readers act on, referents, sources; summarize the rest as "- N more places". Do not include questions whose answer would not change the body. "Needs an explanation" lines (`references/audience.md` section 10) and register notices (`references/register.md` section 9) do not count toward the three.)
 
 ### Fact check

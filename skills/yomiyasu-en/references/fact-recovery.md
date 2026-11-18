@@ -56,7 +56,7 @@ Amount: at most five fills and corrections in total. Do not create new sentences
 - When a claim in your own draft (cause, result, done or not, owner) has no source, do not change the body; ask under "Not confirmed": "Is this the result of a check? If there is a record, where is it?"
 - Relation to the rephrase test: a fill adds to "numbers, names and timing" or "who does what", but a fill that meets the conditions in this section is not discarded for that alone. The other five points must stay the same; check the filled element with conditions 2 and 3. If scope, conditions or strength change, treat it as a correction.
 - Fills and corrections show up as meaning risks in the diff even when they are right.
-- Do not fill from the conversation or files when the type is essay, promo, formal or paper, when the user wants only the text, when told "don't check", or when Python cannot run. When the user wants only the text, return only the text: no notes after a divider, no conflict warnings, no values from the material or conversation.
+- Do not fill from the conversation or files when the type is essay, promo, formal or paper, when the user wants only the text, when told "don't check", or when Python cannot run. When the user wants only the text, return only the text: no notes after a divider, no conflict warnings. Corrections from material the user handed you still apply; only the notes are left out.
 
 ## 4. How to report
 

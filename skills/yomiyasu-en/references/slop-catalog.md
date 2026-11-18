@@ -38,7 +38,7 @@ Rewrite events and technical operations described with a metaphor into plain wor
 
 | Construction | Example | Natural form |
 |---|---|---|
-| It's not X, it's Y | "It's not a bug, it's a feature." / "It's not just a tool, it's a philosophy." | When nobody would think X, delete X and keep Y. When X corrects a likely misreading, keep the negation in one sentence: "The cause was DNS, not the cache." "Not just X" affirms X and adds Y; keep X. When Y is vague ("a philosophy") and the text does not say what it means, ask instead of guessing. Never turn a denied X into an addition ("both X and Y"). |
+| It's not X, it's Y | "It's not a dashboard, it's a command center." / "It's not just a tool, it's a philosophy." | When nobody would think X, delete X and keep Y. When X corrects a likely misreading, keep the negation in one sentence: "The cause was DNS, not the cache." "Not just X" affirms X and adds Y; keep X. When Y is vague ("a philosophy") and the text does not say what it means, ask instead of guessing. Never turn a denied X into an addition ("both X and Y"). |
 | Not only X, but also Y | "not only faster but also more reliable" | Fine when both halves carry weight. When "not only" only inflates, "faster and more reliable". |
 | The X? Y. | "The result? A 40% drop in errors." | "Errors dropped by 40%." Keep in promo, slides and scripts. |
 | Here's the thing / Here's why / Here's what you need to know | "Here's the thing: caching is hard." | Delete the announcement: "Caching is hard." |

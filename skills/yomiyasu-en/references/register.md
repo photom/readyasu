@@ -56,7 +56,7 @@ Use the reader's name or role only as the original gives it. Do not add a greeti
 - Do not add apologies, thanks or flattery the original does not have.
 - When the original mixes registers (contractions in one paragraph, none in the next) without intent, align them to the one that fits the relationship.
 
-## 8. Notes by setting
+## 8. Notes by purpose
 
 - Apology: keep what the writer apologizes for; do not add promises that it will not happen again.
 - Refusal: keep the refusal clear; do not turn "we cannot" into "we may not be able to".

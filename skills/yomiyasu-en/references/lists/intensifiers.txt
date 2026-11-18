@@ -1,12 +1,12 @@
 # Intensifiers that rarely add strength. Delete only if the strength stays the same.
-truly	delete if the sentence keeps its strength
-incredibly	delete if the sentence keeps its strength
-extremely	delete if the sentence keeps its strength
-absolutely	delete if the sentence keeps its strength
-deeply	delete if the sentence keeps its strength
-genuinely	delete if the sentence keeps its strength
-remarkably	delete if the sentence keeps its strength
-exceptionally	delete if the sentence keeps its strength
-undeniably	delete if the sentence keeps its strength
-fundamentally	delete if the sentence keeps its strength
-profoundly	delete if the sentence keeps its strength
+truly	delete when stacked, on an absolute, or in technical/formal text; keep in quotes, dialogue, promo/mail/essay voice
+incredibly	delete when stacked, on an absolute, or in technical/formal text; keep in quotes, dialogue, promo/mail/essay voice
+extremely	delete when stacked, on an absolute, or in technical/formal text; keep in quotes, dialogue, promo/mail/essay voice
+absolutely	delete when stacked, on an absolute, or in technical/formal text; keep in quotes, dialogue, promo/mail/essay voice
+deeply	delete when stacked, on an absolute, or in technical/formal text; keep in quotes, dialogue, promo/mail/essay voice
+genuinely	delete when stacked, on an absolute, or in technical/formal text; keep in quotes, dialogue, promo/mail/essay voice
+remarkably	delete when stacked, on an absolute, or in technical/formal text; keep in quotes, dialogue, promo/mail/essay voice
+exceptionally	delete when stacked, on an absolute, or in technical/formal text; keep in quotes, dialogue, promo/mail/essay voice
+undeniably	delete when stacked, on an absolute, or in technical/formal text; keep in quotes, dialogue, promo/mail/essay voice
+fundamentally	delete when stacked, on an absolute, or in technical/formal text; keep in quotes, dialogue, promo/mail/essay voice
+profoundly	delete when stacked, on an absolute, or in technical/formal text; keep in quotes, dialogue, promo/mail/essay voice
