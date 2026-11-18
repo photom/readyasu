@@ -109,7 +109,8 @@ HEARSAY = _rx(r"\b(?:reportedly|allegedly|rumou?red)\b|\baccording\s+to\b|\b(?:i
               r"|\b(?:we['’]re|i['’]m|we\s+are|i\s+am)\s+told\b")
 REQUEST = _rx(r"\bplease\b|\b(?:could|would|can|will)\s+you\b|\bkindly\b|\bwe\s+ask\s+(?:that|you)\b"
               r"|\bi(?:['’]d|\s+would)\s+like\s+you\s+to\b|\bi\s+need\s+you\s+to\b")
-APPROX_BEFORE = _rx(r"(?:about|approximately|approx\.?|around|roughly|nearly|almost|~|up\s+to|at\s+least|at\s+most|"
+APPROX_BEFORE = _rx(r"(?:not\s+more\s+than|not\s+less\s+than|no\s+fewer\s+than|a\s+maximum\s+of|a\s+minimum\s+of|"
+                    r"maximum\s+of|minimum\s+of|about|approximately|approx\.?|around|roughly|nearly|almost|~|up\s+to|at\s+least|at\s+most|"
                     r"more\s+than|less\s+than|fewer\s+than|over|under|some|circa|close\s+to|just\s+over|just\s+under|"
                     r"upwards\s+of|no\s+more\s+than|no\s+less\s+than|below|above|within)\s*$")
 APPROX_AFTER = _rx(r"^\s*(?:\+|or\s+so|or\s+more|or\s+less|or\s+fewer|or\s+above|or\s+below|-ish|ish\b)")
@@ -117,10 +118,10 @@ CHOICE = _rx(r"\b(?:either|or|one\s+of|any\s+one\s+of|whichever)\b")
 ALL_SCOPE = _rx(r"\b(?:both|all|every|each)\b")
 LIMITER = _rx(r"\b(?:only|solely|exclusively|merely)\b|\bjust\s+(?=(?:a|an|the|for|when|if|in|on|one|two|\d))")
 PARTIAL_DET = _rx(r"\b(?:some|several|many|few)\b|\bpart\s+of\b"
-                  r"|(?<!\bthe\s)(?<!\bat\s)\bmost\s+(?=of\b|people\b|data\b|code\b|work\b|software\b|[a-z]+s\b)(?![a-z]+ly\b)"
+                  r"|(?<!\bthe\s)(?<!\bat\s)\bmost\s+(?!of\s+all\b)(?=of\b|people\b|data\b|code\b|work\b|software\b|[a-z]+s\b)(?![a-z]+ly\b)"
                   r"|(?<!\bbe\s)(?<!\bam\s)(?<!['’]m\s)(?<!\bis\s)(?<!\bare\s)(?<!\bwas\s)(?<!\bfeel\s)(?<!\bnot\s)"
                   r"\bcertain\s+(?!that\b|of\b|about\b)(?=[a-z])")
-MOST_ANY = _rx(r"(?<!\bthe\s)(?<!\bat\s)\bmost\s+(?![a-z]+ly\b)(?=[a-z])")
+MOST_ANY = _rx(r"(?<!\bthe\s)(?<!\bat\s)\bmost\s+(?![a-z]+ly\b|of\s+all\b|important\b|notabl)(?=[a-z])")
 PARTIAL_ADV = _rx(r"\b(?:often|usually|mostly|partly|partially)\b|\bin\s+some\s+cases\b")
 STILL_PARTIAL = _rx(r"\b(?:some|several|many|most|few|certain|often|usually|mostly|partly|partially|typically|generally|"
                     r"normally|commonly|frequently|numerous|majority|specific|rarely|seldom|various|occasionally|"
@@ -574,8 +575,8 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
         risk("scope", True, f'Choice scope changed: "{first(CHOICE, o) or first(ALL_SCOPE, o)}" → '
              f'"{first(CHOICE, r) or first(ALL_SCOPE, r)}"')
     elif (PARTIAL_DET.search(o) or PARTIAL_ADV.search(o) or MOST_ANY.search(o)) and not STILL_PARTIAL.search(r):
-        if count(TOTAL, r) > count(TOTAL, o):
-            word = first(PARTIAL_DET, o) or first(PARTIAL_ADV, o) or first(MOST_ANY, o)
+        if count(TOTAL, r) > count(TOTAL, o) and (PARTIAL_DET.search(o) or PARTIAL_ADV.search(o)):
+            word = first(PARTIAL_DET, o) or first(PARTIAL_ADV, o)
             risk("scope", True, f'Quantifier scope changed: "{word.strip()}" → "{first(TOTAL, r)}"')
         elif PARTIAL_DET.search(o):
             risk("scope", True, f'Quantifier "{first(PARTIAL_DET, o).strip()}" disappeared; the sentence may now cover everything')

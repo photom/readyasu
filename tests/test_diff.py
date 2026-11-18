@@ -220,3 +220,14 @@ def test_no_one_else_synonym_not_counted() -> None:
 
 def test_most_with_mass_noun_is_review() -> None:
     assert "quantifier_gone" in review_kinds("Most traffic goes to the EU region.\n", "Traffic goes to the EU region.\n")
+
+
+@pytest.mark.parametrize(("orig", "rev"), [
+    ("Retry not more than 3 times.\n", "Retry at most 3 times.\n"),
+    ("Use a maximum of 3 workers.\n", "Use at most 3 workers.\n"),
+    ("Keep no fewer than $5.\n", "Keep at least $5.\n"),
+    ("Most of all, test the backup.\n", "Above all, test the backup.\n"),
+    ("Most important, back up first.\n", "Above all, back up first.\n"),
+])
+def test_fifth_pass_benign(orig: str, rev: str) -> None:
+    assert kinds(orig, rev) == []
