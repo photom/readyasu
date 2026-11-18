@@ -1,0 +1,25 @@
+# Words that make a rewrite stiffer than the original. Used by the diff stiffness check.
+utiliz*
+utilis*
+facilitat*
+commenc*
+endeavo*
+aforementioned
+henceforth
+heretofore
+thereby
+wherein
+whereby
+pertaining to
+in order to
+prior to
+subsequent to
+in the event that
+with regard to
+the implementation of
+the utilization of
+is required to
+in accordance with
+it is recommended that
+please be advised
+kindly

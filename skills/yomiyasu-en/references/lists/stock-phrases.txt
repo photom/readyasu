@@ -1,0 +1,51 @@
+# Openers, signposts and closers that announce instead of saying.
+in today's fast-paced world	delete the opener
+in today's digital age	delete the opener
+in today's world	delete the opener
+in the ever-evolving	delete the opener
+in an era where	delete the opener
+in an increasingly	delete the opener
+let's dive in	delete the announcement
+let's dive into	delete the announcement
+let's take a closer look	delete or merge into the next sentence
+let's break it down	delete
+let's explore	delete or merge into the next sentence
+let's unpack	delete
+in this article, we will	say what the article covers, or delete
+in this article, we'll	say what the article covers, or delete
+in this post, we will	say what the post covers, or delete
+in this post, we'll	say what the post covers, or delete
+it's worth noting that	state the fact
+it is worth noting that	state the fact
+it's important to note that	state the fact
+it is important to note that	state the fact
+it should be noted that	state the fact
+it's worth mentioning that	state the fact
+here's the thing	delete the announcement
+here's why	delete the announcement or merge
+here's what you need to know	delete the announcement
+the key insight here is	merge into the claim
+the bottom line is	keep only if it adds a conclusion
+at the end of the day	delete
+when it comes to	"for", "in", or delete
+plays a crucial role	say what depends on it
+plays a pivotal role	say what depends on it
+plays a vital role	say what depends on it
+plays a key role	say what depends on it
+in conclusion	delete; delete the paragraph if it only repeats
+in summary	delete; delete the paragraph if it only repeats
+to sum up	delete; delete the paragraph if it only repeats
+all in all	delete
+overall,	delete if the sentence only repeats
+ultimately,	delete if the sentence only repeats
+by following these steps	delete if it only repeats the steps
+whether you're a	delete if the sentence works for everyone
+look no further	delete
+without further ado	delete
+needless to say	delete, or say it
+it goes without saying	delete, or say it
+more than just	say what more it is, or delete
+not just a	keep only if X corrects a likely misreading
+stands as a	"is"
+serves as a	"is"
+a wide range of	keep only if the list is not given

@@ -11,6 +11,8 @@ For each place that matched a pattern, decide in this order.
 3. If any point changes, discard the candidate and keep the original. Do not keep rewriting until a candidate passes.
 4. If all six are the same, take the candidate.
 
+Exception: a fill or correction that meets the conditions in fact-recovery.md section 3 adds to "numbers, names and timing" or "who does what", but is not discarded for that alone. The other five points must stay the same.
+
 For a candidate that deletes a sentence or phrase, do not compare sentence by sentence; check whether the deleted part holds a claim, condition, number or deadline found nowhere else. If it does, keep it or move it into the body with the same meaning. Instructions to an AI, restating closings and stock sign-offs left in the body can go when they hold nothing for the reader (slop-catalog.md section 6).
 
 ## 2. The six points
@@ -24,7 +26,7 @@ For a candidate that deletes a sentence or phrase, do not compare sentence by se
 | Strength of assertion, hedge and hearsay | Same assertion, hedge, hearsay, ability, permission and obligation | The cause appears to be a misconfiguration → The cause is a misconfiguration |
 | Numbers, names and timing | Same numbers, units, names, dates and periods such as "since last month" | About 30 inquiries → 30 inquiries |
 
-- A candidate that only swaps a word and keeps all six points passes ("I burned the whole afternoon" → "I spent the whole afternoon on it", keeping the regret).
+- A candidate that only swaps a word and keeps all six points passes ("I burned the whole afternoon" → "I wasted the whole afternoon", keeping the regret).
 - A candidate that replaces plain verbs with Latinate nouns ("we checked" → "verification was performed") becomes stiffer even when the six points hold. Do not add zombie nouns or Latinate words in places you rewrite (slop-catalog.md section 7). Conversely, keep the words the document normally uses ("configure", "deploy"); do not swap them for casual verbs that broaden meaning ("verify" → "look at").
 
 ## 3. Negative contrast (not X, but Y)
@@ -48,7 +50,7 @@ Technical write-ups often say "We suspected X, but it was Y". Removing negative 
 | I'm not trying to assign blame; I want to understand what happened. | Sets how the reader should take the message |
 | These numbers are orders received, not revenue. | Corrects an easily misread meaning |
 | The new version isn't faster; we only changed how the wait is displayed. | Denies a likely misunderstanding of the effect |
-| It's not a failure; it's also a test of one condition. | "Also" sentence; keep as one sentence |
+| It's not only a failure; it's also a test of one condition. | "Not only ... also" sentence; keep as one sentence |
 | This delay isn't the network. Other teams saw the same delay at the same time. | The second sentence gives evidence for the denial, not a "then what"; do not merge |
 
 ### Fix (synthetic)

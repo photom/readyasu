@@ -1,18 +1,19 @@
 # Dialogue and screenplays (script)
 
 See also: domains/essay.md
-Lint rules exempted: fragment_run, exclamation, self_answered_question, metaphor_verb
+Lint rules exempted: fragment_run, exclamation, self_answered_question
 
 ## 1. Normal forms (do not change)
 
 - Character names, stage directions, scene headings in the format the script uses.
 - Fragments, interruptions, repetition, slang, exclamations and questions in dialogue.
-- Characters speaking in stock phrases when that is the character.
+- Characters speaking in stock phrases or metaphors when that is the character (metaphor_verb findings inside dialogue are kept).
 
 ## 2. Still fix
 
 - Stage directions with stock AI vocabulary ("A tapestry of emotions plays across her face").
-- Directions that tell feelings the scene does not show: keep, but ask only if it conflicts with the dialogue.
+
+Directions that state feelings the scene does not show are kept; ask only when they conflict with the dialogue.
 
 ## 3. Length and omissions
 

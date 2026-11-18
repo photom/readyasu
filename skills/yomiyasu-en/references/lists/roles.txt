@@ -1,0 +1,35 @@
+# Role nouns. diff reports them when a rewrite adds an actor the original and material lack.
+team
+manager
+managers
+owner
+owners
+admin
+admins
+administrator
+administrators
+reviewer
+reviewers
+maintainer
+maintainers
+on-call
+support
+customer
+customers
+client
+clients
+user
+users
+lead
+engineer
+engineers
+developer
+developers
+operator
+operators
+legal
+security team
+hr
+we
+you
+i

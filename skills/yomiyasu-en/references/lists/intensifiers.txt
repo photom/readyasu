@@ -1,0 +1,12 @@
+# Intensifiers that rarely add strength. Delete only if the strength stays the same.
+truly	delete if the sentence keeps its strength
+incredibly	delete if the sentence keeps its strength
+extremely	delete if the sentence keeps its strength
+absolutely	delete if the sentence keeps its strength
+deeply	delete if the sentence keeps its strength
+genuinely	delete if the sentence keeps its strength
+remarkably	delete if the sentence keeps its strength
+exceptionally	delete if the sentence keeps its strength
+undeniably	delete if the sentence keeps its strength
+fundamentally	delete if the sentence keeps its strength
+profoundly	delete if the sentence keeps its strength

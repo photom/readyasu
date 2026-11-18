@@ -1,0 +1,57 @@
+# Words far more frequent in AI text than in human text of the same kind.
+delv*	plain verb: look at, examine, go through
+tapestry	name the parts, or delete
+testament to	"shows", or state the evidence
+a testament	"shows", or state the evidence
+pivotal	say what depends on it
+paramount	say what depends on it
+seamless*	say what the user does not have to do
+robust	say what it withstands; keep in statistics and control engineering
+leverag*	"use" (keep the financial noun)
+realm	usually delete ("in AI")
+landscape	usually delete; keep "threat landscape" if the field uses it
+embark*	"start"
+foster*	say what people do
+underscor*	"shows", or state the point
+showcas*	"shows"
+intricate	name the parts
+intricacies	name the parts
+multifaceted	name the facets
+nuanced	say what the nuance is
+holistic	say what it covers
+synerg*	name the people and what they do together
+ever-evolving	delete
+ever-changing	delete
+fast-paced	delete the opener
+cutting-edge	say what is new
+game-chang*	state the change
+game changer	state the change
+groundbreaking	state the change
+revolutioniz*	state the change
+transformative	state the change
+boasts	"has"
+meticulous*	delete, or say what care was taken
+vibrant	use a concrete detail
+bustling	use a concrete detail
+myriad	"many", or give the number
+plethora	"many", or give the number
+elevat*	"improve", or say what changes
+empower*	"lets", "allows"
+crucial	say what depends on it
+vital	say what depends on it
+navigat* the complexities	name the difficulties
+navigat* the landscape	delete or name what is dealt with
+in the realm of	delete
+a deep dive	"a detailed look"; keep a meeting name
+dive deep*	delete the announcement
+dive into	delete the announcement
+deep dive into	delete the announcement
+key takeaways	keep only if the request asks for takeaways
+actionable insights	say what the reader learns
+valuable insights	say what the reader learns
+treasure trove	"collection", or name what it holds
+the power of	usually delete the frame
+unwavering	use a concrete detail
+commendable	say what is good about it
+noteworthy	say what is notable
+journey	keep literal journeys; otherwise "process", "time"

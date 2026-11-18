@@ -1,13 +1,14 @@
 # Feature articles and marketing copy (promo)
 
 See also: domains/business.md
-Lint rules exempted: emoji, exclamation, fragment_run, metaphor_verb, self_answered_question
+Lint rules exempted: emoji, exclamation, fragment_run, self_answered_question
 
 ## 1. Normal forms (do not change)
 
 - Energy, taglines, short punchy runs, calls to action, exclamation marks, emoji the brand uses.
 - "The result?" and similar hooks.
 - Bold heading lines.
+- Lively verbs that are the brand's voice; metaphor_verb findings are still reviewed, and you keep the energy while saying what the product does when the text says it.
 
 ## 2. Still fix
 

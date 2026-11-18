@@ -1,0 +1,9 @@
+# Closing courtesies: normal in mail, residue in documents. Not reported for --doc-type mail.
+feel free to reach out	delete from documents
+feel free to ask	delete from documents
+let me know if you have any questions	delete from documents
+please don't hesitate to	delete from documents
+do not hesitate to	delete from documents
+thanks in advance	delete from documents
+thank you for your attention	delete from documents
+happy coding	delete from documents

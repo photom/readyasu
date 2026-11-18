@@ -1,0 +1,23 @@
+# Feeling words. diff reports them when a rewrite adds one the original lacks.
+happy
+glad
+delighted
+thrilled
+excited
+relieved
+proud
+grateful
+frustrat*
+annoyed
+disappointed
+worried
+anxious
+nervous
+afraid
+sad
+upset
+surprised
+amazed
+overwhelmed
+embarrass*
+ashamed

@@ -24,7 +24,7 @@ Rewrite events and technical operations described with a metaphor into plain wor
 | weave | "weaves together data from" | "combines", "merges". |
 | fuel | "fuels innovation" | Say what it makes possible, or "drives" only if a causal claim is in the original. |
 | tame | "tame your inbox" | "reduce", "sort", "control" as the original supports. |
-| shine | "where X truly shines" | "where X works best", "X is most useful when". Keep the hedge "truly" only if the original has emphasis worth keeping; otherwise drop it. |
+| shine | "where X truly shines" | "where X works best", "X is most useful when". Drop the intensifier "truly" unless the emphasis carries meaning. |
 | kill, crush, nail | "kill the bottleneck", "crush your goals" | "remove", "fix", "meet". Keep "kill a process" (a technical term). |
 | empower | "empowers teams to" | "lets teams", "allows teams to". Keep the formal sense of granting legal power. |
 | skyrocket | "sales skyrocketed" | "rose sharply" with the number if given. |
@@ -38,15 +38,15 @@ Rewrite events and technical operations described with a metaphor into plain wor
 
 | Construction | Example | Natural form |
 |---|---|---|
-| It's not X, it's Y | "It's not just a tool, it's a philosophy." | When nobody would think X, delete X: "It's a way of working." When X corrects a likely misreading, keep the negation in one sentence: "The cause was DNS, not the cache." Never turn X into an addition ("both X and Y"). |
+| It's not X, it's Y | "It's not a bug, it's a feature." / "It's not just a tool, it's a philosophy." | When nobody would think X, delete X and keep Y. When X corrects a likely misreading, keep the negation in one sentence: "The cause was DNS, not the cache." "Not just X" affirms X and adds Y; keep X. When Y is vague ("a philosophy") and the text does not say what it means, ask instead of guessing. Never turn a denied X into an addition ("both X and Y"). |
 | Not only X, but also Y | "not only faster but also more reliable" | Fine when both halves carry weight. When "not only" only inflates, "faster and more reliable". |
 | The X? Y. | "The result? A 40% drop in errors." | "Errors dropped by 40%." Keep in promo, slides and scripts. |
 | Here's the thing / Here's why / Here's what you need to know | "Here's the thing: caching is hard." | Delete the announcement: "Caching is hard." |
-| What makes X Y is Z | "What makes this approach powerful is its simplicity." | "This approach works because it is simple" only if the original makes that causal claim; otherwise "This approach is simple." |
+| What makes X Y is Z | "What makes this approach powerful is its simplicity." | "This approach is powerful because it is simple." Keep both the evaluation and the reason. |
 | X is more than just Y | "This is more than just a library." | Say what more it is, from the original; if nothing, delete. |
 | Whether you're X or Y | "Whether you're a beginner or an expert, ..." | Delete when the sentence works for everyone anyway. |
 | From X to Y | "from startups to enterprises" | Keep if both ends are real; delete if it only signals breadth. |
-| Triplets of adjectives | "fast, reliable, and scalable" | Keep only the adjectives the original supports with facts. Do not delete facts. |
+| Triplets of adjectives | "fast, reliable, and scalable" | Keep all three: each is a claim. When the text gives the fact behind one ("handles 10,000 requests per second"), you may write the fact instead of the adjective. Ask about adjectives nothing supports; do not delete them. |
 | em dash splice | "The fix — which took two days — was simple." | "The fix, which took two days, was simple." Choose punctuation that keeps the same scope. Ranges (2019–2021) stay. |
 | Colon reveal | "The answer: simplicity." | "The answer is simplicity", or fold into the previous sentence. |
 | Rhetorical question opener | "But what does this mean for developers?" | Delete and state the answer, unless the document type keeps it. |
@@ -81,7 +81,7 @@ Words that appear far more often in AI text than in human text of the same kind.
 
 ## 4. Inflated words for ordinary experiences
 
-Do not describe small personal experiences or routine technical choices with grand words: "profound", "transformative", "epiphany", "masterpiece", "symphony", "odyssey", "saga", "quest", "magic", "alchemy", "elegant dance". "Removing the noise of daily life revealed the tool's true essence" → "Away from the usual rush, I could see what the tool is good at." Do not add proper nouns or big lessons that the original does not have.
+Do not describe small personal experiences or routine technical choices with grand words: "profound", "transformative", "epiphany", "masterpiece", "symphony", "odyssey", "saga", "quest", "magic", "alchemy", "elegant dance". "Removing the noise of daily life revealed the tool's true essence" → "Away from the usual rush, the tool's real strengths became clear." (Keep the original's subject: do not add "I" when the original has none.) Do not add proper nouns or big lessons that the original does not have.
 
 ---
 
@@ -144,7 +144,7 @@ In essays and fiction, a metaphor is fine when the reader can tell what is compa
 
 ## 9. Punctuation habits
 
-- Em dashes (—) and spaced en dashes ( – ) used to splice clauses, especially more than one per paragraph. Replace with commas, parentheses, colons or a period while keeping scope. Keep ranges, keep them in quotations and code, and keep them in fiction where they are the writer's voice.
+- Em dashes (—), spaced en dashes ( – ) and double hyphens ( -- ) used to splice or insert clauses, especially more than one per paragraph. Replace with commas, parentheses, colons or a period while keeping scope. Keep ranges, keep them in quotations and code, and keep them in the narration and dialogue of fiction. Essays are not exempt.
 - Exclamation marks in documentation and reports. Keep them in mail where the writer uses them, in promo, and in dialogue.
 - Semicolon chains joining three or more clauses.
 - Colons at the end of headings and before a single word ("The answer: simplicity").

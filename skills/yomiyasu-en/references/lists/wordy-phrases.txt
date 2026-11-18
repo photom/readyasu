@@ -1,0 +1,37 @@
+# Wordy phrases and zombie nouns with a shorter form of the same meaning.
+in order to	"to" (keep when it separates two "to"s)
+due to the fact that	"because"
+owing to the fact that	"because"
+in light of the fact that	"because"
+at this point in time	"now"
+at the present time	"now", "currently"
+has the ability to	"can"
+have the ability to	"can"
+is able to	"can" (keep "is allowed to" distinct)
+make a decision	"decide"
+made a decision	"decided"
+reach a conclusion	"conclude"
+conduct* an investigation	"investigate"
+perform* an analysis	"analyze"
+conduct* an analysis	"analyze"
+provide assistance	"help"
+offer assistance	"help"
+utiliz*	"use" (keep "utilization" as a metric)
+utilis*	"use" (keep "utilisation" as a metric)
+facilitat*	"help", "make easier", "run"
+a large number of	"many", or the number
+the majority of	"most"
+in the event that	"if" (keep in contracts that use it)
+prior to	"before" (keep in formal house style)
+subsequent to	"after"
+with regard to	"about", "for"
+with respect to	"about", "for"
+in terms of	"for", "in", or rephrase
+for the purpose of	"to", "for"
+in the process of	delete
+on a daily basis	"daily"
+on a regular basis	"regularly"
+a number of	"several", "some", or the number
+it is possible that	"may", "might"
+there is a possibility that	"may", "might"
+in close proximity to	"near"

@@ -1,0 +1,23 @@
+# Metaphorical verbs for ordinary events. Say what changed.
+unlock*	say what becomes possible; keep literal unlocking
+supercharg*	say what got faster or larger
+turbocharg*	say what got faster or larger
+unleash*	delete the frame
+harness*	"use"; keep a test harness
+weav*	"combines"
+fuel*	say what it makes possible
+tam* your	"reduce", "sort", "control"
+skyrocket*	"rose sharply" with the number if given
+bridg* the gap	say what connects to what
+pav* the way	say what becomes possible
+spearhead*	"led"
+catapult*	say what changed
+ignit*	say what started
+revolutioniz*	state the change
+reimagin*	say what changed
+redefin*	say what changed
+streamlin*	say which step got shorter
+silently fail*	"fails without an error message" only when that is the mechanism
+quietly break*	"stops working without anyone noticing"
+shines	"works best"
+truly shines	"works best"
