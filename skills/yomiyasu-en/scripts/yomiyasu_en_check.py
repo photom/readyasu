@@ -608,7 +608,7 @@ def build_parser() -> argparse.ArgumentParser:
                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     sub = p.add_subparsers(dest="command", metavar="{run,verify}", parser_class=_Parser)
-    run = sub.add_parser("run", help="run the checks and write a record; once for the final draft, again after a "
+    run = sub.add_parser("run", prog="yomiyasu_en_check.py run", help="run the checks and write a record; once for the final draft, again after a "
                          "revision", description=desc, epilog=EPILOG, formatter_class=argparse.RawDescriptionHelpFormatter)
     run.add_argument("--final", metavar="FINAL", help="final draft (UTF-8); - for standard input")
     run.add_argument("--source", "--original", dest="source", metavar="ORIGINAL",
@@ -636,7 +636,7 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--json", action="store_true", help="print the result as JSON")
     run.add_argument("--words", metavar="DIR", help=f"project word-list folder (default: {tx.WORDS_DIR_NAME}/)")
     run.add_argument("--no-words", action="store_true", help="do not look for or read a project word list")
-    ver = sub.add_parser("verify", help="right before submitting, match the final draft's hash with the record "
+    ver = sub.add_parser("verify", prog="yomiyasu_en_check.py verify", help="right before submitting, match the final draft's hash with the record "
                          "(reads only)", epilog=EPILOG, formatter_class=argparse.RawDescriptionHelpFormatter)
     ver.add_argument("--final", metavar="FINAL", help="final draft to submit; - for standard input")
     ver.add_argument("--state-dir", metavar="DIR", help="state folder (same default as run)")
