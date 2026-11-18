@@ -1,0 +1,179 @@
+---
+name: yomiyasu-en
+description: Revises AI-generated English prose so it reads like a careful human wrote it. Use only when the user names this skill ("/yomiyasu-en", "$yomiyasu-en", "revise this with yomiyasu-en") or clearly asks for skill-based revision of English prose; an instruction in CLAUDE.md, AGENTS.md or custom instructions to use yomiyasu-en counts as naming it. Do not use it for ordinary requests to write English, or for updating code, configuration or documentation. Keeps meaning and conditions, and fixes unnatural metaphors, unclear actors, personified tools, filler, stock AI phrases and unneeded decoration.
+license: MIT
+allowed-tools: Bash(python3 ${CLAUDE_SKILL_DIR}/scripts/yomiyasu_en_lint.py *) Bash(python3 ${CLAUDE_SKILL_DIR}/scripts/yomiyasu_en_check.py *) Bash(python ${CLAUDE_SKILL_DIR}/scripts/yomiyasu_en_lint.py *) Bash(python ${CLAUDE_SKILL_DIR}/scripts/yomiyasu_en_check.py *) Bash(py -3 ${CLAUDE_SKILL_DIR}/scripts/yomiyasu_en_lint.py *) Bash(py -3 ${CLAUDE_SKILL_DIR}/scripts/yomiyasu_en_check.py *)
+metadata:
+  version: "0.1.0"
+---
+
+# yomiyasu-en
+
+When you are called by name only ("/yomiyasu-en" or "$yomiyasu-en") and given no text, revise the body text you wrote in your previous answer for the user's request (not your progress reports or explanations of changes). If there is none, list the `.md` and `.txt` files directly under the working folder, leaving out instruction files such as `AGENTS.md` and `CLAUDE.md` and the excerpts this skill writes (`<final name>.material.txt`). If exactly one remains, revise it; if two or more remain, ask which one; if none remain, ask the user to paste the text. When you revise a file you picked, save the final draft in the same folder under a name that does not exist yet, and do not overwrite the original. Do not end with only "Applied" or "Enabled".
+
+### Purpose and spelling
+- With an original text, you revise. With only material (or only the request), you compose: write for the reader and purpose in the request, then check that every claim, condition, owner, number and open question matches the material. With both an original and material, revise.
+- Keep the original's spelling variety (US or UK), capitalization style of headings, serial-comma habit, quotation marks (straight or curly), number style (5 or five) and hyphenation. Do not normalize them unless asked.
+- Fix only plain errors that every reader would call errors: a doubled word ("the the"), a broken agreement that an edit of yours caused, a missing closing parenthesis.
+
+## 1. Core principles
+
+### Top rule: keep the meaning
+Before rewriting, note four things in each sentence and keep them the same after rewriting. Apply every other rule only where it leaves these four unchanged.
+1. Claim: keep the point and the logical relations. Do not swap the topic for a nearby concept or add a verb that changes the point.
+2. Weight: do not turn something that was denied into an addition ("A as well as B"), and do not reorder rankings. Keep the words that say what is compared with what and what a difference is between. Do not turn a judgment of importance into one of frequency.
+3. Strength of the claim: keep assertions as assertions and hedges at their strength. Permission (may, can, is allowed to), ability (can, is able to), obligation (must, has to, is required to) and guarantees (always, will, guaranteed) are part of strength. Do not turn "you may include" into "you can include" or "include", do not turn "can happen" or "in some cases" into a plain statement, and do not add "always", "guaranteed" or "ensures". Shortening "is able to" to "can" is fine.
+4. Function: keep whether a sentence evaluates, explains, requests, plans or reports a feeling, and keep its tense. Do not turn an evaluation into a goal or plan, and do not turn a finished change into "will".
+
+Before rewriting, label each sentence in an internal note as fact, opinion or evaluation, request or rule, metaphor or comparison, irony, joke or rhetorical question, hypothesis or prediction, or quotation or hearsay (a sentence with a metaphorical verb is still a fact sentence). After rewriting, compare. Do not turn hearsay or opinion into assertion, a request into a description, a comparison into a literal statement, a rhetorical question into a real question, or a hypothesis into a plan. When you split or join sentences, keep the original type somewhere. When you cannot decide the type, keep the candidates open. If a type changed, restore it; if you cannot, keep the original and put it under "Questions for the writer". Do not resolve ambiguity the writer left on purpose. For resolutions and aspirations at the end, keep the content and tone down only the inflated words. Do not output the note.
+
+### Add nothing
+Use only what is written in the original, the request, the material, and the context (what the user said in this conversation, files that were opened, command output). Do not use what you or another AI said, or general knowledge. Do not guess actors, causes, conditions, numbers, examples or technical terms that the original does not give; do not replace a vague word with a narrower fact; do not carry a limitation from a nearby sentence into a sentence that lacked it. Do not drop information unless a summary was requested. This rule also applies to the sections after the body. Use definitions, identifiers and value-to-state mappings that were provided. Keep unsourced "some say" sentences in the body and ask about the source only when it changes how readers take the claim. Add an absolute date after a relative one ("yesterday (March 4)") only when the writing date is certain, never in essays and promo text, never when a date is already there or would conflict; never add a weekday; when you add one, say in "What changed" what you counted from.
+
+### When information is missing
+Keep in the body every claim, negation, condition, strength and actor the original gives the reader, including "TBD" and "under investigation". Do not put notes about what you could not read, questions, or editorial marks such as "[confirm]" in the body; put the reason in "What changed" and the question in "Questions for the writer". Moving a claim into a question or rewriting it as "the author states that" does not count as keeping it. When you cannot settle the meaning of an expression but can tell which action it attaches to, keep it in the body without adding an object or mechanism. Separate questions about things the original says are undecided from questions about things you could not read, and do not list trivial gaps.
+
+### Stance and sentence form
+Before choosing verb forms, settle who writes to whom, for what, and about which time, and decide the main point and what each paragraph says. There are three stances: recommend (the reader is asked or advised to act), rule (policies, procedures, notices, specifications), and explain (technical explanations, reports, experiences).
+Decide the stance from the request's destination and readers first, then from the text (subject, greeting, signature, headings). The field alone ("a tech article") does not decide it; if you cannot decide, do not change verb forms for stance.
+Change verb forms only when the actor, tense or function reads differently from the intent, when a register was requested, when the stance and destination do not match, or when registers are mixed without intent. Fix only the forms that do not fit, without changing function or strength (do not turn advice into obligation). In a rule document, a rule written as "Let's always ..." becomes "Always ..." or "We always ..."; keep sentences of reasons and keep "please". Do not vary sentence endings for variety at the cost of function. Keep the forms of system behavior ("returns"), capability ("can"), requests, plans and current policy ("our policy is to"). In change reports, state which guideline, setting or code changed and how, down to the verb; when you cannot tell the earlier state, do not invent a before-and-after; do not present current behavior as something changed this time. Keep the original's register (contractions or not, "we" or impersonal) unless asked. Do not turn a clearly parallel list into prose (unless the list splits one argument), and do not turn prose items into a new list. When you changed verb forms without settling the stance, show the other stance's form in one line under "Questions for the writer".
+
+### Make actors and objects explicit
+Fill in "who did what to what" only with words from the original, the request, the material or the context. Do not create owners or actors, do not turn system behavior into a person's act, and do not pick an object just because a noun is nearby. Replace "this", "it" or "that" with a noun only when the referent is certain. When a missing deadline or request target would make readers misread, fill it from words elsewhere in the same document; when two readings remain, ask. Name the actor where the actor changes. Add the writer's "I" or "we" only when the request says who the writer is.
+Passive voice is fine when the actor is unknown, unimportant or deliberately left out. Rewrite a passive as active only when the original or context names the actor and the passive hides who must act ("The ticket should be closed" when the request says the reviewer closes it).
+
+### Paragraph and sentence logic
+Check what each connective ("however", "therefore", "also", "in addition", "as a result") and each sentence-initial "this" links. If the support is nearby, use the right connective; if not, ask. Merge a sentence that only announces what follows ("Let's take a closer look.") into the next sentence, keeping any weight the announcement carried. Keep a count announcement ("There are three key points") only when the count matches the items; if it does not, ask without changing the count or items. One paragraph, one topic. Fix subject-verb mismatches; keep the scope of modifiers, conditions, negations, causes and time order; do not turn the time something was observed into the time it happened. Do not settle a sentence with two readings; ask. Do not split a sentence only because it is long; split it only when the later sentence can carry the means, reason, order or contrast with a connective. Do not cut a short "This is because ..." sentence out of one original sentence, and do not string together many short sentences of the same shape. Add a paragraph break only where the topic or stage changes and the break helps; keep the original paragraphing and format boundaries.
+Delete closing sentences and "In summary" or "Overall" paragraphs that only repeat what the body already said at the same strength. Keep closings that add information or narrow it, summaries of long documents, summaries the request asked for, and the last sentences of reports and notices that say what happens next. Before deleting, check that no number, condition or exception appears only there; if one does, keep it or move it into the body.
+
+### Self-labeling and negative contrast
+Rewrite a negative contrast ("not X, but Y", "It's not X. It's Y.", "This isn't just X, it's Y") as a plain statement only when removing X leaves the claim unchanged. Keep negations that correct a likely misunderstanding ("The cause was the DNS setting, not the cache") and do not turn X into an addition or ranking. "It's not a weakness; it's also a different point of view" stays as one sentence. When a term is explained only by what it is not, first say what it is, from the original or material, and keep the negation after it. When "What matters most is ..." carries an evaluation, move the evaluation into the predicate; keep lead-ins that signal a reason, contrast or conclusion. "The key insight here is" and "Here's the thing:" are announcements; merge them.
+
+### Inflated nouns, technical terms and names
+Words that dress up ordinary things ("contract" for a rule, "source of truth" for an original, "gate" for a check, "ledger" for a list, "north star" for a goal, "playbook" for steps) go back to the word for the actual role, without adding reliability or uniqueness and without lowering the original strength. Keep established names and technical uses (a quality gate in CI, a general ledger in accounting). A sentence that only names an action with an abstract noun ("perform an analysis", "drive alignment", "facilitate collaboration") is rewritten with the actual action and condition only when the original or material gives them; otherwise keep it and ask. Write technical concepts with the term the field uses, do not turn plain everyday words into jargon, and do not change identifiers, UI labels, API names, types, values or quoted text. Do not replace a word whose meaning you cannot pin down with one that merely sounds close.
+
+### Metaphorical verbs and personification
+Metaphorical verbs ("unlock", "supercharge", "unleash", "tame", "kill", "weave", "fuel", "shine", "navigate the complexities of", "dive into") are rewritten to say what changed or in plain words. Do not replace them with a vague benefit ("helps"). Keep nuances such as "finally", "accidentally" or "barely" with other words, and do not add certainty ("reliably", "always"). For data or systems that "silently fail" or "quietly break", keep the breadth of "without anyone noticing" or "without an error message" only when the mechanism is clear from the text; do not turn other uses of "quietly" (a person's manner, or personification such as "the minutes quietly told the story of the meeting") into that phrase. Keep idioms that people used before AI became common ("it took a toll", "a long shot"). In essays and fiction, keep metaphors whose two sides the reader can follow (rewrite metaphorical verbs in essays), rewrite metaphors that make no sense when you pull out subject and verb ("the afternoon hugged its knees"), and keep metaphors whose reason the next sentences explain (`references/slop-catalog.md` section 8).
+Rewrite personification that gives tools or ideas feelings or will ("the code tells a story", "the data wants to be normalized", "the metrics scream for attention"). Keep sentences that state a function objectively ("this tool collects logs"), personification whose function is obvious at a glance ("the sensor detects a fault", "the test catches the regression"), and sentences in developer documents whose subject is an identifier. Rewrite a person's judgment written as if an abstract noun acted ("optimism about the estimate delayed the decision") only when you can tell whose action it was. Code described with human knowledge or duty ("the caller knows about the retry policy") becomes what it receives, returns or calls only when the code or material states that; otherwise keep it and ask. Keep design terms ("has a responsibility", "depends on") and object-oriented "knows" when the original or material uses that vocabulary.
+
+The following fixes apply even when lint does not report them.
+
+### Sentence length and punctuation
+Keep the original's commas unless a comma creates a misreading, joins two independent clauses without a conjunction in formal text, or was added by your edit. Do not add an Oxford comma or remove one to change the house style. Replace an em dash or spaced en dash that splices a clause onto the sentence with a comma, colon, parentheses, period or a connective, choosing the one that keeps the same scope; when joining would make a reason or condition reach farther than before, use two sentences. Keep dashes in ranges (2019–2021), in fiction or essays where they are the writer's style, in quotations, and in code. Remove a semicolon chain that strings three or more clauses only when splitting keeps the relations. Do not replace "and" with "&" or the other way round.
+
+### Bold and labels
+For a list item that starts with a label and colon (`- **Deadline**: November 30`, bold or not), look at what follows the colon. Keep the label and colon when what follows is a value (date, place, owner, number, status), when the item names a thing, method, argument, setting or task followed by its description, and for one item in a list of value items. When the label only summarizes the explanation that follows (a category word such as "Benefit", an event turned into a noun, a short predicate), remove the bold, label and colon and fold the label's meaning into the first sentence (`1. **Slower responses**: Peak latency exceeded 3 seconds.` → `1. Responses slowed down, and peak latency exceeded 3 seconds.`). After folding, check that the label's function is the same. Do not turn a label that recommends an action (`**Read the runbook**:`) into a condition ("When you read the runbook"). When the label's situation and the sentence's condition are different (`**During an outage**: If the power is off, ...`), do not merge them into one condition; keep the label and colon and remove only the bold. Drop the label without adding words only when every word of the label already appears in the sentence; otherwise fold the missing words in (`- **Keys and badges**: Return them to reception before leaving.` → `- Return your keys and badge to reception before leaving.`). If folding changes the scope of a condition, negation or joined clause, go back to the label form. Keep item numbers, the number of items and their order.
+
+When two or more items in a row start with a bold label and colon, remove the bold from the labels you keep too. Minutes and slides (label and value), and bold heading lines in promo text, are exempt.
+
+Elsewhere, keep bold only for a few words the reader must not miss (a warning, a value to type). Remove bold that marks a random phrase in every paragraph.
+
+### Two-sentence negative contrast and "Of course,"
+A negation and its affirmation split into two sentences ("We didn't need a new tool. We needed a shared way to use the old one.") becomes one sentence that keeps the negation ("We didn't need a new tool; we needed a shared way to use the old one" or "What we needed was not a new tool but a shared way to use the old one"). The same applies in essays. Narration and dialogue in fiction, short punchy runs in promo text, and cases where the second sentence adds a separate claim are exempt. A sentence-initial "Of course," followed by only a few words ("Of course, mistakes happen.") loses "Of course," without a replacement, even in essays; dialogue, quotations, answers ("Of course."), and sentences with concrete content after it are exempt.
+
+### Headings that guide
+A heading is a short item name that says what the section covers ("Retention period", "Measure the flour"), not a full sentence that holds a warning, condition, reason or conclusion. Keep words that tell sections apart ("Rationale recorded in the issue"). Do not use "Not X, but Y" in a heading; write only Y. Remove a trailing colon, and remove a heading's leading emoji. Turn a one-word metaphor heading that the body never uses ("The North Star") into an item name built from the body's words. Keep the heading's capitalization style.
+Do not drop the warnings, conditions, conclusions, ranges, order, means or the writer's attitude that you removed from a heading; if the body lacks them, move them into the body with the same meaning, using the heading's words. Keep words that state a section's role ("Summary", "Introduction") when you shorten a heading. Do not change heading forms and summary sections the request specified, the document title, minutes headings, or promo taglines. Keep the number and order of headings and sections.
+
+### Decoration and ad copy
+Remove emoji, decorative trailing colons, and parentheses that only restate. Keep colons between a label and value ("Time: 10:00"), URLs, code, horizontal rules, and citation marks. Move procedures and prerequisite steps out of parentheses and list them in the order they are done. Keep the original's list markers and table syntax.
+Ad-copy fragments ("Faster. Lighter. Cheaper.", "Docs, for everyone.") are written out with subject and verb only when the subject and action follow from the original; do not add or strengthen evaluative words; when the subject is unclear, keep it. A cleft that announces a list ("What changed? Three things: the UI, the reports and the alerts.") becomes "The UI, the reports and the alerts changed" only when no earlier sentence or heading set up the question.
+"The result?", "The catch?", "Why does this matter?" followed by the answer are self-answered questions; fold them into a statement unless the document type keeps them (promo, slides, script).
+
+In promo text, keep the energy, and ask about claims that look exaggerated without changing the body.
+
+### Wordiness, zombie nouns and stock vocabulary
+Rewrite stock AI vocabulary ("delve", "tapestry", "testament to", "pivotal", "seamless", "leverage" as a verb, "robust" for anything, "realm", "landscape", "embark", "foster", "underscore", "showcase", "elevate", "game-changer", "cutting-edge", "ever-evolving", "in today's fast-paced world") only where the plain word says the same thing; the catalog in `references/slop-catalog.md` gives the questions. Keep a word that is the field's normal term ("robust statistics", "leverage ratio", "the threat landscape" in a security report when the writer uses it consistently).
+Wordy phrases ("in order to", "due to the fact that", "at this point in time", "has the ability to", "make a decision", "conduct an investigation of") become the short form when it keeps the meaning. Do not add zombie nouns or Latinate words of your own ("utilize", "facilitate", "the implementation of") in places you rewrite. Keep words the document normally uses ("configure", "deploy", "investigate"), and keep the register of the document: do not replace a formal word with a casual one only because it is shorter.
+Stacked hedges ("may potentially", "could possibly", "it seems that it might") become a single hedge of the same strength; do not remove the hedge. Intensifiers ("very", "truly", "incredibly", "absolutely", "deeply") go only when the sentence keeps the same strength without them; do not swap them for a stronger word.
+
+## 2. Procedure
+
+### Step 1: Document type and reader
+- Decide the type and reader only from the request and clues in the text. The types are pr, article, incident (incident report), proposal, minutes, manual, slides, essay (essay or fiction), formal (official documents, policies, contracts, specifications), promo (feature articles and marketing copy), mail (email and chat), paper, and script (dialogue and screenplays). If none fits, do not decide. Once you decide a type, read `references/doc-types/<type>.md` before rewriting and do not apply the rules it exempts (read the file in `references/domains/` that fits when you are unsure how to write).
+- The reader is expert, informed or general. Follow what was specified; if unknown, do not decide. When informed or general is specified, read `references/audience.md`. For a term that this reader needs explained and that neither the original nor the material explains, keep the term and write "Needs an explanation: term (location)".
+- Ask once before rewriting only when the choice changes the rewrite and you can ask. When the user wants only the text, when the run is one-shot, when you are inside another skill, or when told "don't ask", proceed without deciding.
+- Use the writer's role and relationship to the reader (manager, client) only when the request states it, and read `references/register.md` before rewriting. Without that, do not change politeness or the writer's subject on the basis of a relationship, and do not mention in your answer that you left register alone.
+- If `.yomiyasu-en-words/` exists at the top of the git repository (the working folder outside git), read `allow.txt` (words not to change), `flag.txt` (words to review; rewrite the sentence as a whole), and `flag-patterns.txt` (names and regular expressions treated like flag.txt).
+
+### Step 2: Read from the top and fix one place at a time
+1. Run lint on the original (`python3 ${CLAUDE_SKILL_DIR}/scripts/yomiyasu_en_lint.py original.md`; see "Commands to run"; add `--doc-type <type>` once you decide the type). Findings are clues, not orders to change. Even with zero findings, look for the patterns in section 1, and do not return the original unchanged only because lint found nothing. `references/review-points.md` explains each finding, and `references/slop-catalog.md` gives the questions for stock phrases and vocabulary.
+2. Before looking for patterns, read the original once from the top as a first-time reader and note where that reader stops: where you must go back to see who does what or what a word refers to, where a passive hides an actor the sentence names elsewhere, where nouns are stacked into a noun pile ("user account deletion request handling"), where a modifier can attach to two places, where the same word or construction repeats nearby. Make a candidate fix for each noted place even when no section 1 pattern applies, and test it with the six points of the rephrase test. Keep the original when you cannot say what became easier for the reader (do not output this note). Apply section 1 to every sentence, but do not change natural sentences only to vary their rhythm.
+3. Before each fix, write one candidate and compare it with the original on six points (the rephrase test): what it is about; what it affirms and what it denies; who does what to whom; scope and conditions; strength of assertion, hedge and hearsay; numbers, names and timing. If any point changes, discard the candidate, keep the original and list it under "AI-like wording kept". Do not keep rewriting until a candidate passes. The test is not meant to minimize changes. Filling in an established subject or object and merging a two-sentence negative contrast do not change the six points (examples in `references/rephrase-test.md`). In a draft you wrote yourself, check the values readers act on against the material and context. When a metaphor or exaggeration hides the content, when a subject, number or condition is missing, when values conflict or have no source, before putting a value from the conversation or material into the body, and when you got only a draft and a value readers need to act is missing, read `references/fact-recovery.md`, and list each value you filled in or corrected under "Fact check" with the source sentence quoted. When the user wants only the text, add no notes or warnings.
+4. Fix the body one place at a time, reading the sentences around it. Do not fix the body in bulk with sed, perl, python or other replacement tools (regular expressions that rewrite all lines of the same shape, a batch of replacement pairs). Even when the same pattern repeats (bold labels, "In addition,"), decide each place separately. Write the final draft either as a whole new file with all your fixes or by editing one place at a time.
+
+### Commands to run
+Try `python3`, `python` and `py -3` in that order for the check scripts; if one ends with "command not found" or "Python was not found", try the next with the same arguments. If none runs, review by eye (this does not count as running the checks) and write `yomiyasu-en-check: not_run reason=no_python` in the check record. `${CLAUDE_SKILL_DIR}` is this skill's folder; if it is left unexpanded, replace it with the absolute path of the folder that holds this SKILL.md. Do not add `cd`, `&&` or output redirection (`>`, `2>&1`) to the commands.
+
+### Step 3: Checks
+Save the final draft in a file separate from the original and run lint and diff together with the `run --final` command. Only when you cannot write files (including when asked not to save files), use `run --stdin`, and right before returning, run `verify --final -` once with the same text (Step 5). Do not call lint and diff separately or import the scripts; call the command line directly from Bash. Add `--no-record` only when asked not to leave records or not to save files.
+
+```bash
+python3 ${CLAUDE_SKILL_DIR}/scripts/yomiyasu_en_check.py run --source original.md --final revised.md --stance=<recommend|rule|explain> --fact-gaps
+```
+
+`--stance` is the stance from section 1; leave it out if you could not decide. Add `--material <file>` for material; when composing, pass `--material` instead of `--source`. Add `--doc-type <type>` and `--reader <reader>` once decided. On standard input, pass the texts like this (material goes after a `<<<yomiyasu-en:material>>>` line). The body of your answer must be the same as the final draft you passed.
+
+```bash
+python3 ${CLAUDE_SKILL_DIR}/scripts/yomiyasu_en_check.py run --stdin --fact-gaps <<'YOMIYASU_EN_EOF'
+<<<yomiyasu-en:original>>>
+(original)
+<<<yomiyasu-en:final>>>
+(final draft)
+YOMIYASU_EN_EOF
+```
+
+Follow the first line of the output.
+
+### Step 4: Read as the reader and check the findings
+- Read the final draft from the top as the reader and check that the main point and who does what come through.
+- Go through the diff findings one by one. Compare with your note from before rewriting; if the meaning changed, restore the original; keep a change only when you have confirmed it has the same function, and list it under "What changed". Compare sentences without findings against the note too, and report any risk you could not undo.
+- Revise once only, and after revising, run the Step 3 command again. Do not change the body after that.
+
+### Step 5: Match before submitting
+Check that every info finding left in the final draft's lint has a reason to stay. If the run or verify output lists "Flagged words kept", reread those sentences with the Step 2 questions and either ask under "Questions for the writer" or give the reason under "AI-like wording kept" (a reason alone is enough only for established usage and literal meaning). If you changed anything, run again. When the request is to update the original file, copy the final draft to the original's location as it is. Right before submitting, without changing the body, check once that the final draft is the one that was checked. If you change even one character after verify, run and verify again before submitting.
+
+```bash
+python3 ${CLAUDE_SKILL_DIR}/scripts/yomiyasu_en_check.py verify --final file-to-submit.md
+```
+
+After a run on standard input, pass the same body (the final draft only) to `verify --final -` on standard input. After a run with `--no-record`, do not verify; report the final match as a check that was not run (no record was kept). If the first line does not contain "The hash matches the record", run and verify once more without changing the body; if it still does not match, report the match as a check that was not run. Run run and verify even when you did not change the body.
+
+## 3. Output format
+
+When the user wants only the text, add no reasons, questions, notes or check record (the checks still run). When the deliverable is a file and you also reply, add the sections to the reply. Otherwise use this form.
+
+```markdown
+### Revised text
+
+(the revised text, keeping headings and lists; not inside a code fence)
+
+---
+
+### What changed
+- original wording → revised wording (reason)
+- (up to five: changes most likely to move meaning, fixes to connections, verb forms you aligned (one line), and things you filled in. If none, one line: "None")
+
+### AI-like wording kept (only when you kept wording for meaning or weight; otherwise omit the heading)
+- (the wording you kept and why)
+
+### Questions for the writer (only when the body depends on an answer, up to three; otherwise omit the heading)
+- (when there are more, choose in this order: places where meaning or who does what changes, values or steps readers act on, referents, sources; summarize the rest as "- N more places". Do not include questions whose answer would not change the body. "Needs an explanation" lines and register notices do not count toward the three.)
+
+### Fact check
+(sources for facts you filled in or corrected, and points you could not confirm. Keep this heading as is. Omit when there is nothing.)
+
+### Check record
+- Writer, reader, setting: (in the form "Writer: … / Reader: … / Setting: …", each value followed by (specified) or (inferred), or "not decided". Nothing outside this form.)
+- Checks run: (only those you ran among lint, diff, material match, final match; "None" if none)
+- Checks not run: ("None", or "check name (reason)". When no material was given, do not list the material match in either line.)
+- Stiffness check: (copy the value of "Stiffness check:" from the run output; omit if absent)
+- Energy check: (same)
+- Review findings: (copy "original N → final M" from the "Review findings:" line of the last run and add "(counts are not scores; a rise or fall does not mean better or worse readability)". When composing, "final M".)
+- (copy the second line of the verify output as it is. If you could not run it, write e.g. `yomiyasu-en-check: not_run reason=no_python`, choosing the reason from no_python, not_allowed, check_error.)
+```
+
+When you kept expressions because you judged the text an essay, fiction or promo, add one line under the check record ("Judged as an essay, so the writer's voice was kept."). Write it even if you fixed other places; say nothing about register. The "completion report" that check mentions means the sections after the body; write their headings exactly as in the template with the same `###` or `####` (not bold, colons or prose).
+
+- If you passed an original and the status line says `mode=compose`, pass the original with `--source` and start again from Step 3.
+- Use wording that implies you finished the whole procedure ("revised with yomiyasu-en") only when "Checks not run" is "None". Running the checks does not show that meaning was kept or that the text passed a readability test.
