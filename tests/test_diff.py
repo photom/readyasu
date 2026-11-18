@@ -159,3 +159,26 @@ def test_actor_false_positives() -> None:
 def test_changed_places_shows_line_counts() -> None:
     out = diff.format_text(diff.compare("A one.\nB two.\n", "A one. B two.\n"))
     assert "(2 lines → 1 lines)" in out.split("== Meaning risks")[0]
+
+
+@pytest.mark.parametrize(("orig", "rev"), [
+    ("It usually works.\n", "It typically works.\n"),
+    ("We often deploy.\n", "We frequently deploy.\n"),
+    ("Many users like it.\n", "Numerous users like it.\n"),
+    ("Most teams agree.\n", "The majority of teams agree.\n"),
+    ("Under certain conditions it fails.\n", "Under specific conditions it fails.\n"),
+    ("Several services broke.\n", "A handful of services broke.\n"),
+    ("Coverage rose 10%.\n", "Coverage rose 10 percent.\n"),
+    ("Use v2.\n", "Use version 2.\n"),
+])
+def test_synonym_edits_not_counted(orig: str, rev: str) -> None:
+    assert kinds(orig, rev) == []
+
+
+def test_adverb_quantifier_drop_is_review() -> None:
+    assert kinds("It usually works.\n", "It works.\n") == []
+    assert "quantifier_gone" in review_kinds("It usually works.\n", "It works.\n")
+
+
+def test_currency_with_country_prefix() -> None:
+    assert "number" in kinds("It costs US$5.\n", "It costs US$6.\n")

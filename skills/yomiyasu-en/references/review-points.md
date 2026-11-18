@@ -37,7 +37,7 @@ Each item is tagged with its kind. Counted kinds make `--fail-on meaning-risk` f
 | hearsay | reportedly, according to, said that... appeared or disappeared | Restore; hearsay is not assertion |
 | question | A question became a statement or the reverse | Restore the sentence type |
 | request | please, could you... disappeared | Restore the request form; a bare imperative changes politeness |
-| scope | A limiting word (only, solely) disappeared; either/or ↔ both/all; or a quantifier (some, most, many, often) disappeared or became all/every | Restore the scope |
+| scope | A limiting word (only, solely) disappeared; either/or ↔ both/all; or a determiner such as some, most, many or several disappeared with no other partial word, or a partial word became all/every | Restore the scope |
 | correlation | A cause word was added to a sentence that stated only a correlation | Restore the correlation wording |
 | commitment | we will, we guarantee, will never happen again... was added | Remove it unless the request or material states the commitment |
 | citation | A citation ([1], (Smith, 2020)) changed | Restore; which source supports which claim must not move |
@@ -56,6 +56,7 @@ Some forms are not caught. Compare sentences without findings against your note 
 | hedge_changed | A hedge was replaced by another of the same level. Usually fine; check the nuance |
 | ability | can / able to disappeared. Check that the sentence still says what is possible |
 | request_added | A request marker appeared. Check that the sentence was a request (register.md) |
+| quantifier_gone | An adverb such as often, usually or mostly disappeared without a replacement. Check that the sentence did not become always true |
 | limiter_added | only, solely... appeared. Do not add limits the original lacks |
 | causal_added | because, led to, as a result... appeared. Keep facts side by side if the original did not connect them |
 | booster | Certainty word added (in doc types where it is not counted). Remove guarantees the original lacks |

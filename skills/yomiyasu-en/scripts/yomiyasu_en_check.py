@@ -436,8 +436,8 @@ def first_line(status: str, attempt: int, revisions: int, same_as_previous: bool
     if status == "unrecorded":
         return ("Ran the checks (not recorded, as requested). verify cannot match an unrecorded run; report the final "
                 "match as a check that was not run (no record was kept).")
-    if attempt == 1:
-        return ("Ran the checks (attempt 1). Check the findings below against the original and material. Revise at "
+    if attempt == 1 or revisions == 0:
+        return (f"Ran the checks (attempt {attempt}). Check the findings below against the original and material. Revise at "
                 "most once: if you revise, run the same command again; if not, right before submitting and without "
                 f"changing the body, {verify} once.")
     if same_as_previous:

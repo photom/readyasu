@@ -163,3 +163,12 @@ def test_reference_lines_follow_doc_type(tmp_path: Path) -> None:
     lines = p.stdout.splitlines()
     assert "Stiffness check: reference 1" in lines
     assert "Energy check: reference 1" in lines
+
+
+def test_unchanged_rerun_before_revision_keeps_revision(tmp_path: Path) -> None:
+    src = write(tmp_path / "o.md", "A.\n")
+    fin = write(tmp_path / "f.md", "B.\n")
+    st = str(tmp_path / "st")
+    run(["run", "--source", src, "--final", fin, "--state-dir", st, "--no-words"], tmp_path)
+    p = run(["run", "--source", src, "--final", fin, "--state-dir", st, "--no-words"], tmp_path)
+    assert "Revise at most once" in p.stdout.splitlines()[0]

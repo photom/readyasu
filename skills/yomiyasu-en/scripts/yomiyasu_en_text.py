@@ -194,6 +194,7 @@ def classify(text: str) -> list[Line]:
         raw_lines.pop()
     lines: list[Line] = []
     in_fence: Optional[str] = None
+    fence_indent = 0
     in_html_comment = False
     in_front = False
     in_list = False
@@ -214,7 +215,7 @@ def classify(text: str) -> list[Line]:
             lines.append(Line(no, raw, "code"))
             m = _LIST_FENCE.match(raw)
             if m and m.group(2)[0] == in_fence[0] and len(m.group(2)) >= len(in_fence) \
-                    and not m.group(3).strip():
+                    and not m.group(3).strip() and len(m.group(1).expandtabs(4)) <= fence_indent + 3:
                 lines[-1].kind = "fence"
                 in_fence = None
             continue
@@ -226,6 +227,7 @@ def classify(text: str) -> list[Line]:
         m = _FENCE.match(raw) or (_LIST_FENCE.match(raw) if in_list else None)
         if m and not ("`" in m.group(3) and m.group(2)[0] == "`"):
             in_fence = m.group(2)
+            fence_indent = len(m.group(1).expandtabs(4))
             lines.append(Line(no, raw, "fence"))
             prev_kind = "code"
             continue

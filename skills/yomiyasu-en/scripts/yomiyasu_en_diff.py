@@ -69,7 +69,7 @@ def _rx(pattern: str) -> re.Pattern[str]:
     return re.compile(pattern, re.IGNORECASE)
 
 
-NUMBER = re.compile(r"(?<![\w.$€£¥#])(?P<prefix>[$€£¥#]|[QqVv](?=\d))?(?P<num>\d+(?:,\d{3})*(?:[.:]\d+)*)"
+NUMBER = re.compile(r"(?<![\w.$€£¥#])(?P<prefix>(?:[A-Z]{1,2})?[$€£¥]|#|[QqVv](?=\d))?(?P<num>\d+(?:,\d{3})*(?:[.:]\d+)*)"
                     r"(?P<suffix>%|[kKmMbB](?![A-Za-z])|(?:st|nd|rd|th)\b)?")
 NUMBER_WORDS = {
     "zero": "0", "one": "1", "two": "2", "three": "3", "four": "4", "five": "5", "six": "6", "seven": "7",
@@ -116,6 +116,12 @@ APPROX_AFTER = _rx(r"^\s*(?:\+|or\s+so|or\s+more|or\s+less|or\s+fewer|or\s+above
 CHOICE = _rx(r"\b(?:either|or|one\s+of|any\s+one\s+of|whichever)\b")
 ALL_SCOPE = _rx(r"\b(?:both|all|every|each)\b")
 LIMITER = _rx(r"\b(?:only|solely|exclusively|merely)\b|\bjust\s+(?=(?:a|an|the|for|when|if|in|on|one|two|\d))")
+PARTIAL_DET = _rx(r"\b(?:some|several|many|most|few|certain)\b|\bpart\s+of\b")
+PARTIAL_ADV = _rx(r"\b(?:often|usually|mostly|partly|partially)\b|\bin\s+some\s+cases\b")
+STILL_PARTIAL = _rx(r"\b(?:some|several|many|most|few|certain|often|usually|mostly|partly|partially|typically|generally|"
+                    r"normally|commonly|frequently|numerous|majority|specific|rarely|seldom|various|occasionally|"
+                    r"sometimes|particular|select(?:ed)?|portion|minority|handful|lots?)\b|\bin\s+(?:some|many|most)\s+cases\b"
+                    r"|\ba\s+number\s+of\b|\ba\s+few\b|\bpart\s+of\b")
 PARTIAL = _rx(r"\b(?:some|several|many|most|few|part\s+of|certain|often|usually|mostly|partly|partially)\b|\bin\s+some\s+cases\b")
 TOTAL = _rx(r"\b(?:all|every|always|entire|entirely|whole|never|none|completely|fully)\b")
 CORRELATION = _rx(r"\b(?:correlat\w*|coincid\w*)\b|\bassociated\s+with\b|\blinked\s+to\b|\b(?:at|around)\s+the\s+same\s+time\b"
@@ -242,7 +248,14 @@ def number_key(m: re.Match[str]) -> str:
     return prefix + m.group("num").replace(",", "") + suffix
 
 
+def _number_text(text: str) -> str:
+    """Spell-out forms that mean the same token: '10 percent' -> '10%', 'version 2' -> 'v2'."""
+    text = re.sub(r"(\d)\s*(?:percent|per\s+cent)\b", r"\1%", text, flags=re.IGNORECASE)
+    return re.sub(r"\bversion\s+(\d)", r"v\1", text, flags=re.IGNORECASE)
+
+
 def numbers(text: str) -> Counter[str]:
+    text = _number_text(text)
     c: Counter[str] = Counter()
     for m in NUMBER.finditer(text):
         c[number_key(m)] += 1
@@ -264,6 +277,7 @@ def _ordinary_word_use(text: str, m: re.Match[str]) -> bool:
 
 def approx_map(text: str) -> dict[str, set[str]]:
     result: dict[str, set[str]] = {}
+    text = _number_text(text)
     for m in NUMBER.finditer(text):
         key = number_key(m)
         before = APPROX_BEFORE.search(text[max(0, m.start() - 20):m.start()])
@@ -535,11 +549,14 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
             (ALL_SCOPE.search(o) and not ALL_SCOPE.search(r) and CHOICE.search(r) and not CHOICE.search(o)):
         risk("scope", True, f'Choice scope changed: "{first(CHOICE, o) or first(ALL_SCOPE, o)}" → '
              f'"{first(CHOICE, r) or first(ALL_SCOPE, r)}"')
-    elif PARTIAL.search(o) and not PARTIAL.search(r):
+    elif PARTIAL.search(o) and not STILL_PARTIAL.search(r):
         if count(TOTAL, r) > count(TOTAL, o):
             risk("scope", True, f'Quantifier scope changed: "{first(PARTIAL, o)}" → "{first(TOTAL, r)}"')
+        elif PARTIAL_DET.search(o):
+            risk("scope", True, f'Quantifier "{first(PARTIAL_DET, o)}" disappeared; the sentence may now cover everything')
         else:
-            risk("scope", True, f'Quantifier "{first(PARTIAL, o)}" disappeared; the sentence may now cover everything')
+            review("quantifier_gone", f'"{first(PARTIAL_ADV, o)}" disappeared. Check that the sentence did not become '
+                   "always true.")
 
     ca_o, ca_r = count(CAUSAL, o), count(CAUSAL, r)
     if ca_r > ca_o:

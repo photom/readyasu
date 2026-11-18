@@ -105,3 +105,11 @@ def test_hash_ignores_trailing_newlines() -> None:
 def test_joined_offsets_with_trailing_code() -> None:
     doc = tx.parse("Run `make test`\nthen deploy.\n")
     assert doc.sentences[0].text == "Run `make test` then deploy."
+
+
+def test_indented_fence_inside_top_level_fence() -> None:
+    text = ("Intro.\n\n```markdown\n1. Step\n\n    ```bash\n    echo hi\n    ```\n```\n\n"
+            "After the example we leverage a tool.\n")
+    doc = tx.parse(text)
+    assert doc.lines[-1].kind == "para"
+    assert any("leverage" in s.text for s in doc.sentences)
