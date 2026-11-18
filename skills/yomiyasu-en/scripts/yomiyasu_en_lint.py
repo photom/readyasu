@@ -260,8 +260,14 @@ def bold_problems(text: str) -> list[tuple[int, str, str]]:
         else:
             unmatched.append(i)
     unmatched.extend(stack)
+    order = [i for i, _l, _r in runs]
+    reported: set[int] = set()
     problems: list[tuple[int, str, str]] = []
     for i in sorted(unmatched):
+        index = order.index(i)
+        if index > 0 and order[index - 1] in reported:
+            continue  # one finding per broken pair
+        reported.add(i)
         snippet = text[max(0, i - 15): i + 17].strip()
         prev = text[i - 1] if i > 0 else " "
         nxt = text[i + 2] if i + 2 < len(text) else " "
@@ -637,7 +643,7 @@ def format_text(result: LintResult) -> str:
     if result.reader:
         out.append(f"Reader: {result.reader} (recorded only; findings do not change)")
     if result.words.folder:
-        out.append(f"Project word list: {result.words.folder} ({result.words.count} entries)")
+        out.append(f"Project word list: {result.words.folder} ({tx.plural(result.words.count, 'entry', 'entries')})")
     for f in result.findings:
         out.append("")
         out.append(f"L{f.line} [{f.severity.upper()}] {f.rule}: {f.message}")

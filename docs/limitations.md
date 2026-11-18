@@ -8,7 +8,8 @@
 
 ## Known gaps in lint
 
-- Word lists match surface forms. A listed word used in its literal or technical sense ("unlock the door", "robust statistics", "the threat landscape" in a security report) is still reported; use `.yomiyasu-en-words/allow.txt` or keep the word and give the reason.
+- Word lists match surface forms. A listed word used in its literal or technical sense ("unlock the door", "robust statistics", "elevate the platform by 2 meters") is still reported; use `.yomiyasu-en-words/allow.txt` or keep the word and give the reason.
+- Words mentioned as examples inside quotation marks (a style guide that says to avoid "delve") are reported like any other use.
 - Rhythm-level AI patterns (every paragraph the same length, a "rule of three" in every sentence, a summary sentence at the end of every paragraph) are not detected.
 - Negative contrast, personification and self-answered questions are detected only in common forms.
 - Sentence splitting uses punctuation and a short list of abbreviations; unusual abbreviations can split a sentence in two.

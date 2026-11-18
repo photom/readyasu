@@ -147,3 +147,8 @@ def test_large_input_is_fast() -> None:
     start = time.monotonic()
     lint.lint(text)
     assert time.monotonic() - start < 20
+
+
+@pytest.mark.parametrize("text", ["** Note** this.\n", "**Note:**This fails.\n"])
+def test_one_bold_finding_per_pair(text: str) -> None:
+    assert rules(text).count("bold_unrendered") == 1

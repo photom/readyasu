@@ -275,9 +275,16 @@ def numbers(text: str) -> Counter[str]:
 def _ordinary_word_use(text: str, m: re.Match[str]) -> bool:
     """Skip 'one' as a pronoun ('the one', 'one of', 'no one')."""
     before = text[max(0, m.start() - 12):m.start()].lower()
-    after = text[m.end():m.end() + 6].lower()
-    return bool(re.search(r"(?:the|this|that|which|every|any|no|some|each)\s+$", before)) or after.startswith(" of") \
-        or after.startswith(" another")
+    if re.search(r"(?:the|this|that|which|every|any|no|some|each)\s+$", before):
+        return True
+    if re.search(r"\b(?:an?|the|this|that|old|new|other|last|next|same|right|wrong|big|small|main|"
+                 r"better|best|bad|good|little|blue|red|green|white|black)\s+$", before):
+        return True
+    nxt = re.match(r"\s+([A-Za-z]+)", text[m.end():])
+    if nxt is None:
+        return True  # "one" before punctuation or at the end is a pronoun ("the old one.")
+    return nxt.group(1).lower() in ("of", "another", "that", "which", "who", "and", "or", "is", "was", "can",
+                                    "could", "will", "would", "should", "might", "may", "must", "does", "did")
 
 
 def approx_map(text: str) -> dict[str, set[str]]:
@@ -497,7 +504,8 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
             sources = extra_sources + "\n" + orig_all
             elsewhere = [n for n in added if numbers(sources).get(n)]
             if elsewhere:
-                note = f" ({', '.join(elsewhere)} appear elsewhere in the original or material)"
+                verb = "appears" if len(elsewhere) == 1 else "appear"
+                note = f" ({', '.join(elsewhere)} {verb} elsewhere in the original or material)"
             parts.append("added " + ", ".join(added) + note)
         risk("number", True, "Number changed: " + "; ".join(parts))
     else:
@@ -876,7 +884,7 @@ def line_changes(a_text: str, b_text: str) -> tuple[list[dict[str, object]], str
                         "original": "\n".join(old), "revised": "\n".join(new)})
         head = f"@ original line {i1 + 1 if old else i1} → revised line {j1 + 1 if new else j1}"
         if len(old) != len(new):
-            head += f" ({len(old)} lines → {len(new)} lines)"
+            head += f" ({tx.plural(len(old), 'line')} → {tx.plural(len(new), 'line')})"
         out.append(head)
         for x in old:
             out.append(f"  - {x}")
@@ -1029,7 +1037,7 @@ def format_sections(result: DiffResult) -> list[str]:
         for c in result.changes[:10]:
             n_old = len(str(c["original"]).split("\n")) if c["original"] else 0
             n_new = len(str(c["revised"]).split("\n")) if c["revised"] else 0
-            extra = f" ({n_old} lines → {n_new} lines)" if n_old != n_new else ""
+            extra = f" ({tx.plural(n_old, 'line')} → {tx.plural(n_new, 'line')})" if n_old != n_new else ""
             out.append(f"@ original line {c['orig_line']} → revised line {c['rev_line']}{extra}")
             out.append(f"  original: {tx.display_width_cut(str(c['original']).replace(chr(10), ' / '), 120)}")
             out.append(f"  revised:  {tx.display_width_cut(str(c['revised']).replace(chr(10), ' / '), 120)}")
@@ -1042,7 +1050,12 @@ def format_sections(result: DiffResult) -> list[str]:
     if not result.risks:
         out.append("- None found. This does not prove the meaning is the same.")
     for r in counted + other:
-        where = f" (original line {r.orig_line} → revised line {r.rev_line})" if r.orig_line or r.rev_line else ""
+        if r.orig_line:
+            where = f" (original line {r.orig_line} → revised line {r.rev_line})"
+        elif r.rev_line:
+            where = f" (revised line {r.rev_line})"
+        else:
+            where = ""
         mark = "" if r.counted else " [not counted]"
         out.append(f"- [{r.kind}]{mark} {r.message}{where}")
         if r.original:

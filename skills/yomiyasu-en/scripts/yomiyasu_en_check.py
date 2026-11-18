@@ -458,14 +458,14 @@ def format_run(first: str, status_line: str, mode: str, checks: list[str], recor
     out = [first, status_line]
     parts = []
     if lint_final is not None:
-        parts.append(f"lint (final draft) {final_count} findings")
+        parts.append(f"lint (final draft) {tx.plural(final_count, 'finding')}")
     if diff is not None and mode == "rewrite":
-        parts.append(f"diff (original → final) {len(diff.get('changes', []))} changed places, "
-                     f"{diff.get('meaning_risk_count', 0)} meaning risks counted")
+        parts.append(f"diff (original → final) {tx.plural(len(diff.get('changes', [])), 'changed place')}, "
+                     f"{tx.plural(int(diff.get('meaning_risk_count', 0)), 'meaning risk')} counted")
     if "material" in checks and diff is not None:
         mat = diff.get("material", {}) or {}
-        parts.append(f"material match {len(mat.get('numbers_not_in_material', []))} numbers and "
-                     f"{len(mat.get('names_not_in_material', []))} names not in the material")
+        parts.append(f"material match {tx.plural(len(mat.get('numbers_not_in_material', [])), 'number')} and "
+                     f"{tx.plural(len(mat.get('names_not_in_material', [])), 'name')} not in the material")
     out.append("Checks run: " + ("; ".join(parts) if parts else "none"))
     if adopted:
         out.append(f"Compose mode found that the material {adopted} is close to the final draft, so it was used as "

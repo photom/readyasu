@@ -619,6 +619,11 @@ def emoji_in(text: str) -> list[str]:
     return found
 
 
+def plural(n: int, word: str, many: str = "") -> str:
+    """'1 line', '2 lines'."""
+    return f"{n} {word if n == 1 else (many or word + 's')}"
+
+
 def display_width_cut(text: str, limit: int = 100) -> str:
     text = text.strip()
     if len(text) <= limit:

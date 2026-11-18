@@ -158,7 +158,7 @@ def test_actor_false_positives() -> None:
 
 def test_changed_places_shows_line_counts() -> None:
     out = diff.format_text(diff.compare("A one.\nB two.\n", "A one. B two.\n"))
-    assert "(2 lines → 1 lines)" in out.split("== Meaning risks")[0]
+    assert "(2 lines → 1 line)" in out.split("== Meaning risks")[0]
 
 
 @pytest.mark.parametrize(("orig", "rev"), [
@@ -231,3 +231,14 @@ def test_most_with_mass_noun_is_review() -> None:
 ])
 def test_fifth_pass_benign(orig: str, rev: str) -> None:
     assert kinds(orig, rev) == []
+
+
+def test_pronoun_one_not_a_number() -> None:
+    assert kinds("We kept the old tool.\n", "We kept the old one.\n") == []
+    assert "number" in kinds("Use two servers.\n", "Use one server.\n")
+    assert "number" in kinds("Only two servers run.\n", "Only one server runs.\n")
+
+
+def test_compose_risk_has_no_original_line() -> None:
+    out = diff.format_text(diff.compose("Wait 3 seconds.\n", "Wait 5 seconds.\n"))
+    assert "original line 0" not in out

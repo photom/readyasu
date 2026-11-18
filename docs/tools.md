@@ -53,7 +53,7 @@ python3 yomiyasu_en_check.py verify --final FINAL|- [--state-dir DIR] [--json]
 - `--source` (or `--original`): the original. Must be a different file from the final draft.
 - `--material` (repeatable): material files. Lines `<<<yomiyasu-en:material SOURCE>>>` inside them are separators and are not compared.
 - With only `--material` (compose mode), if one material is very close to the final draft, it is used as the original and diff runs too; the output says so.
-- `--stdin`: read everything from standard input, separated by lines that are exactly `<<<yomiyasu-en:original>>>`, `<<<yomiyasu-en:material SOURCE>>>` (SOURCE optional, up to 200 characters) and `<<<yomiyasu-en:final>>>`. Any other line starting with `<<<yomiyasu-en:` stops with exit 2. An original or material section is required, unless `--material FILE` is also given.
+- `--stdin`: read everything from standard input, separated by lines that are exactly `<<<yomiyasu-en:original>>>`, `<<<yomiyasu-en:material SOURCE>>>` (SOURCE optional, up to 200 characters) and `<<<yomiyasu-en:final>>>`. Any other line starting with `<<<yomiyasu-en:` stops with exit 2. An original or material section is required, unless `--material FILE` is also given. A record is still written (see `--state-dir` and `--no-record`).
 
 ### Options
 
