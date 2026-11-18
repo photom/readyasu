@@ -1,0 +1,23 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "yomiyasu-en",
+  "description": "Claude Code marketplace for yomiyasu-en",
+  "owner": {
+    "name": "photom"
+  },
+  "plugins": [
+    {
+      "name": "yomiyasu-en",
+      "description": "Revises AI-generated English prose to read naturally while keeping meaning and conditions",
+      "version": "0.1.0",
+      "author": {
+        "name": "photom"
+      },
+      "source": "./",
+      "category": "productivity",
+      "homepage": "https://github.com/photom/yomiyasu-en",
+      "repository": "https://github.com/photom/yomiyasu-en",
+      "license": "MIT"
+    }
+  ]
+}

@@ -45,7 +45,6 @@ without further ado	delete
 needless to say	delete, or say it
 it goes without saying	delete, or say it
 more than just	say what more it is, or delete
-not just a	keep only if X corrects a likely misreading
 stands as a	"is"
 serves as a	"is"
 a wide range of	keep only if the list is not given

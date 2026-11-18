@@ -1,0 +1,124 @@
+from __future__ import annotations
+
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+from conftest import SCRIPTS
+
+CHECK = SCRIPTS / "yomiyasu_en_check.py"
+
+
+def run(args: list[str], cwd: Path, stdin: str | None = None) -> subprocess.CompletedProcess[str]:
+    return subprocess.run([sys.executable, str(CHECK), *args], cwd=cwd, input=stdin, capture_output=True,
+                          text=True, encoding="utf-8", check=False)
+
+
+def write(path: Path, text: str) -> str:
+    path.write_text(text, encoding="utf-8")
+    return str(path)
+
+
+def test_run_and_verify(tmp_path: Path) -> None:
+    src = write(tmp_path / "o.md", "The job may fail.\n")
+    fin = write(tmp_path / "f.md", "The job fails.\n")
+    st = str(tmp_path / "st")
+    p = run(["run", "--source", src, "--final", fin, "--state-dir", st, "--no-words"], tmp_path)
+    assert p.returncode == 0, p.stderr
+    lines = p.stdout.splitlines()
+    assert lines[0].startswith("Ran the checks (attempt 1)")
+    assert lines[1].startswith("yomiyasu-en-check: executed via=run") and "meaning_risk=1" in lines[1]
+    assert any(ln.startswith("Stiffness check:") for ln in lines)
+    assert any(ln.startswith("Review findings: original 0 → final 0") for ln in lines)
+    assert lines[-1] == lines[1]
+    v = run(["verify", "--final", fin, "--state-dir", st], tmp_path)
+    assert v.returncode == 0
+    assert "The hash matches the record" in v.stdout.splitlines()[0]
+    assert v.stdout.splitlines()[1].startswith("yomiyasu-en-check: executed via=verify")
+    assert (tmp_path / "st" / ".gitignore").read_text(encoding="utf-8").strip().endswith("*")
+
+
+def test_attempts_and_mismatch(tmp_path: Path) -> None:
+    src = write(tmp_path / "o.md", "Hello there.\n")
+    fin = write(tmp_path / "f.md", "Hello.\n")
+    st = str(tmp_path / "st")
+    assert run(["run", "--source", src, "--final", fin, "--state-dir", st, "--no-words"], tmp_path).returncode == 0
+    write(tmp_path / "f.md", "Hello, friend.\n")
+    p = run(["--source", src, "--final", fin, "--state-dir", st, "--no-words"], tmp_path)
+    assert "attempt 2" in p.stdout.splitlines()[0]
+    p = run(["run", "--source", src, "--final", fin, "--state-dir", st, "--no-words"], tmp_path)
+    assert "exceeds the one-revision rule" in p.stdout.splitlines()[0]
+    write(tmp_path / "f.md", "Changed after run.\n")
+    v = run(["verify", "--final", fin, "--state-dir", st], tmp_path)
+    assert v.returncode == 1 and "reason=no_record" in v.stdout
+
+
+def test_stdin_mode(tmp_path: Path) -> None:
+    st = str(tmp_path / "st")
+    data = "<<<yomiyasu-en:original>>>\nWait 3 seconds.\n<<<yomiyasu-en:final>>>\nWait 5 seconds.\n"
+    p = run(["run", "--stdin", "--state-dir", st, "--no-words", "--fail-on", "meaning-risk"], tmp_path, data)
+    assert p.returncode == 1
+    assert "verify --final -" in p.stdout.splitlines()[0]
+    v = run(["verify", "--final", "-", "--state-dir", st], tmp_path, "Wait 5 seconds.\n")
+    assert v.returncode == 0
+
+
+def test_stdin_bad_separator(tmp_path: Path) -> None:
+    p = run(["run", "--stdin", "--no-words"], tmp_path, "<<<yomiyasu-en:orignal>>>\nx\n<<<yomiyasu-en:final>>>\ny\n")
+    assert p.returncode == 2 and "not_run" in p.stdout
+
+
+def test_usage_errors(tmp_path: Path) -> None:
+    fin = write(tmp_path / "f.md", "Text.\n")
+    empty = write(tmp_path / "e.md", "\n")
+    assert run(["run", "--final", fin, "--no-words"], tmp_path).returncode == 2
+    assert run(["run", "--source", fin, "--final", fin, "--no-words"], tmp_path).returncode == 2
+    assert run(["run", "--source", fin, "--final", empty, "--no-words"], tmp_path).returncode == 2
+    assert run(["run", "--material", fin, "--final", fin, "--no-words"], tmp_path).returncode == 2
+    assert run(["run", "--source", fin, "--final", fin, "--run-id", "../x"], tmp_path).returncode == 2
+    assert run(["run", "--source", fin, "--final", fin, "--doc-type", "x"], tmp_path).returncode == 2
+
+
+def test_no_record(tmp_path: Path) -> None:
+    src = write(tmp_path / "o.md", "A.\n")
+    fin = write(tmp_path / "f.md", "B.\n")
+    st = tmp_path / "st"
+    p = run(["run", "--source", src, "--final", fin, "--state-dir", str(st), "--no-record", "--no-words"], tmp_path)
+    assert p.returncode == 0 and "unrecorded" in p.stdout.splitlines()[1]
+    assert not st.exists()
+
+
+def test_compose_mode(tmp_path: Path) -> None:
+    mat = write(tmp_path / "m.txt", "<<<yomiyasu-en:material user's message>>>\nBackups are kept for 30 days.\n")
+    fin = write(tmp_path / "f.md", "We keep backups for 45 days, and the old ones go away on a schedule.\n")
+    p = run(["run", "--material", mat, "--final", fin, "--state-dir", str(tmp_path / "st"), "--no-words",
+             "--fail-on", "meaning-risk", "--json"], tmp_path)
+    data = json.loads(p.stdout)
+    assert data["mode"] == "compose" and data["checks"] == ["lint", "material"]
+    assert p.returncode == 1
+
+
+def test_compose_adopts_similar_material(tmp_path: Path) -> None:
+    mat = write(tmp_path / "m.txt", "The service may restart at night to apply updates for all customers.\n")
+    fin = write(tmp_path / "f.md", "The service may restart at night to apply updates for customers.\n")
+    p = run(["run", "--material", mat, "--final", fin, "--state-dir", str(tmp_path / "st"), "--no-words"], tmp_path)
+    assert "mode=rewrite" in p.stdout.splitlines()[1]
+
+
+def test_flagged_words_kept(tmp_path: Path) -> None:
+    src = write(tmp_path / "o.md", "We leverage a robust tool.\n")
+    fin = write(tmp_path / "f.md", "We use a robust tool.\n")
+    p = run(["run", "--source", src, "--final", fin, "--state-dir", str(tmp_path / "st"), "--no-words"], tmp_path)
+    assert any(ln.startswith("Flagged words kept: robust") for ln in p.stdout.splitlines())
+
+
+def test_default_state_dir_at_git_top(tmp_path: Path) -> None:
+    (tmp_path / ".git").mkdir()
+    sub = tmp_path / "docs"
+    sub.mkdir()
+    src = write(sub / "o.md", "A.\n")
+    fin = write(sub / "f.md", "B.\n")
+    assert run(["run", "--source", src, "--final", fin, "--no-words"], sub).returncode == 0
+    assert (tmp_path / ".yomiyasu-en" / "state.json").is_file()
+    assert run(["verify", "--final", fin], sub).returncode == 0

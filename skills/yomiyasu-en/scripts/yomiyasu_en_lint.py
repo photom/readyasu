@@ -16,7 +16,7 @@ import json
 import re
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import NoReturn, Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -271,6 +271,8 @@ def bold_problems(text: str) -> list[tuple[int, str, str]]:
             reason = "a letter right before the opening ** and punctuation after it (add a space before **)"
         elif nxt.isspace():
             reason = "a space after the opening **"
+        elif re.search(r"[^\s\w]\*\*\w", text[i + 2:]):
+            reason = "the closing ** has punctuation before it and a letter right after it (add a space after the closing **)"
         else:
             reason = "no matching **"
         problems.append((i, snippet, reason))
@@ -652,7 +654,7 @@ def fail_hit(findings: list[Finding], fail_on: set[str]) -> bool:
 
 
 class _Parser(argparse.ArgumentParser):
-    def error(self, message: str) -> None:  # type: ignore[override]
+    def error(self, message: str) -> NoReturn:
         self.print_usage(sys.stderr)
         sys.stderr.write(f"{self.prog}: error: {message}\n")
         sys.exit(2)
