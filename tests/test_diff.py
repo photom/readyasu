@@ -203,3 +203,20 @@ def test_approximation_groups() -> None:
     assert kinds("It takes about 30 minutes.\n", "It takes approximately 30 minutes.\n") == []
     assert "approximation" in kinds("Retry at most 3 times.\n", "Retry at least 3 times.\n")
     assert "negation" not in kinds("Use no more than 3.\n", "Use at most 3.\n")
+
+
+@pytest.mark.parametrize(("orig", "rev"), [
+    ("No one else can access the vault.\n", "Everyone else can access the vault.\n"),
+    ("Submit no later than 5 pm.\n", "Submit later than 5 pm.\n"),
+    ("It's no more than a draft.\n", "It's more than a draft.\n"),
+])
+def test_negation_phrases_still_counted(orig: str, rev: str) -> None:
+    assert "negation" in kinds(orig, rev)
+
+
+def test_no_one_else_synonym_not_counted() -> None:
+    assert kinds("No one else can access the vault.\n", "Nobody else can access the vault.\n") == []
+
+
+def test_most_with_mass_noun_is_review() -> None:
+    assert "quantifier_gone" in review_kinds("Most traffic goes to the EU region.\n", "Traffic goes to the EU region.\n")

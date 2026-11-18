@@ -120,6 +120,7 @@ PARTIAL_DET = _rx(r"\b(?:some|several|many|few)\b|\bpart\s+of\b"
                   r"|(?<!\bthe\s)(?<!\bat\s)\bmost\s+(?=of\b|people\b|data\b|code\b|work\b|software\b|[a-z]+s\b)(?![a-z]+ly\b)"
                   r"|(?<!\bbe\s)(?<!\bam\s)(?<!['’]m\s)(?<!\bis\s)(?<!\bare\s)(?<!\bwas\s)(?<!\bfeel\s)(?<!\bnot\s)"
                   r"\bcertain\s+(?!that\b|of\b|about\b)(?=[a-z])")
+MOST_ANY = _rx(r"(?<!\bthe\s)(?<!\bat\s)\bmost\s+(?![a-z]+ly\b)(?=[a-z])")
 PARTIAL_ADV = _rx(r"\b(?:often|usually|mostly|partly|partially)\b|\bin\s+some\s+cases\b")
 STILL_PARTIAL = _rx(r"\b(?:some|several|many|most|few|certain|often|usually|mostly|partly|partially|typically|generally|"
                     r"normally|commonly|frequently|numerous|majority|specific|rarely|seldom|various|occasionally|"
@@ -303,8 +304,8 @@ APPROX_GROUPS = (
     ("less than", ("less than", "under", "below", "fewer than", "just under", "or less", "or fewer")),
 )
 _APPROX_INDEX = {re.sub(r"\s+", " ", w): g for g, words in APPROX_GROUPS for w in words}
-NOT_NEGATION = _rx(r"\bno\s+(?:more|less|fewer|later|earlier|sooner)\s+than\b|\bnot\s+(?:more|less)\s+than\b"
-                   r"|\bno\s+one\s+else\b|\bno\s+doubt\b")
+NOT_NEGATION = _rx(r"\b(?:no|not)\s+(?:more|less|fewer)\s+than\s+(?=[$€£¥~#]?\d|(?:one|two|three|four|five|six|seven|"
+                   r"eight|nine|ten|eleven|twelve|twenty|thirty|fifty|hundred|a\s+(?:few|dozen|hundred|thousand))\b)")
 
 
 def approx_group(word: str) -> str:
@@ -572,14 +573,14 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
             (ALL_SCOPE.search(o) and not ALL_SCOPE.search(r) and CHOICE.search(r) and not CHOICE.search(o)):
         risk("scope", True, f'Choice scope changed: "{first(CHOICE, o) or first(ALL_SCOPE, o)}" → '
              f'"{first(CHOICE, r) or first(ALL_SCOPE, r)}"')
-    elif (PARTIAL_DET.search(o) or PARTIAL_ADV.search(o)) and not STILL_PARTIAL.search(r):
+    elif (PARTIAL_DET.search(o) or PARTIAL_ADV.search(o) or MOST_ANY.search(o)) and not STILL_PARTIAL.search(r):
         if count(TOTAL, r) > count(TOTAL, o):
-            word = first(PARTIAL_DET, o) or first(PARTIAL_ADV, o)
+            word = first(PARTIAL_DET, o) or first(PARTIAL_ADV, o) or first(MOST_ANY, o)
             risk("scope", True, f'Quantifier scope changed: "{word.strip()}" → "{first(TOTAL, r)}"')
         elif PARTIAL_DET.search(o):
             risk("scope", True, f'Quantifier "{first(PARTIAL_DET, o).strip()}" disappeared; the sentence may now cover everything')
         else:
-            review("quantifier_gone", f'"{first(PARTIAL_ADV, o)}" disappeared. Check that the sentence did not become '
+            review("quantifier_gone", f'"{(first(PARTIAL_ADV, o) or first(MOST_ANY, o)).strip()}" disappeared. Check that the sentence did not become '
                    "always true.")
 
     ca_o, ca_r = count(CAUSAL, o), count(CAUSAL, r)
