@@ -71,3 +71,4 @@ noteworthy	say what is notable
 embark on a journey	"start"
 your journey	keep literal journeys; otherwise "process", "time"
 the journey of	keep literal journeys; otherwise "process", "time"
+catastrophic	say what happened; keep it when it is the organization's defined severity level

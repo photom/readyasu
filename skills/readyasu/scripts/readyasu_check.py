@@ -555,8 +555,9 @@ def format_run(first: str, status_line: str, mode: str, checks: list[str], recor
         if not findings:
             out.append("- None. Places without findings still need to be read against the original.")
         for f in findings:
-            out.append(f"L{f['line']} [{str(f['severity']).upper()}] {f['rule']}: {f['message']}")
-            out.append(f"  > {tx.display_width_cut(str(f['text']), 160)}")
+            col = int(f.get("col", 1) or 1)
+            out.append(f"L{f['line']}:{col} [{str(f['severity']).upper()}] {f['rule']}: {f['message']}")
+            out.append(f"  > {tx.excerpt(str(f['text']), col, len(str(f.get('match', '')) or ' '))}")
         out.append("")
     if problems:
         out.append("Not finished: " + "; ".join(problems))

@@ -2,6 +2,7 @@
 
 See also: domains/business.md
 Lint rules exempted: bold_label_list, excess_list, fragment_run, self_answered_question, count_announcement, closing_summary
+Also not reported in slides: "key takeaways" (a summary slide) and "thank you for your attention" (the closing slide).
 
 ## 1. Normal forms (do not change)
 

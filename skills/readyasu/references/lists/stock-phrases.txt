@@ -48,3 +48,6 @@ more than just	say what more it is, from the original; otherwise keep and ask (d
 stands as a	"is"
 serves as a	"is" only when the thing really is one; otherwise keep
 a wide range of	keep only if the list is not given
+perfect storm	name the causes the text gives
+simply put	delete; say the point
+put simply	delete; say the point
