@@ -24,4 +24,4 @@ Lint rules exempted: none
 | Original | Handling |
 |---|---|
 | The Licensee shall notify the Licensor within 30 days. | Keep |
-| This policy seamlessly fosters a culture of security. | "This policy sets the security rules for ..." from the document; ask if unclear |
+| This policy seamlessly fosters a culture of security. | Say what people do under the policy, from the document ("This policy requires every employee to complete security training each year"); if the document does not say, keep the sentence and ask |

@@ -434,3 +434,71 @@ def test_not_just_is_not_a_reversed_contrast() -> None:
 def test_material_lines_from_the_original_are_marked() -> None:
     result = diff.compare("The bill was $3200.\n", "The bill was $3200 per month.\n", materials="Cost: monthly.\n")
     assert any(str(m["material_line"]).startswith("(original)") for m in result.material["matched_numbers"])
+
+
+# ---- set 6 review
+
+def test_deleted_negation_merged_reversed_into_a_neighbor() -> None:
+    o = ("Median reaction time fell from 312 ms to 287 ms in the nap group, while the control group showed no change. "
+         "These findings suggest that naps may help. However, the nap did not improve self-reported sleepiness on "
+         "the Karolinska Sleepiness Scale.\n")
+    r = ("Median reaction time fell from 312 ms to 287 ms in the nap group, and self-reported sleepiness on the "
+         "Karolinska Sleepiness Scale also improved, while the control group showed no change. These findings "
+         "suggest that naps may help.\n")
+    assert "negation" in kinds(o, r)
+
+
+def test_action_items_stay_paired_when_labels_lose_bold() -> None:
+    o = ("1. **Certificate checks**: Add a check. Owner: Marco Ruiz. Due: Friday, November 20.\n"
+         "2. **Alerting**: Restore the threshold. Owner: Aisha Khan. Due: Tuesday, November 17.\n")
+    r = ("1. Certificate checks: Add a check. Owner: Aisha Khan. Due: Friday, November 20.\n"
+         "2. Alerting: Restore the threshold. Owner: Marco Ruiz. Due: Thursday, November 17.\n")
+    risks = [x for x in diff.compare(o, r).risks if x.counted]
+    dates = [x for x in risks if x.message.startswith("Month or weekday")]
+    assert len(dates) == 1 and "Tuesday" in dates[0].message and "Thursday" in dates[0].message
+    assert any(x.kind == "name_order" for x in risks)
+
+
+@pytest.mark.parametrize(("orig", "rev", "kind"), [
+    ("Some trusts allow naps.\n", "Most trusts allow naps.\n", "scope"),
+    ("Median reaction time fell to 287 ms.\n", "Mean reaction time fell to 287 ms.\n", "number"),
+    ("Some argue for it (NHS Employers, 2019).\n", "Some argue for it.\n", "citation"),
+])
+def test_set6_meaning_changes_are_counted(orig: str, rev: str, kind: str) -> None:
+    assert kind in kinds(orig, rev)
+
+
+@pytest.mark.parametrize(("orig", "rev"), [
+    ("All tests pass.\n", "Every test passes.\n"),
+    ("Use a maximum of 3 workers.\n", "Use at most 3 workers.\n"),
+    ("Our monitoring system chose to stay quiet.\n", "No alert fired.\n"),
+])
+def test_set6_harmless_rewrites(orig: str, rev: str) -> None:
+    assert kinds(orig, rev) == []
+
+
+def test_material_unit_and_weekday_mismatch() -> None:
+    result = diff.compose("The freeze starts Tuesday, November 14 and takes 22 seconds.\n",
+                          "The code freeze starts Monday, December 14. It takes 22 minutes.\n")
+    messages = " ".join(r.message for r in result.risks)
+    assert "22 s" in messages and "Tuesday" in messages
+
+
+def test_material_matches_list_only_changed_lines() -> None:
+    o = "We have 14 repos.\n\nThe freeze starts soon.\n"
+    r = "We have 14 repos.\n\nThe freeze starts on December 14.\n"
+    result = diff.compare(o, r, materials="The code freeze starts Monday, December 14.\n")
+    lines = {m["line"] for m in result.material["matched_numbers"]}
+    assert lines == {3}
+
+
+def test_closing_rule_only_for_trailing_headings_and_not_pr() -> None:
+    o = "## Summary\n\nAdds retries.\n\n## Changes\n\nRetry logic.\n"
+    msgs = [v.message for v in diff.compare(o, "## Changes\n\nRetry logic.\n", "pr").reviews if v.kind == "heading"]
+    assert msgs and msgs[0].startswith("Number of headings changed")
+
+
+def test_energy_ignores_deleted_residue() -> None:
+    o = "Certainly! Here's a reply you can send.\n\nThanks for flagging it! I'll send the numbers.\n"
+    r = "Thanks for flagging it! I'll send the numbers.\n"
+    assert diff.compare(o, r, "mail").energy == []

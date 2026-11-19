@@ -34,7 +34,7 @@ Compares the original and the revised text sentence by sentence (sentences are p
 - Meaning risks are tagged with a kind. `--help` lists the counted kinds; `--fail-on meaning-risk` exits 1 if any counted risk exists.
 - `--doc-type`: booster words (always, guaranteed) are counted only for pr, article, incident, proposal, manual, formal and paper. Stiffness is reference only for incident, formal and paper; energy for pr, article, incident, manual, formal and paper.
 - `--stance recommend|rule|explain` adds stance findings ("let's" in a rule document, "will" added in an explanation, obligation added to a recommendation).
-- `--material FILE` (repeatable) adds the material match: numbers and names in the revised text found in neither the material nor the original.
+- `--material FILE` (repeatable) adds the material match: numbers and names in the revised text found in neither the material nor the original, and numbers whose unit, month or weekday differs from the material.
 - `--compose` compares one final draft with the material only; numbers not in the material are counted risks.
 - `--fact-gaps` lists some sentences that give only a metaphor, effect, degree word or change without values (not for essay and promo). The patterns are in `references/lists/fact-gaps.txt`; if that file cannot be read, a built-in copy is used and the section says so.
 - Exit codes: 0 finished and `--fail-on` did not match; 1 it matched; 2 usage or input error.

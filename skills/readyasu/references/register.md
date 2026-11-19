@@ -4,7 +4,7 @@ Details of the fourth item of SKILL.md section 2, Step 1: the writer's role and 
 
 ## 1. When to read this
 
-- When the request states the writer ("I'm writing as the team lead", "from our support team") or the reader ("for a client", "to my manager", "for all employees"). Read this before fixing the body. Also read it when unsure whether to ask about the relationship.
+- When the request states the writer ("I'm writing as the team lead", "from our support team") or the reader ("for a client", "to my manager", "for all employees"). Read this before fixing the body. Ask about the relationship only inside the single question of audience.md section 4, and only when the answer changes the rewrite.
 - When nothing is stated, write "not decided" for the writer in the check record and change neither the body nor your notices. Do not mention politeness or register.
 
 ## 2. Three values
@@ -66,4 +66,4 @@ Use the reader's name or role only as the original gives it. Do not add a greeti
 
 - Write the three values in the check record ("Writer: support team (specified) / Reader: informed (inferred) / Setting: mail (inferred)").
 - Report register changes under "What changed" in one line ("made requests polite questions for a client").
-- A "register notice" is a line under "Questions for the writer" that says something the writer must decide because of the relationship (for example, an internal name the outside reader will not know). Like "Needs an explanation", it does not count toward the three questions.
+- A "register notice" is a line under "Questions for the writer" that says something the writer must decide because of the relationship (for example, a sentence that claims knowledge the writer cannot have (section 2), or an addressee in the original that differs from the stated reader). Internal names follow audience.md section 10. Like "Needs an explanation", it does not count toward the three questions.

@@ -25,5 +25,5 @@ Lint rules exempted: none
 
 | Original | Handling |
 |---|---|
-| In this article, we'll dive deep into Rust's borrow checker. | "We'll look closely at how Rust's borrow checker works." (drops the stock opener, keeps "we" and the contraction) |
+| In this article, we'll dive deep into Rust's borrow checker. | "We'll look closely at Rust's borrow checker." (drops the stock opener, keeps "we" and the contraction) |
 | The borrow checker is your friend, not your enemy. | Keep if the article argues against the common frustration; otherwise "The borrow checker catches ..." from the article's own content |

@@ -36,5 +36,6 @@ reimagin*	say what changed
 redefin*	say what changed
 streamlin*	say which step got shorter
 quietly break*	say what was missing ("without an error message") only when the text says it; otherwise keep
+quietly broke	say what was missing ("without an error message") only when the text says it; otherwise keep
 shines	"works best"
 truly shines	"works best"

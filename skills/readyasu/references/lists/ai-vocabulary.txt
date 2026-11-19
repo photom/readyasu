@@ -58,7 +58,7 @@ a deep dive	"a detailed look"; keep a meeting name
 dive deep*	delete the announcement
 dive into	delete the announcement
 deep dive into	delete the announcement
-key takeaways	keep only if the request asks for takeaways
+key takeaways	delete only when it repeats the body; keep summaries of long documents and requested ones
 actionable insights	say what the reader learns
 valuable insights	say what the reader learns
 treasure trove	"collection", or name what it holds

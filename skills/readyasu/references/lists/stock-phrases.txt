@@ -44,7 +44,7 @@ look no further	delete
 without further ado	delete
 needless to say	delete, or say it
 it goes without saying	delete, or say it
-more than just	say what more it is, or delete
+more than just	say what more it is, from the original; otherwise keep and ask (deleting it reverses the claim)
 stands as a	"is"
-serves as a	"is"
+serves as a	"is" only when the thing really is one; otherwise keep
 a wide range of	keep only if the list is not given

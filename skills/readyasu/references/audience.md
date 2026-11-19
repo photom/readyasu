@@ -103,7 +103,7 @@ Never rephrase class E, terms the original defines, words that correspond to a h
 
 ## 11. Reader profiles
 
-- Use a profile ("second-year sales rep", "procurement manager") to decide which of the three levels applies (same field as the document: expert; different field but used to technical or business words: informed; otherwise general). Decide which terms need explanation from that level.
+- A profile gives a specified level only when it says what the readers know or which field they work in (section 3): same field as the document: expert; different field but used to technical or business words: informed; otherwise general. A profile that only names a role ("procurement manager") gives an inferred level, and section 6 applies. Decide which terms need explanation from a specified level.
 - The writer-reader relationship is handled in register.md. Politeness changes only within register.md section 7. Do not change structure, contractions, claims or examples.
 - Do not pass the profile to check.
 - For "make it beginner-friendly" or "make it simple", make the words and the order of explanation easier (sections 8 and 9) and treat the reader as an adult. Do not add a childish or cheerleading tone ("Don't worry!", "You've got this!", "Easy, right?"). When the original already uses that tone, keep it unless asked.
