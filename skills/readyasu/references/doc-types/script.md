@@ -2,7 +2,7 @@
 
 See also: domains/essay.md
 Lint rules exempted: fragment_run, exclamation, self_answered_question, chat_residue (interjections only)
-Also not reported in scripts: "thank you for your attention" (a closing line), and runs of bold speaker-name labels ("**ANA:**", "**Host (V.O.):**").
+Also not reported in scripts: "thank you for your attention" (a closing line), runs of bold speaker-name labels ("**ANA:**", "**Host (V.O.):**", "**Speaker 1:**"), and dashes in scene headings ("INT. KITCHEN — NIGHT").
 
 ## 1. Normal forms (do not change)
 
