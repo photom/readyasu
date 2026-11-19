@@ -1,4 +1,6 @@
-# Courtesies, offers and closings: normal in mail, residue in documents. Not reported for --doc-type mail.
+# Courtesies, offers and closings: normal in mail, residue in documents. Not reported for --doc-type mail, except
+# in a sentence about the drafted mail (its tone, wording, a shorter version) after the mail's sign-off or right after
+# a thematic break: "Let me know if you'd like me to adjust the tone or make it more concise!" (readyasu_lint.py).
 # "thank you for your attention" is also not reported for --doc-type slides and script (ENTRY_EXEMPT in
 # readyasu_lint.py): it is the closing slide or the last line of a talk.
 # "Here's a draft:" is found by the preamble pattern in readyasu_lint.py (see chat-residue.txt), which skips the
