@@ -132,7 +132,7 @@ When the user corrects the type or reader after your answer, treat it as a new r
 | paper | none |
 | script | fragment_run, exclamation, self_answered_question, chat_residue (interjections only) |
 
-No type exempts metaphor_verb: metaphorical verbs on ordinary events are reviewed in every type, and each doc-type file says which uses to keep.
+Script also does not report runs of bold speaker-name labels (a per-finding exemption, not in the table). No type exempts metaphor_verb: metaphorical verbs on ordinary events are reviewed in every type, and each doc-type file says which uses to keep.
 
 ## 14. Example (synthetic)
 
