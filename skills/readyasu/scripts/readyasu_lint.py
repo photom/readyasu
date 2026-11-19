@@ -13,13 +13,12 @@ sys.dont_write_bytecode = True
 
 import argparse
 import bisect
-import itertools
 import json
 import re
 import unicodedata
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Iterator, NoReturn, Optional
+from typing import Callable, Iterator, NoReturn, Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -89,6 +88,12 @@ LIST_RULES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     ("jargon", "jargon", ()),
 )
 LIST_LABELS = {"closing-courtesies": "courtesies, offers and closings", "chat-interjections": "interjections"}
+# Single list entries that are normal in some doc types: (list name, phrase) -> doc types. Not part of
+# PARTIAL_EXEMPT, which lists whole word lists.
+ENTRY_EXEMPT: dict[tuple[str, str], tuple[str, ...]] = {
+    ("closing-courtesies", "thank you for your attention"): ("slides", "script"),  # the closing slide or line
+    ("ai-vocabulary", "key takeaways"): ("slides",),  # a summary slide is normal in slides
+}
 # Lists whose matches inside double quotation marks are dialogue, not residue, and that are reported only at the
 # start of a sentence ("Of course! Here is ..." but not "The answer, of course! was ...").
 QUOTE_EXEMPT_LISTS = ("chat-interjections",)
@@ -112,6 +117,8 @@ def _partial_help() -> str:
                 by_rule.setdefault(rule, []).append(f"{LIST_LABELS[name]} ({name}.txt)")
         for rule, parts in by_rule.items():
             rows.append(f"  {doc_type} also exempts {rule} for {' and '.join(parts)} only.")
+    for (name, phrase), types in ENTRY_EXEMPT.items():
+        rows.append(f"  {' and '.join(types)} also exempt{'s' if len(types) == 1 else ''} \"{phrase}\" ({name}.txt).")
     return "\n".join(rows)
 
 
@@ -240,12 +247,50 @@ def _starts_sentence(text: str, pos: int) -> bool:
     return j > 0 and text[j - 1] in ".!?:…|"
 
 
+class _Quotes:
+    """Answers whether a span of one block's text sits between double quotation marks, in O(log n) per span."""
+
+    def __init__(self, text: str) -> None:
+        self.straight = [m.start() for m in re.finditer('"', text)]
+        self.opening = [m.start() for m in re.finditer("“", text)]
+        self.closing = [m.start() for m in re.finditer("”", text)]
+
+    def inside(self, start: int, end: int) -> bool:
+        """True if an odd number of " come before start and one comes at or after end, or the last curly quote
+        before start opens one that closes at or after end."""
+        if bisect.bisect_left(self.straight, start) % 2 == 1 and self.straight[-1] >= end:
+            return True
+        o = bisect.bisect_left(self.opening, start)
+        c = bisect.bisect_left(self.closing, start)
+        last_open = self.opening[o - 1] if o else -1
+        last_close = self.closing[c - 1] if c else -1
+        return last_open > last_close and bool(self.closing) and self.closing[-1] >= end
+
+
 def _in_quotes(text: str, start: int, end: int) -> bool:
     """True if text[start:end] sits between double quotation marks in the same block."""
-    before, after = text[:start], text[end:]
-    if before.count('"') % 2 == 1 and '"' in after:
-        return True
-    return before.rfind("“") > before.rfind("”") and "”" in after
+    return _Quotes(text).inside(start, end)
+
+
+def _clause_prefix(text: str, start: int, limit: int = 120) -> str:
+    """The text from the last clause mark (. ; : ! ? , or a dash) before start, or the block start, to start."""
+    i = start
+    floor = max(0, start - limit)
+    while i > floor and text[i - 1] not in ".;:!?,—–":
+        i -= 1
+    return text[i:start]
+
+
+def _context(plain: str, start: int, end: int, width: int = 24) -> str:
+    """A short one-line snippet of plain around [start, end) for a message, cut at word boundaries."""
+    left = max(0, start - width)
+    right = min(len(plain), end + width)
+    while left < start and left > 0 and not plain[left - 1].isspace():
+        left += 1  # do not start inside a word
+    while right > end and right < len(plain) and not plain[right].isspace():
+        right -= 1  # do not end inside a word
+    shown = _show(plain[left:right])
+    return ("…" if plain[:left].strip() else "") + shown + ("…" if plain[right:].strip() else "")
 
 
 # ---------------------------------------------------------------- regex rules
@@ -262,6 +307,35 @@ _HEDGE_STACK = re.compile(
     r"|\b(?:likely|probably)\s+(?:may|might|could)\b"
     r"|\bmight\s+(?:likely|probably)\b",
     re.IGNORECASE)
+# "What could possibly go wrong?", "no way we could possibly finish", "as fast as you can possibly go": the adverb
+# stresses a question, a negation or a comparison; it is not a second hedge. The question word opens the clause;
+# the negation or comparison is among the last four words before the modal.
+_HEDGE_QUESTION = re.compile(r"\s*[\"“*_]*(?:what|who|how|why|where|which)\b", re.IGNORECASE)
+_HEDGE_NEGATION = re.compile(
+    r"\b(?:no\s+way|nothing|nobody|no\s+one|none|never|hardly|scarcely|barely|cannot|not|as\s+[\w-]+\s+as)\b"
+    r"|n['’]t\b", re.IGNORECASE)
+_MODAL_ADVERB = re.compile(r"(?:may|might|could|can|would)\s", re.IGNORECASE)
+
+
+def _rhetorical_hedge(text: str, start: int) -> bool:
+    """True if the modal at start follows a question word that opens the clause, or a close negation."""
+    prefix = _clause_prefix(text, start)
+    if _HEDGE_QUESTION.match(prefix):
+        return True
+    return bool(_HEDGE_NEGATION.search(" ".join(prefix.split()[-4:])))
+
+# After "but": a noun phrase that starts with an article, a possessive, "about" or "rather", or one word that ends
+# the clause ("not a tool but infrastructure."), never a pronoun or a verb ("but customers noticed it").
+_BUT_NOUN_PHRASE = (
+    r"(?:rather\s+)?(?:(?:a|an|the|about|my|our|your|his|her|its|their|one|something)\s+[\w'’-]+"
+    r"|(?!(?:it|we|they|he|she|i|you|there|this|that|these|those|nobody|everyone|someone|none|nothing)\b)"
+    r"[\w'’-]+(?=\s*(?:[.;:!?,)]|$)))")
+# Clauses that make a negation a condition, a time or a concession: "If the value is not set, it is read from the
+# environment", "Although the API is not stable, it is widely used".
+_SUBORDINATORS = frozenset((
+    "if", "when", "whenever", "unless", "although", "though", "because", "since", "while", "once", "until",
+    "whether", "as", "after", "before", "whereas"))
+_CLAUSE_WORD = re.compile(r"[A-Za-z]+")
 
 _NEG_BE = (r"(?:['’]s\s+not|\s+is\s+not|\s+was\s+not|\s+are\s+not|\s+were\s+not|['’]re\s+not|"
            r"\s+isn['’]t|\s+aren['’]t|\s+wasn['’]t|\s+weren['’]t)")
@@ -271,20 +345,23 @@ _NEG_CONTRAST = (
         r"it|this|that|these|they|which|he|she)" + _NEG_BE + r"\s+"
         r"(?:just\s+|only\s+|merely\s+|simply\s+|about\s+)?[^.;:!?\n]{1,80}?[,;—–]\s*"
         r"(?:it|this|that|they|he|she)(?:['’]s|\s+is|\s+was|\s+are|\s+were|['’]re)\b", re.IGNORECASE),
-    re.compile(r"\bnot\s+(?:just|only|merely|simply)\b[^.;!?\n]{1,60}?,?\s*\bbut\s+(?:also\s+)?", re.IGNORECASE),
+    re.compile(r"\bnot\s+(?:just|only|merely|simply)\b[^.;!?\n]{1,60}?,?\s*\bbut\s+(?:also\s+)?[\w'’-]+",
+               re.IGNORECASE),
     # "This is not a bug, but a feature." Only a noun phrase on both sides: "It is not a big change, but it fixes
-    # the crash" and "The fix was not tested, but ..." are concessions.
+    # the crash", "The outage was not a major one, but customers noticed it" and "The fix was not tested, but ..."
+    # are concessions.
     re.compile(
         r"(?:\b(?:is|was|are|were)\s+not|\b(?:isn|wasn|aren|weren)['’]t|['’](?:s|re)\s+not)\s+"
-        r"(?:a|an|the|about)\s+[^.;:!?,\n]{1,40}?,?\s+but\s+(?:rather\s+)?"
-        r"(?!(?:it|we|they|he|she|i|you|there|this|that|these|those|can|could|will|would|should|may|might|must|"
-        r"has|have|had|is|are|was|were|does|do|did|not|also|still)\b)\w",
-        re.IGNORECASE),
+        r"(?:a|an|the|about)\s+[^.;:!?,\n]{1,40}?,?\s+but\s+" + _BUT_NOUN_PHRASE, re.IGNORECASE),
     re.compile(r"\b(?:doesn['’]t|don['’]t|didn['’]t|does\s+not|do\s+not|isn['’]t|aren['’]t)\s+(?:just|only|merely|simply)\s+"
                r"[^.;:!?\n]{1,60}?[,;—–]\s*(?:it|they|this|we|he|she)\b", re.IGNORECASE),
     re.compile(r"\b(?:isn['’]t|is\s+not)\s+(?:just\s+|really\s+)?about\b[^.;!?\n]{1,60}?[.;,—–]\s*"
                r"(?:it['’]s|it\s+is)\s+about\b", re.IGNORECASE),
 )
+_NOT_JUST_BUT = 1  # index of the "not just X but also Y" pattern, which is reported also inside a condition
+# A heading that is "Not X, but Y" ("## Not a linter, but a formatter").
+_HEADING_CONTRAST = re.compile(
+    r"^[*_\s]*not\s+[^.;:!?,\n]{1,40}?,?\s+but\s+(?:also\s+)?" + _BUT_NOUN_PHRASE, re.IGNORECASE)
 
 # Two sentences: "It isn't a tool. It's a philosophy." / "We didn't need a new tool. We needed a shared way."
 # The second sentence has the same subject and the same verb (a form of "be", or the verb that was denied); the
@@ -294,7 +371,7 @@ _NEG_TWO = re.compile(
     r"(?:\s+(?:isn['’]t|is\s+not|wasn['’]t|was\s+not|aren['’]t|are\s+not|weren['’]t|were\s+not|am\s+not)|"
     r"['’](?:s|re|m)\s+not"
     r"|\s+(?:doesn['’]t|don['’]t|didn['’]t|does\s+not|do\s+not|did\s+not)\s+(?P<v1>[a-z]+))\b"
-    r"[^.!?\n]{0,80}\.\s+(?P<s2>It|This|That|They|These|Those|We|I|You)"
+    r"(?P<rest1>[^.!?\n]{0,80})\.\s+(?P<s2>It|This|That|They|These|Those|We|I|You)"
     r"(?:(?P<be2>['’]s|\s+is|\s+was|\s+are|\s+were|['’]re|['’]m|\s+am)|\s+(?P<v2>[a-z]+))\b")
 _SUBJECT_GROUPS = ({"it", "this", "that"}, {"they", "these", "those"}, {"we"}, {"i"}, {"you"})
 
@@ -316,11 +393,35 @@ def _verb_forms(verb: str) -> set[str]:
     return forms
 
 
+# A state or status, not a thing that the second sentence replaces: "I'm not sure. I'm checking with the team.",
+# "We're not ready to ship. We're still waiting on QA.", "They aren't available. They are at the offsite."
+_STATUS_WORDS = frozenset((
+    "sure", "ready", "done", "available", "able", "aware", "certain", "finished", "complete", "here", "there",
+    "back", "home", "around", "free", "busy", "online", "offline", "late", "involved", "allowed", "going", "yet"))
+_SKIP_ADVERBS = frozenset(("really", "quite", "yet", "actually", "entirely", "fully", "totally", "completely",
+                           "very", "so", "too", "always"))
+_NEXT_WORDS = re.compile(r"[A-Za-z'’]+")
+
+
+def _first_word(text: str, pos: int = 0, skip: frozenset[str] = frozenset()) -> str:
+    for m in _NEXT_WORDS.finditer(text, pos, min(len(text), pos + 80)):
+        word = m.group(0).lower()
+        if word not in skip:
+            return word
+    return ""
+
+
 def _two_sentence_contrast(text: str) -> Iterator[re.Match[str]]:
     for m in _NEG_TWO.finditer(text):
         if not _same_subject(m.group("s1"), m.group("s2")):
             continue
         if m.group("v1") is None and m.group("be2") is not None:
+            first = _first_word(m.group("rest1"), 0, _SKIP_ADVERBS)
+            second = _first_word(text, m.end(), _SKIP_ADVERBS)
+            progressive = len(second) > 4 and second.endswith("ing") and not second.endswith("thing")
+            if first in _STATUS_WORDS or second in _STATUS_WORDS or second in ("still", "currently", "now") \
+                    or progressive:
+                continue
             yield m
         elif m.group("v1") is not None and m.group("v2") is not None \
                 and m.group("v2").lower() in _verb_forms(m.group("v1")):
@@ -337,7 +438,7 @@ _PERSON_SUBJECT = (r"(?:code|codebase|data|dataset|tool|system|function|method|c
 _PERSON_VERB = (r"(?:tells?(?:\s+a\s+story)?|speaks?(?:\s+volumes)?|whispers?|screams?|sings?|knows?|wants?|loves?|"
                 r"hates?|cares?|believes?|remembers?|forgets?|understands?|thinks?|refuses?|insists?|begs?|"
                 r"cries|craves?|longs?|dreams?|deserves?|demands?|breathes?|yearns?|resents?|watch(?:es)?\s+over|"
-                r"gladly|happily|tirelessly|patiently|eagerly|cheerfully|"
+                r"gladly|happily|tirelessly|patiently|eagerly|cheerfully|(?:chooses?|chose|decides?|decided)\s+to|"
                 r"has\s+a\s+(?:story|mind\s+of\s+its\s+own)|is\s+(?:happy|unhappy|angry|eager|reluctant))")
 _PERSON_ADVERB = (r"(?:itself|quietly|silently|now|always|really|never|carefully|faithfully|dutifully|lovingly|"
                   r"gladly|happily|tirelessly|patiently|eagerly|cheerfully)")
@@ -350,7 +451,25 @@ _PERSONIFICATION = re.compile(
 _SELF_Q = re.compile(
     r"^(?:(?:and|so|but)\s+)?(?:the\s+\w+(?:\s+\w+)?|why\s+does\s+(?:this|it|that)\s+matter|why\s+(?:is\s+)?(?:this|that)\s+important|"
     r"what\s+does\s+(?:this|that|it)\s+mean(?:\s+for\s+\w+(?:\s+\w+)?)?|so\s+what|sound\s+familiar|why|how|"
-    r"what['’]s\s+the\s+catch|the\s+best\s+part|the\s+kicker)\?$",
+    r"what['’]s\s+the\s+catch|the\s+best\s+part|the\s+kicker|"
+    r"what,\s*then,\s*(?:is|was|are|were)\s+the\s+\w+(?:\s+\w+)?)\?$",
+    re.IGNORECASE)
+# An answer that opens like this marks the question before it as self-answered ("What is the gap? Simply put, ...").
+_ANSWER_OPENER = re.compile(
+    r"^[*_\"“]*(?:simply\s+put|put\s+simply|in\s+short|in\s+a\s+word|(?:the\s+)?short\s+answer|the\s+answer\b|"
+    r"here['’]s\s+the\s+thing|the\s+truth\s+is|spoiler)", re.IGNORECASE)
+# "In today's rapidly evolving healthcare landscape": the looser form of the stock-phrases.txt openers.
+_TODAYS_OPENER = re.compile(
+    r"\bin\s+today['’]s\s+(?:[\w-]+\s+){0,4}?(?:world|landscape|age|era|environment|climate|market|marketplace|"
+    r"economy|society|business)\b", re.IGNORECASE)
+# An assistant's preamble before a mail it drafted ("Certainly! Here's a reply you can send to Jordan:"): residue
+# even in mail, where "Here's a draft of the agenda" from the writer is normal.
+_PREAMBLE = re.compile(
+    r"(?:\b(?:certainly|sure|absolutely|of\s+course|great\s+question)[!.,]\s+)?"
+    r"\bhere(?:['’]s|\s+is|\s+are)\s+(?:a|an|the|your|some)\s+(?:[\w-]+\s+){0,3}?"
+    r"(?:reply|replies|draft|drafts|version|versions|response|responses|e-?mails?|messages?|note|rewrite|letter|"
+    r"text|options?)\b[^.!?:\n]{0,40}?"
+    r"\b(?:you\s+(?:can|could|might|may)\s+(?:send|use|copy|paste|forward|adapt)|for\s+you\s+to\s+(?:send|use))\b",
     re.IGNORECASE)
 
 _NUMBER_WORD = r"(?:\d+|two|three|four|five|six|seven|eight|nine|ten|twelve)"
@@ -371,6 +490,16 @@ _CLOSING = re.compile(
 
 _DASHES = re.compile(r"(?<=\S)\s*—\s*(?=\S)|\s–\s|\s--\s|―")
 _RANGE_DASH = re.compile(r"\d\s*[—–]\s*\d")
+# Range endpoints on both sides of a spaced dash: "Monday – Friday", "9 am – 5 pm", "$5 – $10", "v1.2 – v1.4",
+# "January – March", "20% – 30%", "Q1 – Q3". Month and weekday names need a capital ("may" is a verb).
+_ENDPOINT = (
+    r"(?:(?:[$€£¥]\s?)?[~≈]?\d[\d,.:]*(?:\s?%)?|[vV]\d+(?:\.\d+)*[a-z]?|Q[1-4]|"
+    r"(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|June?|July?|Aug(?:ust)?|Sept?(?:ember)?|"
+    r"Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|"
+    r"Mon|Tues?|Wed|Thu(?:rs?)?|Fri|Sat|Sun)\.?)"
+    r"(?:\s?(?:[aApP]\.?[mM]\.?|[A-Za-zµ°]{1,5}))?")  # "9 am", "5 km", "10 GB"
+_RANGE_BEFORE = re.compile(r"(?:^|(?<=[\s(\[]))" + _ENDPOINT + r"[,.]?[ \t]*$")
+_RANGE_AFTER = re.compile(r"[ \t]*" + _ENDPOINT + r"(?![\w$€£¥])")
 _DASH_ONLY = "—–―-"
 # An attribution under a quotation: a line that is only a dash and a name ("— Jeff Atwood", "— Plato, Republic").
 _NAME_WORD = r"(?:[A-Z]\.|[A-Z][\w'’-]+)"
@@ -382,13 +511,16 @@ _ATTRIBUTION = re.compile(
 _MONTH = (r"(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sept?(?:ember)?|"
           r"oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?")
 _WEEKDAY = r"(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tues?|wed|thu(?:rs?)?|fri|sat|sun)\.?"
-_TIME = r"\d{1,2}[:.]\d{2}(?::\d{2})?(?:\s*[ap]\.?m\.?)?|\d{1,2}\s*[ap]\.?m\.?"
+_TIME = (r"\d{1,2}(?:[:.]\d{2})?\s*[-–]\s*\d{1,2}(?:[:.]\d{2})?\s*[ap]\.?m\.?|"  # "9–10 am"
+         r"\d{1,2}[:.]\d{2}(?::\d{2})?(?:\s*[ap]\.?m\.?)?|\d{1,2}\s*[ap]\.?m\.?")
 _DATE = (r"\d{4}-\d{1,2}-\d{1,2}(?:T\d{1,2}:\d{2}(?::\d{2})?Z?)?|\d{1,2}/\d{1,2}(?:/\d{2,4})?|"
+         r"\d{4}/\d{1,2}/\d{1,2}|\d{1,2}\.\d{1,2}\.\d{2,4}|"
          + _MONTH + r"\s+\d{1,2}(?:st|nd|rd|th)?(?:,?\s+\d{4})?|\d{1,2}(?:st|nd|rd|th)?\s+" + _MONTH
          + r"(?:\s+\d{4})?|" + _MONTH + r"\s+\d{4}|" + _WEEKDAY + r"|(?:19|20)\d{2}|q[1-4](?:\s+\d{4})?|"
          r"(?:day|week|sprint|phase)\s+\d+|t\s*[+-]\s*\d+\s*(?:min|m|h|d|s)?")
 _ZONE = r"(?:\s*\(?(?:utc|gmt|[a-z]{1,3}[sd]?t)(?:\s*[+-]\s*\d{1,2}(?::?\d{2})?)?\)?)?"
-_VERSION = r"(?:version|revision|rev\.?|release|v)\s*\d+(?:\.\d+)*[a-z]?"
+_VERSION = (r"(?:(?:version|revision|rev\.?|release|v)\s*\d+(?:\.\d+)*[a-z]?|"
+            r"\d+\.\d+(?:\.\d+)*(?:-[\w.]+)?)")  # "1.2.0 — Added dedup", "2.0.0-rc1"
 _STAMP_LABEL = (r"(?:(?:effective|updated|last\s+updated|last\s+revised|revised|published|released|issued|dated?)"
                 r"(?:\s+on)?:?\s+)?")
 _ONE_STAMP = r"(?:" + _STAMP_LABEL + r"(?:" + _TIME + "|" + _DATE + r")" + _ZONE + "|" + _VERSION + r")"
@@ -406,6 +538,10 @@ _BOLD_LABEL = re.compile(r"^\s*(?:\*\*|__)([^*_\n]{1,60}?)(?::\s*(?:\*\*|__)|(?:
 # The text inside cannot contain the delimiter, so an unclosed ** stops at the next one (linear time).
 _BOLD_SPAN = re.compile(r"\*\*(?=\S)(?:[^*\n]|\*(?!\*))+?(?<=\S)\*\*|__(?=\S)(?:[^_\n]|_(?!_))+?(?<=\S)__")
 _STOP_STARTS = {"the", "a", "an"}
+_LINK_DEFINITION = re.compile(r"^\s*\[[^\]]+\]:\s*\S")
+# A letter's salutation on a line of its own ends with a colon in US business letters.
+_SALUTATION = re.compile(r"^\s*(?:dear\b|to\s+whom\s+it\s+may\s+concern\b|(?:ladies\s+and\s+)?gentlemen\b|"
+                         r"(?:hello|hi|greetings)\b[^.!?]{0,40}:\s*$)", re.IGNORECASE)
 
 
 def _after_timestamp(text: str, pos: int) -> bool:
@@ -414,6 +550,21 @@ def _after_timestamp(text: str, pos: int) -> bool:
     if start == 0 and pos > 60:
         return False
     return bool(_STAMP.match(text, start, pos))
+
+
+def _range_dash(text: str, start: int, end: int) -> bool:
+    """True if the dash at text[start:end] joins two range endpoints ("Monday – Friday", "$5 – $10")."""
+    return bool(_RANGE_BEFORE.search(text, max(0, start - 24), start) and _RANGE_AFTER.match(text, end))
+
+
+def _term_dash(masked: str, plain: str, start: int) -> bool:
+    """True if only inline code or a URL (with emphasis, or as a link) comes before the dash on its line.
+
+    "- `--threads N` — number of workers" is an option list: the dash separates a term from its description.
+    A link with words ("[Guide](guide.md) — ...") is still checked.
+    """
+    line = masked.rfind("\n", 0, start) + 1
+    return bool(plain[line:start].strip()) and not masked[line:start].strip(" \t*_[]()")
 
 
 def _attribution(text: str, pos: int) -> bool:
@@ -527,26 +678,35 @@ def lint(text: str, doc_type: Optional[str] = None, reader: Optional[str] = None
     words = words or tx.Words()
     doc = tx.parse(text)
     found: list[Finding] = []
-    lists = [(rule, name, [(entry, _first_key(entry.phrase)) for entry in tx.load_list(name)], types)
+    lists = [(rule, name, [(entry, _first_key(entry.phrase),
+                            types + ENTRY_EXEMPT.get((name, entry.phrase.lower()), ()))
+                           for entry in tx.load_list(name)])
              for rule, name, types in LIST_RULES]
     flags = []
     for name, replacement, pattern in words.flags:
         is_phrase = pattern.pattern == tx.phrase_regex(name)  # flag.txt entry, not a flag-patterns.txt regex
         flags.append((name, replacement, pattern, is_phrase, _first_key(name) if is_phrase else ""))
     title = _title_block(doc)
+    first_prose = -1
 
     for bi, block in enumerate(doc.blocks):
         if block.kind == "quote":
             continue  # quotations are not revised; callouts are checked like paragraphs
         masked, starts = block.joined(True)
-        if not masked.strip():
-            continue
         plain, _ = block.joined(False)  # same offsets as masked; used for what messages show
-        bold_view = tx.mask(plain, "x")
+        bold_view = tx.mask(plain, "x")  # code, URLs and tags as letters
+        view = tx.split_view(plain)  # code and URLs as letters, tags as spaces: the words a reader sees
+        if not view.strip():
+            continue
+        if first_prose < 0 and block.kind in ("para", "list", "callout"):
+            first_prose = bi
+        flat = masked.replace("\n", " ")  # hard-wrapped lines read as one line; same offsets
         locate = _Locator(block, starts)
         low: Optional[str] = masked.lower()
         if low is not None and len(low) != len(masked):
             low = None
+        is_title = bi == title  # the document title is not changed: only emoji and bold markup are reported
+        quotes: Optional[_Quotes] = None
 
         def add(rule: str, start: int, end: int, message: str, exempt_in: tuple[str, ...] = (),
                 severity: str = "", _plain: str = plain, _locate: _Locator = locate, _bi: int = bi) -> None:
@@ -557,18 +717,21 @@ def lint(text: str, doc_type: Optional[str] = None, reader: Optional[str] = None
             found.append(f)
 
         # word lists
-        for rule, name, entries, types in lists:
-            for entry, key in entries:
+        for rule, name, entries in ([] if is_title else lists):
+            for entry, key, types in entries:
                 for m in _scan(entry.pattern, key, masked, low):
                     shown = plain[m.start():m.end()]
                     if words.allowed(shown):
                         continue
-                    if name in QUOTE_EXEMPT_LISTS and (_in_quotes(plain, m.start(), m.end())
-                                                       or not _starts_sentence(masked, m.start())):
-                        continue
+                    if name in QUOTE_EXEMPT_LISTS:
+                        if not _starts_sentence(masked, m.start()):
+                            continue
+                        quotes = quotes or _Quotes(plain)
+                        if quotes.inside(m.start(), m.end()):
+                            continue
                     note = entry.note or RULES[rule][1]
                     add(rule, m.start(), m.end(), _list_message(rule, shown, note), types)
-        for name, replacement, pattern, is_phrase, key in flags:
+        for name, replacement, pattern, is_phrase, key in ([] if is_title else flags):
             for m in _scan(pattern, key, masked, low):
                 shown = plain[m.start():m.end()]
                 if not shown.strip() or words.allowed(shown):
@@ -578,47 +741,14 @@ def lint(text: str, doc_type: Optional[str] = None, reader: Optional[str] = None
                 add("project_term", m.start(), m.end(),
                     f"Project word {label}{arrow}. Rewrite the sentence, not just the word.")
 
-        for m in _HEDGE_STACK.finditer(masked):
-            add("hedge_stack", m.start(), m.end(),
-                f'Stacked hedge "{_show(plain[m.start():m.end()])}". Use one hedge of the same strength; do not '
-                "remove the hedge.")
-        if bi != title:  # the document title is not changed
-            for m in _DASHES.finditer(masked):
-                around = masked[max(0, m.start() - 2): m.end() + 2]
-                if _RANGE_DASH.search(around):
-                    continue
-                if block.kind == "table" and _empty_cell(masked, m.start(), m.end()):
-                    continue
-                # Report the dash itself, not the space or line break before it.
-                ds = m.start() + len(m.group(0)) - len(m.group(0).lstrip())
-                de = ds + (2 if masked.startswith("--", ds) else 1)
-                if _after_timestamp(masked, ds) or _FIELD_AFTER.match(masked, m.end()) or _attribution(masked, ds):
-                    continue  # timeline entries, "— Owner: ..." fields and "— Jeff Atwood" under a quotation
-                add("em_dash", ds, de,
-                    "Dash used to splice or insert a clause. Use a comma, colon, parentheses or a period that keeps "
-                    "the same scope (keep ranges, quotations and fiction dialogue).")
-        if block.kind != "heading":
-            for m in itertools.chain(*(pattern.finditer(masked) for pattern in _NEG_CONTRAST),
-                                     _two_sentence_contrast(masked)):
-                shown = _show(plain[m.start():m.end()])
-                add("negative_contrast", m.start(), m.end(),
-                    f'Negative contrast "{tx.display_width_cut(shown, 70)}". Remove the denied part only if '
-                    "the claim stays the same; keep it when it corrects a likely misreading.")
-        for m in _PERSONIFICATION.finditer(masked):
-            add("personification", m.start(), m.end(),
-                f'"{_show(plain[m.start():m.end()])}" gives a tool or idea a will or feelings. Say what it does, '
-                "unless the function is obvious or the subject is an identifier in a developer document.")
-        for pattern in _COUNT:
-            for m in pattern.finditer(masked):
-                add("count_announcement", m.start(), m.end(),
-                    f'Count announcement "{_show(plain[m.start():m.end()])}". Check that the count matches the '
-                    "items; keep the count and items as they are and ask if they differ.")
+        if not is_title:
+            _expression_rules(flat, masked, plain, bold_view, block, bi == first_prose, add)
 
         # emoji
-        for m in _EMOJI_CANDIDATE.finditer(masked):
-            if tx.is_emoji(m.group(0)):
-                add("emoji", m.start(), m.end(),
-                    f"Emoji ({m.group(0)}). Remove it if it is decoration; keep it if it carries meaning.")
+        if _EMOJI_CANDIDATE.search(masked):
+            for es, ee in tx.emoji_spans(masked):
+                add("emoji", es, ee,
+                    f"Emoji ({plain[es:ee]}). Remove it if it is decoration; keep it if it carries meaning.")
 
         # bold rendering (the view keeps code and links as letters so that **`code`** pairs)
         for offset, _snippet, reason, lone in bold_problems(bold_view):
@@ -627,30 +757,37 @@ def lint(text: str, doc_type: Optional[str] = None, reader: Optional[str] = None
                 f'This bold markup will not render ("{snippet}"): {reason}.', severity="info" if lone else "")
 
         if block.kind == "heading":
-            body = masked.rstrip().rstrip("*_ \t")  # "## **Benefits:**"
-            if body.endswith((":", "：")):
+            # Tested on the view, so a heading that ends with code or a link ("## Option: `--force`") is not
+            # reported, and the column is the colon's.
+            body = view.rstrip().rstrip("*_ \t")  # "## **Benefits:**"
+            if not is_title and body.endswith((":", "：")):
                 add("heading_colon", len(body) - 1, len(body), "Heading ends with a colon. Remove the colon.")
             continue
 
-        # sentences in this block
+        # sentences in this block, split where code or a URL starts a sentence
         if block.kind in ("para", "list", "callout"):
-            spans = tx.split_sentences(masked)
+            spans = tx.split_sentences(view)
             for s, e in spans:
                 sent = masked[s:e].rstrip()
                 stripped = sent.rstrip("\"'”’)*_ ")
                 if stripped.endswith("!"):
-                    add("exclamation", s + len(stripped) - 1, s + len(stripped),
-                        "Exclamation mark. Keep it only where the document type and the writer use them.")
+                    bang = s + len(stripped) - 1
+                    add("exclamation", bang, bang + 1,
+                        f'Exclamation mark in "{_context(plain, bang, bang + 1)}". Keep it only where the document '
+                        "type and the writer use them.")
             # self-answered question
             for idx, (s, e) in enumerate(spans[:-1]):
                 sent = masked[s:e].strip().strip("*_")
                 nxt = masked[spans[idx + 1][0]:spans[idx + 1][1]].strip()
-                if sent.endswith("?") and word_count(sent) <= 6 and _SELF_Q.match(sent) and not nxt.endswith("?"):
+                if not sent.endswith("?") or nxt.endswith("?"):
+                    continue
+                if (word_count(sent) <= 6 and _SELF_Q.match(sent)) or \
+                        (word_count(sent) <= 10 and _ANSWER_OPENER.match(nxt)):
                     add("self_answered_question", s, e,
                         f'Self-answered question "{_show(plain[s:e]).strip("*_")}". Fold it into a statement unless '
                         "the document type keeps it.")
             if block.kind in ("para", "callout"):
-                _fragment_runs(doc, masked, plain, spans, locate, bi, found)
+                _fragment_runs(doc, view, plain, spans, locate, bi, found)
 
     _block_rules(doc, found)
 
@@ -670,6 +807,80 @@ def lint(text: str, doc_type: Optional[str] = None, reader: Optional[str] = None
     return LintResult(sorted(_dedupe(kept), key=order), sorted(_dedupe(exempted), key=order), doc_type, reader, words)
 
 
+_Add = Callable[..., None]
+
+
+def _after_subordinator(text: str, start: int) -> bool:
+    """True if the clause that ends at start opens with, or ends with, if/when/although/because ..."""
+    words = _CLAUSE_WORD.findall(_clause_prefix(text, start))
+    return bool(words) and (words[0].lower() in _SUBORDINATORS or words[-1].lower() in _SUBORDINATORS)
+
+
+def _expression_rules(flat: str, masked: str, plain: str, letters: str, block: tx.Block, first: bool,
+                      add: _Add) -> None:
+    """Pattern rules on one block (not the title): hedges, dashes, negative contrast, personification, counts,
+    the looser "in today's ..." opener and an assistant's preamble.
+
+    flat is masked with line breaks as spaces, letters is plain with code, URLs and tags as letters; all have the
+    offsets of plain.
+    """
+    for m in _HEDGE_STACK.finditer(flat):
+        if _MODAL_ADVERB.match(m.group(0)) and _rhetorical_hedge(flat, m.start()):
+            continue  # "What could possibly go wrong?"
+        add("hedge_stack", m.start(), m.end(),
+            f'Stacked hedge "{_show(plain[m.start():m.end()])}". Use one hedge of the same strength; do not '
+            "remove the hedge.")
+    # letters, not masked, so that a dash after inline code is found like any other.
+    for m in _DASHES.finditer(letters):
+        around = masked[max(0, m.start() - 2): m.end() + 2]
+        if _RANGE_DASH.search(around):
+            continue
+        if block.kind == "table" and _empty_cell(masked, m.start(), m.end()):
+            continue
+        # Report the dash itself, not the space or line break before it.
+        ds = m.start() + len(m.group(0)) - len(m.group(0).lstrip())
+        de = ds + (2 if letters.startswith("--", ds) else 1)
+        if _after_timestamp(masked, ds) or _FIELD_AFTER.match(masked, m.end()) or _attribution(masked, ds) \
+                or _range_dash(masked, ds, de) or _term_dash(masked, plain, ds):
+            continue  # timelines, "— Owner: ..." fields, "— Jeff Atwood", "Monday – Friday", "`-v` — verbose"
+        add("em_dash", ds, de,
+            f'Dash in "{_context(plain, ds, de)}" used to splice or insert a clause. Use a comma, colon, parentheses '
+            "or a period that keeps the same scope (keep ranges, quotations and fiction dialogue).")
+    contrasts: list[re.Match[str]] = []
+    for k, pattern in enumerate(_NEG_CONTRAST):
+        for m in pattern.finditer(flat):
+            if k == _NOT_JUST_BUT or not _after_subordinator(flat, m.start()):
+                contrasts.append(m)
+    contrasts.extend(_two_sentence_contrast(flat))
+    if block.kind == "heading":
+        contrasts.extend(_HEADING_CONTRAST.finditer(flat))
+    for m in contrasts:
+        shown = _show(plain[m.start():m.end()])
+        add("negative_contrast", m.start(), m.end(),
+            f'Negative contrast "{tx.display_width_cut(shown, 70)}". Remove the denied part only if '
+            "the claim stays the same; keep it when it corrects a likely misreading.")
+    for m in _PERSONIFICATION.finditer(masked):
+        add("personification", m.start(), m.end(),
+            f'"{_show(plain[m.start():m.end()])}" gives a tool or idea a will or feelings. Say what it does, '
+            "unless the function is obvious or the subject is an identifier in a developer document.")
+    for pattern in _COUNT:
+        for m in pattern.finditer(masked):
+            add("count_announcement", m.start(), m.end(),
+                f'Count announcement "{_show(plain[m.start():m.end()])}". Check that the count matches the '
+                "items; keep the count and items as they are and ask if they differ.")
+    for m in _TODAYS_OPENER.finditer(masked):
+        add("stock_phrase", m.start(), m.end(), _list_message("stock_phrase", plain[m.start():m.end()],
+                                                              "delete the opener"))
+    for m in _PREAMBLE.finditer(flat):
+        # Only a preamble: a clause that ends with a colon before the drafted text, or a first paragraph that holds
+        # nothing else ("Here's a draft you can use for the deck. I added the numbers." is the writer's mail).
+        rest = flat[m.end():]
+        if re.match(r"[^.!?:]{0,80}:", rest) or (first and re.fullmatch(r"[^.!?:]{0,80}[.!]?\s*", rest)):
+            add("chat_residue", m.start(), m.end(),
+                f'Assistant chat "{_show(plain[m.start():m.end()])}" left in the text: delete the preamble; it '
+                "speaks to the requester, not the reader (reported in every doc type).")
+
+
 def _list_message(rule: str, match: str, note: str) -> str:
     m = _show(match)
     if rule == "ai_vocabulary":
@@ -687,8 +898,29 @@ def _list_message(rule: str, match: str, note: str) -> str:
     return f'Jargon "{m}": {note}.'
 
 
-def _fragment_runs(doc: tx.Document, masked: str, plain: str, spans: list[tuple[int, int]],
+# Verbs that start an instruction. "Open Settings.", "Click Save." and "Run `apt update`." are whole sentences (the
+# subject is the reader), so they are not fragments; a lone "Build." or "Ship." still is.
+_IMPERATIVES = frozenset("""
+open close click double-click right-click tap press type enter select choose pick check uncheck clear run restart
+reboot start stop save install uninstall update upgrade download upload add remove delete set copy paste cut move
+drag drop rename create edit go navigate scroll expand collapse enable disable turn switch toggle unplug plug
+connect disconnect insert eject sign log wait repeat return exit quit launch load mount unmount clone fetch pull
+push commit merge build deploy test verify confirm cancel accept submit review read see note use try replace attach
+detach import export print call send reply ask tell keep leave put place hold release tighten loosen fill empty
+wash rinse mix stir heat bake boil chop slice pour measure write label lock unlock charge apply configure reset
+refresh reload restore back follow find search sort filter share invite assign schedule book visit contact
+""".split())
+
+
+def _imperative(sentence: str) -> bool:
+    """True if the sentence starts with an instruction verb and has a word after it ("Click Save.")."""
+    words = _WORD.findall(sentence)
+    return len(words) >= 2 and words[0].lower() in _IMPERATIVES
+
+
+def _fragment_runs(doc: tx.Document, view: str, plain: str, spans: list[tuple[int, int]],
                    locate: _Locator, bi: int, found: list[Finding]) -> None:
+    """Runs of three or more short sentences. view is tx.split_view(plain): inline code and URLs count as words."""
     run: list[tuple[int, int]] = []
 
     def flush() -> None:
@@ -701,8 +933,8 @@ def _fragment_runs(doc: tx.Document, masked: str, plain: str, spans: list[tuple[
                                "Write subject and verb when the original gives them; keep promo, slides and fiction.",
                                snippet, s, run[-1][1], bi))
     for s, e in spans:
-        sent = masked[s:e].strip()
-        if 0 < word_count(sent) <= 3 and not sent.endswith("?") and not sent.endswith(":"):
+        sent = view[s:e].strip()
+        if 0 < word_count(sent) <= 3 and not sent.endswith("?") and not sent.endswith(":") and not _imperative(sent):
             run.append((s, e))
         else:
             flush()
@@ -760,7 +992,9 @@ def _block_rules(doc: tx.Document, found: list[Finding]) -> None:
             continue
         line = block.lines[0]
         title = re.sub(r"[*_`]", "", line.masked).strip()
-        title = "".join(ch for ch in title if not tx.is_emoji(ch)).strip()
+        for es, ee in reversed(tx.emoji_spans(title)):
+            title = title[:es] + title[ee:]
+        title = title.strip()
         if _CLOSING.match(title) and line.no >= total_lines * 0.5:
             found.append(_make(doc, "closing_summary", line.no, line.offset + 1,
                                f'Closing summary heading "{title}". Delete the section if it only repeats the body; '
@@ -791,10 +1025,16 @@ def _block_rules(doc: tx.Document, found: list[Finding]) -> None:
         if block.kind != "para":
             continue
         last = block.lines[-1]
-        text = last.masked.rstrip()
-        if text.endswith(":") and not text.endswith("::") and next_kind.get(last.no, "end") in ("para", "heading", "end",
-                                                                                                "rule"):
-            found.append(_make(doc, "decorative_colon", last.no, len(last.raw.rstrip()),
+        if next_kind.get(last.no, "end") not in ("para", "heading", "end", "rule"):
+            continue
+        if _LINK_DEFINITION.match(last.content) or (len(block.lines) == 1 and _SALUTATION.match(last.content)):
+            continue  # "[g]: https://example.com/guide", "Dear Ms. Alvarez:"
+        # Code, URLs and e-mail are letters in this view, so "run: `pip install x`" does not end with a colon.
+        plain, starts = block.joined(False)
+        text = tx.split_view(plain).rstrip()
+        if text.endswith(":") and not text.endswith("::"):
+            no, col = _Locator(block, starts)(len(text) - 1)
+            found.append(_make(doc, "decorative_colon", no, col,
                                "Paragraph ends with a colon but no list, table, code or quotation follows. Remove the "
                                "colon or finish the sentence.", ":", 0, 0, bi))
 
@@ -815,7 +1055,7 @@ def _block_rules(doc: tx.Document, found: list[Finding]) -> None:
             flush_starts()
             current, prev_word = [], ""
             continue
-        m = _WORD.match(sent.masked.strip().lstrip("\"'“‘(*_"))
+        m = _WORD.match(sent.masked.lstrip("\"'“‘(*_"))  # no word when the sentence starts with code
         w = m.group(0) if m else ""
         if w[:1].isdigit():
             w = ""  # numbered clauses ("3.1 ...", "3.2 ...") and figures are not a repeated word
@@ -928,8 +1168,8 @@ def format_text(result: LintResult) -> str:
         out.append(f"Project word list: {result.words.folder} ({tx.plural(result.words.count, 'entry', 'entries')})")
     for f in result.findings:
         out.append("")
-        out.append(f"L{f.line} [{f.severity.upper()}] {f.rule}: {f.message}")
-        out.append(f"  > {tx.display_width_cut(f.text, 160)}")
+        out.append(f"L{f.line}:{f.col} [{f.severity.upper()}] {f.rule}: {f.message}")
+        out.append(f"  > {tx.excerpt(f.text, f.col, len(f.match))}")
     return "\n".join(out) + "\n"
 
 

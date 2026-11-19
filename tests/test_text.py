@@ -316,3 +316,58 @@ def test_callout_with_emoji_inside_the_label() -> None:
     for text in ("> **⚠️ Warning:** This leverages a lock.\n", "> ℹ️ **Note:** Text.\n", "> **ℹ️ Note:** Text.\n",
                  "> _💡 Tip:_ Text.\n"):
         assert [b.kind for b in tx.parse(text).blocks] == ["callout"], text
+
+
+# ---------------------------------------------------------------- set 6 lint review
+
+
+def test_sentences_keep_leading_and_trailing_code() -> None:
+    doc = tx.parse("`parse()` is the entry point. `lex()` is called by it.\n")
+    assert [s.text for s in doc.sentences] == ["`parse()` is the entry point.", "`lex()` is called by it."]
+    assert doc.sentences[1].masked.startswith(" ")  # masked text still has spaces for code
+    assert [s.text for s in tx.parse("- Install with `pip install foo`\n").sentences] == ["Install with `pip install foo`"]
+    doc = tx.parse("The fix? `retry()` now wraps every call. See https://example.com/a is the page.\n")
+    assert [s.text for s in doc.sentences] == ["The fix?", "`retry()` now wraps every call.",
+                                               "See https://example.com/a is the page."]
+    assert [s.text for s in tx.parse("First.<br>Second one.\n").sentences] == ["First.", "Second one."]  # tags stay separators
+    assert tx.split_view("Run `x` at <b>a</b>") == "Run XXX at    a    "
+
+
+def test_wrapped_year_does_not_start_a_list() -> None:
+    assert kinds("The company was founded in\n1998. It now employs 40 people.\n") == ["para", "para"]
+    assert len(tx.parse("The company was founded in\n1998. It now employs 40 people.\n").blocks) == 1
+    assert kinds("Steps follow\n1. Open it.\n2. Close it.\n") == ["para", "list", "list"]
+    assert kinds("Text\n- item\n") == ["para", "list"]
+    assert kinds("Text\n*\n") == ["para", "para"]  # an empty item cannot interrupt a paragraph
+    assert kinds("1. a\n   more\n2. b\n") == ["list", "para", "list"]
+
+
+def test_indented_backticks_in_a_list_item_are_indented_code() -> None:
+    text = "- item\n\n      ```\n      x\n\nIt is worth noting that.\n"
+    assert kinds(text) == ["list", "blank", "code", "code", "blank", "para"]
+    assert kinds("- item\n\n  ```\n  x\n  ```\n\nAfter.\n") == ["list", "blank", "fence", "code", "fence", "blank",
+                                                               "para"]
+
+
+def test_emoji_clusters() -> None:
+    assert tx.emoji_in("🇯🇵 👨‍👩‍👧 👍🏽 ❤️ 1️⃣ 🏳️‍🌈") == [
+        "🇯🇵", "👨‍👩‍👧", "👍🏽", "❤️", "1️⃣", "🏳️‍🌈"]
+    assert tx.emoji_spans("a 🇯🇵 b") == [(2, 4)]
+    assert tx.emoji_in("Done ✓ 1 2 # → ©") == []
+
+
+def test_non_utf8_error_names_line_and_byte(tmp_path) -> None:  # noqa: ANN001
+    import pytest
+    path = tmp_path / "x.md"
+    path.write_bytes(b"ok\nfine\n\xff bad")
+    with pytest.raises(tx.InputError, match=r"line 3, byte 8"):
+        tx.read_text(str(path))
+
+
+def test_excerpt_centers_on_the_column() -> None:
+    line = "a" * 200 + " — " + "b" * 200
+    shown = tx.excerpt(line, 202, 1, 160)
+    assert "—" in shown and shown.startswith("…") and shown.endswith("…")
+    assert len(shown) <= 162
+    assert tx.excerpt("short line", 3) == "short line"
+    assert tx.excerpt("x" * 300, 1).startswith("x") and tx.excerpt("x" * 300, 300).endswith("x")

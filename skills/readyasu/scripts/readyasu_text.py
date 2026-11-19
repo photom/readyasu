@@ -68,7 +68,8 @@ def decode(raw: bytes, label: str) -> str:
     try:
         return raw.decode("utf-8")
     except UnicodeDecodeError as exc:
-        raise InputError(f"{label} is not valid UTF-8 (byte {exc.start}).") from exc
+        line = raw.count(b"\n", 0, exc.start) + 1
+        raise InputError(f"{label} is not valid UTF-8 (line {line}, byte {exc.start}).") from exc
 
 
 def normalize_newlines(text: str) -> str:
@@ -166,13 +167,35 @@ def protected_spans(text: str) -> list[tuple[int, int, str]]:
     return spans
 
 
+def _may_protect(text: str) -> bool:
+    return "`" in text or "://" in text or "www." in text or "@" in text or "](" in text or "<" in text
+
+
 def mask(text: str, fill: str = " ") -> str:
     """Replace protected spans with fill characters (spaces by default), keeping offsets."""
-    if "`" not in text and "://" not in text and "www." not in text and "@" not in text \
-            and "](" not in text and "<" not in text:
+    if not _may_protect(text):
         return text
     chars = list(text)
     for start, end, _kind in protected_spans(text):
+        for i in range(start, end):
+            chars[i] = fill
+    return "".join(chars)
+
+
+SPLIT_FILL = "X"
+
+
+def split_view(text: str) -> str:
+    """The text that sentences are split on: inline code, URLs and e-mail become "X", HTML tags and comments spaces.
+
+    Code or a URL at the start of a sentence then counts as a capitalized word, so the sentence before it ends
+    there, and code at either end of a sentence stays in the sentence. Tags and comments stay separators.
+    """
+    if not _may_protect(text):
+        return text
+    chars = list(text)
+    for start, end, kind in protected_spans(text):
+        fill = " " if kind == "html" else SPLIT_FILL
         for i in range(start, end):
             chars[i] = fill
     return "".join(chars)
@@ -393,6 +416,12 @@ def classify(text: str) -> list[Line]:
         lazy_quote = quote_para and prev_kind == "quote"
         quote_para = False
         m = _FENCE.match(raw) or (_LIST_FENCE.match(raw) if items else None)
+        if m and items:
+            # Inside a list item a fence may be indented at most three columns past the item's content; four or
+            # more after a blank line is indented code (checked below), and after text it continues the text.
+            inner = next((column for column in reversed(items) if column <= indent), 0)
+            if indent - inner > 3:
+                m = None
         if m and not ("`" in m.group(3) and m.group(2)[0] == "`"):
             _close_items(items, indent)
             in_fence = m.group(2)
@@ -450,6 +479,12 @@ def classify(text: str) -> list[Line]:
             prev_kind = "html"
             continue
         lm = _LIST.match(raw)
+        if lm and prev_kind == "para" and not items:
+            # CommonMark: a list interrupts a paragraph only with a bullet or "1." and some text, so a wrapped line
+            # that starts with "1998. It now employs" continues the paragraph.
+            marker = lm.group(2)
+            if not raw[lm.end():].strip() or (marker[0].isdigit() and int(marker[:-1]) != 1):
+                lm = None
         if lm:
             _close_items(items, indent)
             content = raw[lm.end():]
@@ -648,6 +683,11 @@ class Document:
         return [ln for ln in self.lines if ln.kind in ("para", "list", "heading", "table")]
 
 
+def sentence_spans(plain: str) -> list[tuple[int, int]]:
+    """Sentence spans of a block's plain joined text, split on split_view (code and URLs count as words)."""
+    return split_sentences(split_view(plain))
+
+
 def parse(text: str) -> Document:
     lines = classify(text)
     blks = blocks(lines)
@@ -657,9 +697,9 @@ def parse(text: str) -> Document:
         plain, _ = block.joined(False)
         positions = [pos for pos, _no in starts]
         if block.kind in ("heading", "table"):
-            spans = [(0, len(masked))] if masked.strip() else []
+            spans = [(0, len(masked))] if split_view(plain).strip() else []
         else:
-            spans = split_sentences(masked)
+            spans = sentence_spans(plain)
         for s, e in spans:
             line_no = starts[max(0, bisect.bisect_right(positions, s) - 1)][1]
             sents.append(Sentence(plain[s:e].replace("\n", " "), masked[s:e].replace("\n", " "),
@@ -872,12 +912,29 @@ def is_emoji(ch: str) -> bool:
     return any(lo <= cp <= hi for lo, hi in _EMOJI_RANGES)
 
 
-def emoji_in(text: str) -> list[str]:
-    found: list[str] = []
-    for ch in text:
-        if is_emoji(ch):
-            found.append(ch)
+# One emoji as the reader sees it: a flag (two regional indicators), a keycap (1️⃣), or a symbol followed by
+# variation selectors, skin-tone modifiers and tag characters, and joined to more symbols by ZWJ (👨‍👩‍👧).
+_EMOJI_MODS = "\uFE0E\uFE0F\U0001F3FB-\U0001F3FF\U000E0020-\U000E007F"
+_EMOJI_SYMBOL = "\u2190-\u2BFF\U0001F000-\U0001FAFF"
+_EMOJI_CLUSTER = re.compile(
+    "(?:[\U0001F1E6-\U0001F1FF]{2}|[#*0-9]\uFE0F?\u20E3|[" + _EMOJI_SYMBOL + "])"
+    "[" + _EMOJI_MODS + "]*"
+    "(?:\u200D[" + _EMOJI_SYMBOL + "][" + _EMOJI_MODS + "]*)*")
+
+
+def emoji_spans(text: str) -> list[tuple[int, int]]:
+    """(start, end) of each emoji in text; a flag, keycap, modified or ZWJ-joined emoji is one span."""
+    found: list[tuple[int, int]] = []
+    for m in _EMOJI_CLUSTER.finditer(text):
+        first = m.group(0)[0]
+        if first in "#*0123456789" or is_emoji(first):
+            found.append((m.start(), m.end()))
     return found
+
+
+def emoji_in(text: str) -> list[str]:
+    """The emoji in text, one item per emoji as the reader sees it (see emoji_spans)."""
+    return [text[s:e] for s, e in emoji_spans(text)]
 
 
 def plural(n: int, word: str, many: str = "") -> str:
@@ -890,6 +947,20 @@ def display_width_cut(text: str, limit: int = 100) -> str:
     if len(text) <= limit:
         return text
     return text[: limit - 1].rstrip() + "…"
+
+
+def excerpt(line: str, col: int, length: int = 1, limit: int = 160) -> str:
+    """The line cut to about limit characters around the 1-based column col (and length characters after it)."""
+    lead = len(line) - len(line.lstrip())
+    text = line.strip()
+    if len(text) <= limit:
+        return text
+    start = max(0, col - 1 - lead)
+    center = start + min(max(length, 1), limit // 2) // 2
+    left = max(0, min(center - limit // 2, len(text) - limit))
+    right = left + limit
+    shown = text[left:right].strip()
+    return ("…" if left > 0 else "") + shown + ("…" if right < len(text) else "")
 
 
 def nfkc(text: str) -> str:
