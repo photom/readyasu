@@ -2,17 +2,17 @@
 # "double-click on" (look at in detail) is left out: it is also the literal step in manuals.
 circle back	"follow up" (add when and about what only if the text says)
 touch base	"talk", "check in"
-move the needle	say what changes, only from the original; otherwise keep and ask
+move the needle	say what changes, only from the original or material; otherwise keep and ask
 low-hanging fruit	"easy fixes", name them if given
 the bandwidth to	"the time to", "the capacity to"
 no bandwidth	"no time", "no capacity"
 my bandwidth	"my time", "my capacity"
 our bandwidth	"our time", "our capacity"
 more bandwidth	"more time", "more capacity" (keep network bandwidth)
-drive alignment	name who agrees on what, only from the original; otherwise keep and ask
-north star	name the goal, only from the original; otherwise keep and ask
+drive alignment	name who agrees on what, only from the original or material; otherwise keep and ask
+north star	name the goal, only from the original or material; otherwise keep and ask
 take this offline	"discuss separately"
 boil the ocean	"take on too much"
-best-in-class	state the comparison, only from the original; otherwise keep and ask
-value-add	say what value, only from the original; otherwise keep and ask
-paradigm shift	state the change, only from the original; otherwise keep and ask
+best-in-class	state the comparison, only from the original or material; otherwise keep and ask
+value-add	say what value, only from the original or material; otherwise keep and ask
+paradigm shift	state the change, only from the original or material; otherwise keep and ask

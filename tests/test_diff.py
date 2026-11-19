@@ -822,3 +822,41 @@ def test_set9_diff_review_harmless(orig: str, rev: str) -> None:
 
 def test_owner_swap_counts_once_per_name() -> None:
     assert kinds("- Owner: Dana\n- Reviewer: Lee\n", "- Owner: Lee\n- Reviewer: Dana\n").count("name_order") == 2
+
+
+# ---- set 10 review
+
+@pytest.mark.parametrize("qualifier", [
+    ", subject to manager approval", " with manager approval", " with prior written consent from Finance",
+    " where applicable", " to the extent permitted by law", " on a case-by-case basis",
+])
+def test_formal_qualifiers_are_conditions(qualifier: str) -> None:
+    o = f"Employees may work remotely up to three days per week{qualifier}.\n"
+    r = "Employees may work remotely up to three days per week.\n"
+    assert "condition" in kinds(o, r)
+
+
+def test_frequency_messages_show_the_phrase() -> None:
+    result = diff.compare("Backups run every weekday.\n", "Backups run every day.\n")
+    assert any("every weekday" in x.message for x in result.risks if x.counted)
+    assert "number" in kinds("Reviews happen every six months.\n", "Reviews happen annually.\n")
+
+
+def test_this_with_a_named_noun_is_not_a_connection_review() -> None:
+    o = "Our policy covers remote work.\n\nIt is important to note that this policy fosters trust.\n"
+    r = "Our policy covers remote work.\n\nThis policy fosters trust.\n"
+    assert "connection" not in review_kinds(o, r)
+
+
+def test_exclamation_drop_is_reference_for_manuals() -> None:
+    result = diff.compare("Run the installer! It takes a minute.\n", "Run the installer. It takes a minute.\n", "manual")
+    assert result.energy == [] and result.energy_reference_items
+
+
+def test_reference_fact_gap() -> None:
+    result = diff.compare("x\n", "Reset your password before the deadline.\n", want_fact_gaps=True)
+    assert [g.kind for g in result.fact_gaps] == ["reference"]
+
+
+def test_word_diff_keeps_decimals_together() -> None:
+    assert "1+}.{+8" not in diff.word_diff("Sync is faster on large records.", "Sync takes 1.8 seconds on large records.")

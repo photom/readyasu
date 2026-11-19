@@ -1452,7 +1452,7 @@ def test_more_than_just_message_and_list_messages_are_clean() -> None:
     import re
     got = [f for f in findings("It is more than just a tool.\n") if f.rule == "stock_phrase"]
     assert [f.message for f in got] == [
-        'Stock phrase "more than just": say what more it is, only from the original; otherwise keep and ask '
+        'Stock phrase "more than just": say what more it is, only from the original or material; otherwise keep and ask '
         "(deleting it reverses the claim). Keep any fact that appears only here."]
     for rule, name, _types in lint.LIST_RULES:
         for entry in tx.load_list(name):

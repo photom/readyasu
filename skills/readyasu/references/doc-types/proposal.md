@@ -23,4 +23,4 @@ Lint rules exempted: none
 
 | Original | Handling |
 |---|---|
-| This bold initiative will revolutionize our onboarding. | "This initiative will change our onboarding by ..." from the proposal's own content (keep "will" and "our"); ask about the claim if nothing supports it |
+| This bold initiative will revolutionize our onboarding. | "This bold initiative will change our onboarding by ..." from the proposal's own content (keep "bold", "will" and "our"; ask what supports "bold" if nothing does); ask about the claim if nothing supports it |

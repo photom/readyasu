@@ -174,6 +174,10 @@ CONDITION = _rx(r"\b(?:if|unless|until|till|whenever|when|while|after|before|as\
                 r"|as\s+long\s+as|in\s+case|except\s+(?:when|if)|at\s+launch|at\s+first|initially|for\s+now"
                 r"|for\s+the\s+time\s+being|temporarily|currently|at\s+present|right\s+now|at\s+the\s+moment|except\s+(?:where|as|for|when|that|to\s+the\s+extent))\b"
                 r"|\bat\s+(?:its|our|their|his|her|the\s+\w+['’]s)\s+(?:sole\s+|own\s+|reasonable\s+)?discretion\b"
+                r"|\bsubject\s+to\b|\bwith\s+(?:(?:the|their|your|prior|written|explicit|express|advance)\s+){0,3}"
+                r"(?:\w+\s+)?(?:approval|consent|permission|authori[sz]ation)\b|\bwhere\s+(?:applicable|permitted|required|possible)\b"
+                r"|\bto\s+the\s+extent\s+(?:permitted|required|possible|allowed)\b|\bon\s+a\s+case-by-case\s+basis\b"
+                r"|\bby\s+default\b|\bupon\s+(?:request|approval)\b"
                 r"|(?<!\bat\s)\bonce\b(?!\s+(?:a|an|per|every|more|again|or|and)\b)")
 NOT_CONDITION = _rx(r"\b(?:a|for\s+a|after\s+a|in\s+a|quite\s+a|little)\s+while\b|\bbefore(?=\s*(?:[.!?,;)]|$))"
                     r"|\b(?:check|see|ask(?:s|ed)?|know|wonder(?:ing)?|determine|verify|tell|find\s+out|sure|unsure|decide|"
@@ -232,7 +236,9 @@ QUANTIFIER = _rx(r"(?<!\bthe\s)(?<!\bat\s)\b(?:a\s+few|a\s+couple\s+of|some|most
 STATISTIC = _rx(r"\b(?:mean|median|average|avg|p\d{2}|percentile|peak)\b")
 FREQUENCY = _rx(r"\b(?:hourly|daily|nightly|weekly|biweekly|fortnightly|monthly|quarterly|annually|annual|yearly|semiannual(?:ly)?)\b"
                 r"|\b(?:every|each|per|an?)\s+(?:(?:few|couple\s+of|several|other)\s+)?"
-                r"(?:second|minute|hour|day|night|week|fortnight|month|quarter|year)s?\b")
+                r"(?:second|minute|hour|day|night|week|fortnight|month|quarter|year)s?\b"
+                r"|\bevery\s+(?:weekday|business\s+day|working\s+day|other\s+(?:day|week|month|year))\b"
+                r"|\bevery\s+(?:\d+|two|three|four|five|six|seven|eight|nine|ten|twelve)\s+(?:second|minute|hour|day|week|month|year)s\b")
 FREQ_NORMAL = {"hourly": "hour", "daily": "day", "nightly": "night", "weekly": "week", "biweekly": "fortnight",
                "fortnightly": "fortnight", "monthly": "month", "quarterly": "quarter", "annually": "year", "annual": "year",
                "yearly": "year", "semiannual": "half-year", "semiannually": "half-year"}
@@ -513,7 +519,12 @@ def frequencies(text: str) -> Counter[str]:
     text = re.sub(r"\ban?\s+(?:second|minute|hour|day|week|month|quarter|year)\s+(?:ago|later|earlier|back|before|after|from\s+now)\b",
                   " ", text, flags=re.IGNORECASE)  # a point in time, not a frequency
     for m in FREQUENCY.finditer(text):
-        w = m.group(0).lower().split()[-1]
+        phrase = re.sub(r"\s+", " ", m.group(0).lower())
+        if re.match(r"every (?:weekday|business day|working day|other |\d+ |two |three |four |five |six |seven |eight |nine |ten |twelve )",
+                    phrase):
+            c[phrase] += 1  # "every weekday", "every six months": kept as written
+            continue
+        w = phrase.split()[-1]
         w = FREQ_NORMAL.get(w, w)
         c[w[:-1] if w.endswith("s") and w[:-1] in ("second", "minute", "hour", "day", "night", "week", "month", "year")
           else w] += 1
@@ -1327,6 +1338,9 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
     for s in ch.rev:
         start = s.masked.strip().lstrip("\"'“‘(*_")
         cm = CONNECTIVE.match(start)
+        noun = re.match(r"(?:this|that|these|those)\s+([a-z][\w-]{2,})", start, re.IGNORECASE)
+        if noun and re.search(r"\b" + re.escape(noun.group(1)) + r"\b", orig_all, re.IGNORECASE):
+            cm = None  # "This policy ..." names its referent
         if cm and cm.group(0).split(" ")[0].lower() not in orig_starts:
             review("connection", f'Rewritten sentence starts with "{cm.group(0)}". Check what it connects to.', s.text)
             break
@@ -1495,7 +1509,7 @@ def moved_names(chunks: list[Chunk], lower_words: Optional[set[str]] = None) -> 
                     target = ch2.rev_line
                     break
         if moved:
-            result.append(Risk("name_order", True, f'{", ".join(moved)} moved to another sentence (revised line '
+            result.append(Risk("name_order", True, f'{_name_phrases(ch.orig[0].text, moved)} moved to another sentence (revised line '
                                f"{target}). Check who does what.", ch.orig_line, ch.rev_line, ch.show_orig(),
                                ch.show_rev()))
     return result
@@ -1668,7 +1682,8 @@ def energy(orig: tx.Document, rev: tx.Document, doc_type: Optional[str],
     items: list[str] = []
     reference: list[str] = []
     if er < eo:
-        items.append(f"Exclamation marks dropped from {eo} to {er}. Check that the writer's energy was not lost.")
+        msg = f"Exclamation marks dropped from {eo} to {er}. Check that the writer's energy was not lost."
+        (reference if doc_type in ENERGY_REFERENCE_TYPES else items).append(msg)
     if mr < mo:
         msg = f"Emoji dropped from {mo} to {mr}. Check that the writer's energy was not lost."
         if doc_type and doc_type not in ("promo", "mail"):
@@ -1687,6 +1702,7 @@ def energy(orig: tx.Document, rev: tx.Document, doc_type: Optional[str],
 _GAP_EXCLUDE = re.compile(r"(?<![A-Za-z-])\d|\b(?:may|might|could|possibly|perhaps|likely|probably|appears?|seems?|plan(?:s|ned)?|"
                           r"expect\w*|if|when|unless|hope|aim\w*|goal|target)\b", re.IGNORECASE)
 _BUILTIN_GAPS = [
+    ("reference", r"\b(?:before|by|until|after)\s+the\s+(?:deadline|agreed\s+date|cutoff|due\s+date)\b|\bas\s+(?:discussed|agreed)\b|\bthe\s+(?:date|deadline|time|amount)\s+we\s+(?:discussed|agreed\s+on|agreed)\b"),
     ("figure", r"\b(?:lay(?:s|ing)?|laid) the (?:foundation|groundwork)\b|\bpav(?:e|es|ed|ing) the way\b|\bquietly (?:break|breaks|broke|broken|breaking)\b"),
     ("effect", r"\b(?:improv|enhanc|boost|increas)\w* (?:the )?(?:reliability|stability|quality|performance|usability|productivity|efficiency)\b|\bseamless(?:ly)?\b"),
     ("degree", r"\b(?:significantly|dramatically|drastically|substantially|vastly|greatly)\b"),
@@ -1703,8 +1719,8 @@ def load_gap_rules() -> tuple[list[tuple[str, re.Pattern[str]]], str]:
             if not raw.strip() or raw.lstrip().startswith("#"):
                 continue
             kind, sep, pattern = raw.partition("\t")
-            if not sep or kind not in ("figure", "effect", "degree", "change"):
-                raise ValueError(f"line {number}: write kind<TAB>regex with kind figure, effect, degree or change")
+            if not sep or kind not in GAP_HINTS:
+                raise ValueError(f"line {number}: write kind<TAB>regex with kind reference, figure, effect, degree or change")
             rules.append((kind, re.compile(pattern, re.IGNORECASE)))
         if not rules:
             raise ValueError("no rules")
@@ -1715,6 +1731,7 @@ def load_gap_rules() -> tuple[list[tuple[str, re.Pattern[str]]], str]:
 
 
 GAP_HINTS = {
+    "reference": "refers to a value it does not give; what is it?",
     "figure": "a metaphor may hide the content; what actually happens?",
     "effect": "only an effect is stated; what changed?",
     "degree": "only a degree word; by how much?",
@@ -1752,11 +1769,13 @@ def material_check(final: tx.Document, materials: str, original: str) -> dict[st
         ["(original) " + ln for ln in original.split("\n") if ln.strip()]
     src_units = unit_pairs(source)
     src_dates = dates(source)
-    orig_sentences = {_norm(x.text) for x in tx.parse(original).sentences} if original.strip() else set()
+    def _plain(t: str) -> str:
+        return _norm(re.sub(r"[*_`]", "", t))
+    orig_sentences = {_plain(x.text) for x in tx.parse(original).sentences} if original.strip() else set()
     missing_units: list[dict[str, object]] = []
     line_numbers = [(ln, numbers(ln)) for ln in src_lines]
     for s in final.sentences:
-        unchanged = _norm(s.text) in orig_sentences
+        unchanged = _plain(s.text) in orig_sentences
         for n in numbers(s.masked):
             if not src_numbers.get(n):
                 missing_numbers.append({"value": n, "line": s.line, "text": s.text})
@@ -1801,8 +1820,9 @@ def material_check(final: tx.Document, materials: str, original: str) -> dict[st
 
 
 def word_diff(a: str, b: str) -> str:
-    ta = re.findall(r"\s+|[\w'’]+|[^\w\s]", a)
-    tb = re.findall(r"\s+|[\w'’]+|[^\w\s]", b)
+    tok = r"\s+|\d+(?:[.,:]\d+)+|[\w'’]+|[^\w\s]"
+    ta = re.findall(tok, a)
+    tb = re.findall(tok, b)
     out: list[str] = []
     for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(None, ta, tb, autojunk=len(ta) * len(tb) > 250000).get_opcodes():
         if tag == "equal":

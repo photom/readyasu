@@ -442,6 +442,12 @@ def cmd_run(args: argparse.Namespace) -> int:
                  "such folder; then follow the first line of that output.")
     else:
         first = first_line(status, attempt, revisions, same_as_previous, args, problems, folder, meaning_risk)
+        sourced = sum(1 for r in (diff or {}).get("meaning_risks", [])
+                      if r.get("counted") and "elsewhere in the original or material" in str(r.get("message", "")))
+        if sourced and meaning_risk:
+            first = first.replace(" counted meaning risk", f" counted meaning risk (of which {sourced} involve numbers "
+                                  "found elsewhere in the original or material; check each against that line)", 1) \
+                if f"{meaning_risk} counted meaning risk" in first else first
         if other_run:
             first += (f" (A run of the same original from another folder exists: {other_run[0]} in {other_run[1]}. If this "
                       f"is a revision of it, run the command from that folder or add --run-id {other_run[0]}.)")

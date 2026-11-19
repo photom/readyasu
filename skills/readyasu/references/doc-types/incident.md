@@ -12,6 +12,7 @@ Lint rules exempted: excess_list
 
 ## 2. Still fix
 
+- Run-in section labels in notices (`**What happened**:`, `**What you need to do**:`) are labels, not summaries: keep their words; when two or more appear, remove only the bold.
 - Dramatic words ("catastrophic", "nightmare", "perfect storm") when the impact section gives the facts.
 - Added certainty: do not turn "likely caused by" into "caused by".
 - Added commitments: do not add "this will never happen again" or "we guarantee".

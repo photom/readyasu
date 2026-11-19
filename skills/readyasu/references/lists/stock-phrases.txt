@@ -28,10 +28,10 @@ the key insight here is	merge into the claim
 the bottom line is	keep only if it adds a conclusion
 at the end of the day	delete
 when it comes to	"for", "in", or delete
-plays a crucial role	say what depends on it, only from the original; otherwise keep and ask
-plays a pivotal role	say what depends on it, only from the original; otherwise keep and ask
-plays a vital role	say what depends on it, only from the original; otherwise keep and ask
-plays a key role	say what depends on it, only from the original; otherwise keep and ask
+plays a crucial role	say what depends on it, only from the original or material; otherwise keep and ask
+plays a pivotal role	say what depends on it, only from the original or material; otherwise keep and ask
+plays a vital role	say what depends on it, only from the original or material; otherwise keep and ask
+plays a key role	say what depends on it, only from the original or material; otherwise keep and ask
 in conclusion	delete; delete the paragraph if it only repeats
 in summary	delete; delete the paragraph if it only repeats
 to sum up	delete; delete the paragraph if it only repeats
@@ -44,11 +44,11 @@ look no further	delete
 without further ado	delete
 needless to say	delete, or say it
 it goes without saying	delete, or say it
-more than just	say what more it is, only from the original; otherwise keep and ask (deleting it reverses the claim)
+more than just	say what more it is, only from the original or material; otherwise keep and ask (deleting it reverses the claim)
 stands as a	"is"
 serves as a	"is" only when the thing really is one; otherwise keep
 a wide range of	keep only if the list is not given
-perfect storm	name the causes the text gives, only from the original; otherwise keep and ask
+perfect storm	name the causes the text gives, only from the original or material; otherwise keep and ask
 simply put	delete; say the point
 put simply	delete; say the point
 moving forward,	delete, or say when

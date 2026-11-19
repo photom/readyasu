@@ -46,7 +46,7 @@ Rewrite events and technical operations described with a metaphor into plain wor
 | X is more than just Y | "This is more than just a library." | Say what more it is, from the original; if the original does not say, keep the sentence and ask. Do not cut it to "This is a library", which reverses the claim. |
 | Whether you're X or Y | "Whether you're a beginner or an expert, ..." | Delete when the sentence works for everyone anyway. |
 | From X to Y | "from startups to enterprises" | Keep it: the range is a claim. Delete it only when the same sentence already states the same range in other words. |
-| Triplets of adjectives | "fast, reliable, and scalable" | Keep all three: each is a claim. When the text gives the fact behind one ("handles 10,000 requests per second"), you may write the fact instead of the adjective. Ask about adjectives nothing supports; do not delete them. |
+| Triplets of adjectives | "fast, reliable, and scalable" | Keep all three: each is a claim. When the text gives the fact behind one ("handles 10,000 requests per second"), you may write the fact instead of the adjective. Ask about adjectives nothing supports; do not delete them. (Exception: evaluative words you added to a draft you wrote yourself; SKILL.md Step 2, item 3.) |
 | em dash splice | "The fix — which took two days — was simple." | "The fix, which took two days, was simple." Choose punctuation that keeps the same scope. Ranges (2019–2021) stay. |
 | Colon reveal | "The answer: simplicity." | "The answer is simplicity", or fold into the previous sentence. |
 | Rhetorical question opener | "But what does this mean for developers?" | Delete and state the answer, unless the document type keeps it. |
@@ -74,7 +74,7 @@ Words that appear far more often in AI text than in human text of the same kind.
 | ever-evolving, fast-paced, cutting-edge, state-of-the-art | "in today's fast-paced world" | Delete the opener. Keep "state of the art" in research papers comparing with prior results. |
 | game-changer, revolutionary, groundbreaking | "a game-changing feature" | State the change. In promo, keep energy but ask about unsupported claims. |
 | boast | "the app boasts a clean UI" | "has". |
-| meticulous(ly) | "meticulously crafted" | Delete or say what care was taken. |
+| meticulous(ly) | "meticulously crafted" | Say what care was taken, only from the original or material; otherwise keep and ask. |
 | synergy, alignment (as goal), stakeholders (as everyone) | "drive alignment across stakeholders" | Name the people and what they agree on. Keep "stakeholders" when it is the organization's term. |
 
 ---
