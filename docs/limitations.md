@@ -39,6 +39,7 @@
 - Added actors are found from a list of role words and capitalized names.
 - Fact gaps are a partial list of references (a deadline, a vague owner or time), figures, effects, degree words and changes without values.
 - A decimal's trailing zero is ignored ("0.50" equals 0.5, "1.0" equals 1), except after a product or version word ("Python 3.10", "Node 18.20", "version 2.10"); a version written without such a word ("3.10 is out") is compared as 3.1.
+- "unable to" counts as a negation ("could not"); "failed to" does not, so "failed to deliver on time" → "delivered late" passes, and so does "failed to deliver" → "delivered".
 - Role and term acronyms (CEO, ARR, QA...) are compared only when one replaces another in the same sentence; one that disappears is listed only under the words that disappeared.
 
 ## What has been tested

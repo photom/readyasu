@@ -1088,3 +1088,81 @@ def test_fact_gaps_list_vague_owner_in_conditional() -> None:
 def test_removed_role_acronym_is_listed() -> None:
     reviews = diff.compare("Approval from the CFO is required.\n", "Approval is required.\n").reviews
     assert any(v.kind == "words_gone" and "CFO" in v.message for v in reviews)
+
+
+@pytest.mark.parametrize(("orig", "rev", "kind"), [
+    ("We did not choose Redis. We chose Postgres.\n", "We chose Redis, not Postgres.\n", "negation"),
+    ("We didn't do a big-bang cutover. We ran both clusters side by side.\n",
+     "We didn't run both clusters side by side; we did a big-bang cutover.\n", "negation"),
+    ("The outage was not caused by the deploy. It was caused by a disk failure.\n",
+     "The outage was caused by the deploy, not by a disk failure.\n", "negation"),
+    ("Use the CLI, not the web UI.\n", "Use the web UI instead of the CLI.\n", "negation"),
+    ("Customers were unable to log in.\n", "Customers logged in.\n", "negation"),
+    ("Run the backup before the upgrade.\n", "Run the backup after the upgrade.\n", "condition"),
+])
+def test_set13_diff_review_counted(orig: str, rev: str, kind: str) -> None:
+    assert kind in kinds(orig, rev)
+
+
+@pytest.mark.parametrize(("orig", "rev"), [
+    ("We did not choose Redis. We chose Postgres.\n", "We chose Postgres, not Redis.\n"),
+    ("At this point in time, we do not support SAML.\n", "We do not currently support SAML.\n"),
+    ("The outage was not caused by the deploy. It was caused by a disk failure.\n",
+     "The outage was caused by a disk failure, not by the deploy.\n"),
+    ("The delay was not due to the vendor. It was due to our own testing.\n",
+     "The delay was due to our own testing, not the vendor.\n"),
+    ("The ticket was not closed by Dana. Raj closed it.\n", "Raj closed the ticket, not Dana.\n"),
+    ("The API will not be available on Friday. It will be available Monday.\n",
+     "The API will be available Monday, not Friday.\n"),
+    ("## Action items\n\n- Follow-up: Talk to finance about the invoice.\n",
+     "## Action items\n\n- Follow-up: Ask finance about the invoice.\n"),
+    ("Hi all,\n\nWe all need to update our passwords by Friday.\n",
+     "Hi all,\n\nEveryone needs to update their password by Friday.\n"),
+    ("Restart the service (after you back up the config file).\n",
+     "Back up the config file before you restart the service.\n"),
+    ("Wait until the build finishes, then deploy.\n", "Deploy after the build finishes.\n"),
+    ("We asked the vendor about the delay. They think the parts will arrive on Monday.\n",
+     "We asked the vendor about the delay. The vendor thinks the parts will arrive on Monday.\n"),
+    ("Everyone except the on-call engineer can leave at 5 pm.\n",
+     "Everyone apart from the on-call engineer can leave at 5 pm.\n"),
+    ("Everyone except the on-call engineer can leave at 5 pm.\n", "Everyone but the on-call engineer can leave at 5 pm.\n"),
+    ("Other than the login bug, the release went smoothly.\n", "Apart from the login bug, the release went smoothly.\n"),
+    ("Revenue grew 8% last year.\n", "Last year, revenue grew 8%.\n"),
+    ("Use the CLI, not the web UI, for bulk imports.\n", "Use the CLI instead of the web UI for bulk imports.\n"),
+    ("Customers were unable to log in.\n", "Customers could not log in.\n"),
+    ("Hopefully the patch lands this week.\n", "We hope the patch lands this week.\n"),
+    ("Standups are on Mondays at 10:00.\n", "Standups are every Monday at 10:00.\n"),
+    ("In this post, we'll look at how the migration went.\n", "We'll look at how the migration went.\n"),
+    ("Staying on supported software is more than just a nice-to-have.\n",
+     "Staying on supported software is more than a nice-to-have.\n"),
+    ("The vendor failed to deliver on time, which delayed the launch.\n", "The vendor delivered late, which delayed the launch.\n"),
+])
+def test_set13_diff_review_harmless(orig: str, rev: str) -> None:
+    assert kinds(orig, rev) == []
+
+
+def test_material_reports_reversed_order_and_frequency() -> None:
+    material = "default_pool_size 100 -> 400\nWe will get hourly call-volume reports.\n"
+    final = diff.tx.parse("We raised the pool size from 400 to 100.\n\nWe will get daily call-volume reports.\n")
+    values = [m["value"] for m in diff.material_check(final, material, "")["units_dates_not_in_material"]]
+    assert any("order" in v for v in values) and "day (frequency)" in values
+    good = diff.tx.parse("We raised the pool size from 100 to 400.\n\nWe will get hourly call-volume reports.\n")
+    assert diff.material_check(good, material, "")["units_dates_not_in_material"] == []
+
+
+def test_fill_from_material_notes_month_and_commitment() -> None:
+    material = "We'll get hourly call-volume reports. Support ends March 31, 2027.\n"
+    result = diff.compare("The tool integrates with our CRM. Support will end soon.\n",
+                          "The tool integrates with our CRM, and we will get hourly call-volume reports. "
+                          "Support will end on March 31, 2027.\n", materials=material)
+    month = next(r for r in result.risks if r.message.startswith("Month or weekday changed"))
+    assert "elsewhere in the original or material" in month.message
+    assert any(r.kind == "commitment" and not r.counted for r in result.risks)
+
+
+def test_code_block_risk_points_at_changed_line() -> None:
+    orig = "Config:\n\n```yaml\nserver:\n  host: a\n  retries: 3\n```\n"
+    rev = "Config:\n\n```yaml\nserver:\n  host: a\n  retries: 5\n```\n"
+    risk = next(r for r in diff.compare(orig, rev).risks if r.kind == "code")
+    assert (risk.orig_line, risk.original, risk.revised) == (6, "retries: 3", "retries: 5")
+    assert "\n" not in risk.message

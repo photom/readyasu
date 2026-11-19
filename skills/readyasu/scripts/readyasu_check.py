@@ -181,16 +181,28 @@ def run_tool(cmd: list[str], timeout: float) -> tuple[Optional[dict[str, Any]], 
         return None, "unreadable output"
 
 
-def _word_prefix(word: str) -> str:
-    """The part of a flagged word shared by its inflections ("empower" for empowers, empowered, empowering)."""
+def _forms(word: str) -> set[str]:
+    """A word and its stem without an inflectional ending ("empowers", "empowered", "empowering" -> "empower";
+    "leverages", "leveraging" -> "leverage"). "realm" and "really", or "pivot" and "pivotal", stay apart."""
     w = word.lower()
-    return w if len(w) <= 4 else w[:max(4, len(w) - 3)]
+    found = {w}
+    for suffix in ("ness", "ments", "ment", "ing", "ed", "es", "s", "d", "ly"):
+        if w.endswith(suffix) and len(w) - len(suffix) >= 3:
+            base = w[: -len(suffix)]
+            found |= {base, base + "e"}
+    return found
 
 
 def _same_word(a: str, b: str) -> bool:
-    a, b = a.lower(), b.lower()
-    n = len(os.path.commonprefix([a, b]))
-    return n >= max(4, min(len(a), len(b)) - 3) or a == b
+    return a.lower() == b.lower() or bool(_forms(a) & _forms(b))
+
+
+def _in_text(word: str, text_low: str) -> bool:
+    """The flagged word, or another inflection of it, appears in the text."""
+    if not re.fullmatch(r"[A-Za-z]+", word):
+        return bool(re.search(r"(?<![\w-])" + re.escape(word.lower()) + r"(?![\w-])", text_low))
+    forms = _forms(word)
+    return any(forms & _forms(t) for t in set(re.findall(r"[a-z]+", text_low)))
 
 
 def kept_words(findings: list[dict[str, Any]]) -> list[str]:
@@ -333,7 +345,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         if diff is None:
             problems.append(f"diff ({err})")
 
-    if final_label != "-":
+    if final_label != "-" and Path(final_label).is_file():  # a pipe (<(...)) cannot be read a second time
         try:
             if tx.sha256_text(tx.read_text(final_label)) != final_hash:
                 problems.append("the final draft changed during the run")
@@ -471,7 +483,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         if sourced and meaning_risk:
             label = tx.plural(meaning_risk, "counted meaning risk")
             verb = "involves" if sourced == 1 else "involve"
-            first = first.replace(label, f"{label} (of which {sourced} {verb} numbers found elsewhere in the original or "
+            first = first.replace(label, f"{label} (of which {sourced} {verb} values found elsewhere in the original or "
                                   "material; check each against that line)", 1)
         if other_run:
             first += (f" (A run of the same original from another folder exists: {other_run[0]} in {other_run[1]}. If this "
@@ -543,13 +555,12 @@ def split_kept_added(lint_final: Optional[dict[str, Any]], lint_orig: Optional[d
         if not material_text.strip():
             return final_words, []
         mat_low = material_text.lower()
-        in_mat = [w for w in final_words if re.search(r"(?<![\w-])" + re.escape(_word_prefix(w)), mat_low)]
+        in_mat = [w for w in final_words if _in_text(w, mat_low)]
         return in_mat, [w for w in final_words if w not in in_mat]
     orig_words = {w.lower() for w in kept_words(list(lint_orig.get("findings", [])))}
     orig_low = original_text.lower() if original_text else ""
     # another inflection of a word in the original is kept, not added ("empower" -> "empowers")
-    in_orig = [w for w in final_words if any(_same_word(w, o) for o in orig_words) or
-               (orig_low and re.search(r"(?<![\w-])" + re.escape(_word_prefix(w)), orig_low))]
+    in_orig = [w for w in final_words if any(_same_word(w, o) for o in orig_words) or (orig_low and _in_text(w, orig_low))]
     return in_orig, [w for w in final_words if w not in in_orig]
 
 
@@ -568,7 +579,7 @@ def format_run(first: str, status_line: str, mode: str, checks: list[str], recor
         mat = diff.get("material", {}) or {}
         parts.append(f"material match {tx.plural(len(mat.get('numbers_not_in_material', [])), 'number')}, "
                      f"{tx.plural(len(mat.get('names_not_in_material', [])), 'name')} and "
-                     f"{len(mat.get('units_dates_not_in_material', []))} units, months or weekdays not in the material")
+                     f"{len(mat.get('units_dates_not_in_material', []))} units, months, weekdays, frequencies or orders not in the material")
     out.append("Checks run: " + ("; ".join(parts) if parts else "none"))
     if adopted:
         out.append(f"Compose mode found that the material {adopted} is close to the final draft, so it was used as "

@@ -384,7 +384,7 @@ def test_first_line_with_several_sourced_numbers(tmp_path: Path) -> None:
     p = run(["run", "--source", src, "--final", fin, "--material", mat, "--state-dir", str(tmp_path / "st"), "--no-words"],
             tmp_path)
     first = p.stdout.splitlines()[0]
-    assert "counted meaning risks (of which 2 involve numbers" in first
+    assert "counted meaning risks (of which 2 involve values" in first
 
 
 # ---- set 12 review
@@ -474,4 +474,39 @@ def test_material_summary_counts_unit_mismatches(tmp_path: Path) -> None:
     fin = write(tmp_path / "f.md", "The window is 30 seconds.\n")
     p = run(["run", "--material", mat, "--final", fin, "--state-dir", str(tmp_path / "st"), "--no-words"], tmp_path)
     checks = next(ln for ln in p.stdout.splitlines() if ln.startswith("Checks run:"))
-    assert "1 units, months or weekdays not in the material" in checks
+    assert "1 units, months, weekdays, frequencies or orders not in the material" in checks
+
+
+# ---- set 13 review
+
+def test_added_flagged_words_sharing_a_prefix_stay_added(tmp_path: Path) -> None:
+    src = write(tmp_path / "o.md", "I really like the new release. The journal entries load faster. We decided to pivot.\n")
+    fin = write(tmp_path / "f.md", "The release is a step up in the data realm. Our journey to faster journal entries is "
+                "vital. This pivotal decision stands.\n")
+    p = run(["run", "--source", src, "--final", fin, "--state-dir", str(tmp_path / "st"), "--no-words"], tmp_path)
+    added = next(ln for ln in p.stdout.splitlines() if ln.startswith("Flagged words added by the rewrite"))
+    assert "realm" in added and "journey" in added and "pivotal" in added
+    assert not any(ln.startswith("Flagged words kept") for ln in p.stdout.splitlines())
+
+
+def test_inflected_flagged_word_is_kept(tmp_path: Path) -> None:
+    src = write(tmp_path / "o.md", "We leverage a tool.\n")
+    fin = write(tmp_path / "f.md", "We are leveraging a tool.\n")
+    p = run(["run", "--source", src, "--final", fin, "--state-dir", str(tmp_path / "st"), "--no-words"], tmp_path)
+    assert any(ln.startswith("Flagged words kept: leveraging") for ln in p.stdout.splitlines())
+
+
+def test_final_draft_from_a_pipe_is_not_read_twice(tmp_path: Path) -> None:
+    import os
+    if not hasattr(os, "mkfifo"):
+        return
+    src = write(tmp_path / "o.md", "A.\n")
+    fifo = tmp_path / "f.fifo"
+    os.mkfifo(fifo)
+    proc = subprocess.Popen([sys.executable, str(CHECK), "run", "--source", src, "--final", str(fifo), "--state-dir",
+                             str(tmp_path / "st"), "--no-words"], cwd=tmp_path, stdout=subprocess.PIPE, text=True,
+                            encoding="utf-8")
+    with fifo.open("w", encoding="utf-8") as fh:
+        fh.write("B.\n")
+    out, _ = proc.communicate(timeout=60)
+    assert proc.returncode == 0 and "executed via=run" in out.splitlines()[1]

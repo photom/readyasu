@@ -8,9 +8,9 @@
 #   degree  only a degree word, not how much (significantly, dramatically)
 #   change  a change without the before and after values (shortened, sped up)
 # Each sentence reports the kind of the first matching line, so the order matters.
-# Sentences with a digit, a hedge or plan word, a vague quantity (some, several, a few), a closing resolution,
-# questions, headings, table rows, code and quotations are never reported (rules inside readyasu_diff.py).
-# The section is not shown for --doc-type essay or promo. Matching ignores case.
+# Sentences with a digit or a hedge, plan or condition word are reported only for reference items; sentences with a
+# vague quantity (some, several, a few), a closing resolution, questions, headings, table rows, code and quotations
+# are never reported (rules inside readyasu_diff.py). The section is not shown for --doc-type essay, script or promo. Matching ignores case.
 # If this file is missing or has an error, the built-in copy of this list is used and the section says so.
 reference	\b(?:before|by|until|after)\s+the\s+(?:deadline|agreed\s+date|cutoff|due\s+date)\b|\bas\s+(?:discussed|agreed)\b|\bthe\s+(?:date|deadline|time|amount)\s+we\s+(?:discussed|agreed\s+on|agreed)\b|\bthe\s+(?:appropriate|relevant|responsible|designated)\s+(?:team\s+lead|team|person|owner|lead|manager|contact|party|department|channel|group|stakeholders?|approver)\b|\b(?:in\s+a\s+timely\s+manner|in\s+due\s+course|at\s+the\s+appropriate\s+time)\b
 figure	\b(?:lay(?:s|ing)?|laid) the (?:foundation|groundwork)\b|\b(?:a|the) first step\b|\ba (?:big|major|giant|huge) (?:step|leap)\b|\bpav(?:e|es|ed|ing) the way\b|\bopen(?:s|ed|ing)? (?:the|new) doors?\b|\bhold(?:s|ing)? the key\b|\bsecret weapon\b|\bnorth star\b|\bbridg(?:e|es|ed|ing) the gap\b|\bbreath(?:e|es|ed|ing) (?:new )?life into\b|\bquietly (?:break|breaks|broke|broken|breaking)\b|\bto the next level\b|\bnew heights\b|\bunlock(?:s|ed|ing)? (?:new |the full )?(?:potential|possibilities|value)\b
