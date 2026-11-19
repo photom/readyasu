@@ -319,3 +319,10 @@ def test_first_line_hints_new_run_after_one_revision(tmp_path: Path) -> None:
     write(tmp_path / "f.md", "We use a pipeline.\n")
     p = run(["run", "--source", src, "--final", fin, "--state-dir", st, "--no-words"], tmp_path)
     assert "--new-run" in p.stdout.splitlines()[0]
+
+
+def test_first_line_names_counted_risks(tmp_path: Path) -> None:
+    src = write(tmp_path / "o.md", "The job may fail.\n")
+    fin = write(tmp_path / "f.md", "The job fails.\n")
+    p = run(["run", "--source", src, "--final", fin, "--state-dir", str(tmp_path / "st"), "--no-words"], tmp_path)
+    assert "1 counted meaning risk" in p.stdout.splitlines()[0]

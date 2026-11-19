@@ -119,7 +119,7 @@ HEARSAY = _rx(r"\b(?:reportedly|allegedly|rumou?red)\b|\baccording\s+to\b|\b(?:i
               r"|\b(?:says|said|told\s+(?:us|me|them|him|her|the\s+team))\b"
               r"|\b(?:people|colleagues|users|customers|experts|critics|others|they)\s+(?:say|report)\b"
               r"|\b(?:claims?|claimed|noted|mentioned|stated)\s+(?=(?:the|a|an|it|we|they|this|that|our|its|there)\b)"
-              r"|\btells?\s+us\b"
+              r"|\btells?\s+us\b|\bper\s+(?:the|our|their|its)\s+\w+|\bper\s+[A-Z][\w'’-]+"
               r"|\b(?:we['’]re|i['’]m|we\s+are|i\s+am)\s+told\b")
 REQUEST = _rx(r"\bplease\b|\b(?:could|would|can|will)\s+you\b|\bkindly\b|\bwe\s+ask\s+(?:that|you)\b"
               r"|\bi(?:['’]d|\s+would)\s+like\s+you\s+to\b|\bi\s+need\s+you\s+to\b")
@@ -170,7 +170,8 @@ CONTRAST_DENIED = _rx(r"\bnot\s+(?:just\s+|only\s+|merely\s+|simply\s+)?(?:an?\s
                       r"|\b(?:instead\s+of|rather\s+than)\s+(?:an?\s+|the\s+)?([a-z][\w-]{2,})")
 CONDITION = _rx(r"\b(?:if|unless|until|till|whenever|when|while|after|before|as\s+soon\s+as|provided(?:\s+that)?"
                 r"|as\s+long\s+as|in\s+case|except\s+(?:when|if)|at\s+launch|at\s+first|initially|for\s+now"
-                r"|for\s+the\s+time\s+being|temporarily)\b"
+                r"|for\s+the\s+time\s+being|temporarily|except\s+(?:where|as|for|when|that|to\s+the\s+extent))\b"
+                r"|\bat\s+(?:its|our|their|his|her|the\s+\w+['’]s)\s+(?:sole\s+|own\s+|reasonable\s+)?discretion\b"
                 r"|(?<!\bat\s)\bonce\b(?!\s+(?:a|an|per|every|more|again|or|and)\b)")
 NOT_CONDITION = _rx(r"\b(?:a|for\s+a|after\s+a|in\s+a|quite\s+a|little)\s+while\b|\bbefore(?=\s*(?:[.!?,;)]|$))"
                     r"|\b(?:check|see|ask(?:s|ed)?|know|wonder(?:ing)?|determine|verify|tell|find\s+out|sure|unsure|decide|"
@@ -225,6 +226,14 @@ CLOSING_HEADING = _rx(r"^[#*_\s]*(?:conclusions?|in\s+conclusion|final\s+thought
 QUANTIFIER = _rx(r"(?<!\bthe\s)(?<!\bat\s)\b(?:a\s+few|a\s+couple\s+of|some|most|many|few|several|all|every|each)\b"
                  r"(?=\s+(?:of\s+)?[a-z])")
 STATISTIC = _rx(r"\b(?:mean|median|average|avg|p\d{2}|percentile|peak)\b")
+FREQUENCY = _rx(r"\b(?:hourly|daily|nightly|weekly|biweekly|fortnightly|monthly|quarterly|annually|annual|yearly|semiannual(?:ly)?)\b"
+                r"|\b(?:every|each|per|a)\s+(?:hour|day|night|week|fortnight|month|quarter|year)\b")
+FREQ_NORMAL = {"hour": "hourly", "day": "daily", "night": "nightly", "week": "weekly", "fortnight": "fortnightly",
+               "month": "monthly", "quarter": "quarterly", "year": "yearly", "annually": "yearly", "annual": "yearly",
+               "biweekly": "fortnightly", "semiannual": "semiannually"}
+# A qualifier phrase at the start of a sentence ("Under normal traffic,", "During peak hours,", "For annual plans,").
+QUALIFIER = re.compile(r"(?:^|(?<=[.!?:]\s))((?:[Uu]nder|[Dd]uring|[Ff]or|[Ii]n|[Oo]n|[Aa]t|[Ww]ithin|[Oo]utside|[Ff]rom|[Ee]xcept)"
+                       r"\s+[^,.;:!?]{2,40}),")
 PRIORITY_WORDS = _rx(r"\b(?:focus\w*|priorit\w*|first|both|as\s+well\s+as|in\s+addition\s+to|along\s+with|and|plus|also)\b")
 
 STOPWORDS = set("""
@@ -239,7 +248,8 @@ NAME_STOP = set("""I The A An This That These Those It Its We Our You Your They 
 After Before Because Although However Therefore Thus Also In On At For From To By With Of And Or But So Then Here
 There What Which Who Why How Please Note Yes No Not All Each Every Some Any Most Many More Monday Tuesday Wednesday
 Thursday Friday Saturday Sunday January February March April May June July August September October November December
-Let Lets OK Okay""".split())
+Let Lets OK Okay Section Sections Clause Clauses Article Chapter Appendix Figure Table Step Steps Part Page Item
+Items Annex Schedule Exhibit""".split())
 
 
 # ---------------------------------------------------------------- data
@@ -480,6 +490,15 @@ def denied_words(text: str) -> set[str]:
         if word and word not in STOPWORDS:
             found.add(word)
     return found
+
+
+def frequencies(text: str) -> Counter[str]:
+    """How often something happens, normalized ("every night" -> nightly, "annual" -> yearly)."""
+    c: Counter[str] = Counter()
+    for m in FREQUENCY.finditer(text):
+        w = m.group(0).lower().split()[-1]
+        c[FREQ_NORMAL.get(w, w)] += 1
+    return c
 
 
 def conditions(text: str) -> list[str]:
@@ -949,6 +968,10 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
         if uo != ur:
             risk("number", True, "Unit changed: " + ", ".join(sorted((uo - ur).elements())) + " → "
                  + ", ".join(sorted((ur - uo).elements())))
+    fq_o, fq_r = frequencies(o), frequencies(r)
+    if fq_o != fq_r and (fq_o or fq_r):
+        risk("number", True, "Frequency changed: " + (", ".join(sorted((fq_o - fq_r).elements())) or "none") + " → "
+             + (", ".join(sorted((fq_r - fq_o).elements())) or "none"))
     do_, dr = dates(o), dates(r)
     if do_ != dr:
         parts = []
@@ -1057,7 +1080,9 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
 
     obl_o, w_obl_o = obligation_level(o)
     obl_r, w_obl_r = obligation_level(r)
-    if obl_o != obl_r:
+    if obl_o == 2 and obl_r == 0 and _imperative(ch.rev) and not _imperative(ch.orig):
+        pass  # "You will need to restart" -> "Restart": the imperative keeps the instruction
+    elif obl_o != obl_r:
         risk("obligation", True, "Obligation strength changed: "
              + (f'"{w_obl_o}"' if w_obl_o else "none") + " → " + (f'"{w_obl_r}"' if w_obl_r else "none"))
 
@@ -1105,6 +1130,20 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
             risk("number", True, "Statistic changed: " + (", ".join(sorted((st_o - st_r).elements())) or "none") + " → "
                  + (", ".join(sorted((st_r - st_o).elements())) or "none"))
 
+    for qm in QUALIFIER.finditer(o):
+        words = [w for w in re.findall(r"[A-Za-z][A-Za-z'’-]{2,}", qm.group(1))[1:] if w.lower() not in STOPWORDS]
+        if words and not any(re.search(r"\b" + re.escape(w) + r"\b", r, re.IGNORECASE) for w in words):
+            risk("condition", True, f'Qualifier removed: "{qm.group(1)}". Check that the sentence did not become true '
+                 "in more cases.")
+            break
+    if count(ALL_SCOPE, r) > count(ALL_SCOPE, o):
+        for am in re.finditer(r"\b(?:all|every|each|any)\s+([a-z]+)", r, re.IGNORECASE):
+            head = am.group(1).lower()
+            mm = re.search(r"\b([A-Za-z][\w-]+)\s+" + re.escape(head) + r"\b", o, re.IGNORECASE)
+            if mm and mm.group(1).lower() not in STOPWORDS | {"all", "every", "each", "any"}:
+                risk("scope", True, f'Restriction removed: "{mm.group(1)} {head}" → "{am.group(0)}"')
+                break
+
     cond_o, cond_r = conditions(o), conditions(r)
     contrast = re.compile(r"\b(?:but|although|though|however|yet|whereas)\b", re.IGNORECASE)
     if len(cond_o) > len(cond_r) and all(w.lower() == "while" for w in cond_o if w.lower() not in
@@ -1112,7 +1151,7 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
         pass  # concessive "while" rewritten as "but" / "although"
     elif len(cond_o) > len(cond_r):
         gone_c = next((w for w in cond_o if w.lower() not in {x.lower() for x in cond_r}), cond_o[0])
-        risk("condition", True, f'Condition or time limit removed: "{gone_c}". Check that the sentence did not '
+        risk("condition", True, f'Condition, limit or qualifier removed: "{gone_c}". Check that the sentence did not '
              "become true in more cases.")
     elif len(cond_r) > len(cond_o):
         new_c = next((w for w in cond_r if w.lower() not in {x.lower() for x in cond_o}), cond_r[0])
@@ -1351,9 +1390,16 @@ def moved_names_in_lines(changes: list[dict[str, object]], lower_words: Optional
                     target = rl2
                     break
         if moved:
-            result.append(Risk("name_order", True, f'{", ".join(moved)} moved to another line (revised line {target}). '
-                               "Check who does what.", ol, rl, a.strip(), b.strip()))
+            result.append(Risk("name_order", True, f'{_name_phrases(a, moved)} moved from line {ol} to line {target}. '
+                               "Check who does what (owners swapped?).", ol, rl, a.strip(), b.strip()))
     return result
+
+
+def _name_phrases(line: str, moved: list[str]) -> str:
+    """Moved name tokens shown as the names they form in the line ("Lena Ortiz", not "Lena, Ortiz")."""
+    phrases = [m.group(0) for m in re.finditer(r"[A-Z][\w'’-]+(?:\s+[A-Z][\w'’-]+)*", line)
+               if all(t in moved for t in m.group(0).split())]
+    return ", ".join(f'"{x}"' for x in phrases) if phrases else ", ".join(moved)
 
 
 def _strip_item(line: str) -> str:
@@ -1500,7 +1546,7 @@ def energy(orig: tx.Document, rev: tx.Document, doc_type: Optional[str],
     return items, reference
 
 
-_GAP_EXCLUDE = re.compile(r"\d|\b(?:may|might|could|possibly|perhaps|likely|probably|appears?|seems?|plan(?:s|ned)?|"
+_GAP_EXCLUDE = re.compile(r"(?<![A-Za-z-])\d|\b(?:may|might|could|possibly|perhaps|likely|probably|appears?|seems?|plan(?:s|ned)?|"
                           r"expect\w*|if|when|unless|hope|aim\w*|goal|target)\b", re.IGNORECASE)
 _BUILTIN_GAPS = [
     ("figure", r"\b(?:lay(?:s|ing)?|laid) the (?:foundation|groundwork)\b|\bpav(?:e|es|ed|ing) the way\b|\bquietly (?:break|breaks|broke|broken|breaking)\b"),
@@ -1741,12 +1787,13 @@ def line_changes(a_text: str, b_text: str) -> tuple[list[dict[str, object]], str
         if len(old) != len(new):
             head += f" ({tx.plural(len(old), 'line')} → {tx.plural(len(new), 'line')})"
         out.append(head)
-        for x in old:
-            out.append(f"  - {x}")
-        for x in new:
-            out.append(f"  + {x}")
         if len(old) == 1 and len(new) == 1:
             out.append(f"  ~ {word_diff(old[0], new[0])}")
+        else:
+            for x in old:
+                out.append(f"  - {x}")
+            for x in new:
+                out.append(f"  + {x}")
     return changes, "\n".join(out)
 
 

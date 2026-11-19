@@ -438,7 +438,7 @@ def cmd_run(args: argparse.Namespace) -> int:
                  "command again with --state-dir set to a folder you can write to, or with --no-record if there is no "
                  "such folder; then follow the first line of that output.")
     else:
-        first = first_line(status, attempt, revisions, same_as_previous, args, problems, folder)
+        first = first_line(status, attempt, revisions, same_as_previous, args, problems, folder, meaning_risk)
     kept_added = split_kept_added(lint_final, lint_orig, original)
     if args.json:
         out = {"format": 1, "tool": TOOL, "version": __version__, "status": status, "first_line": first,
@@ -459,7 +459,7 @@ def cmd_run(args: argparse.Namespace) -> int:
 
 
 def first_line(status: str, attempt: int, revisions: int, same_as_previous: bool, args: argparse.Namespace,
-               problems: list[str], folder: Path) -> str:
+               problems: list[str], folder: Path, meaning_risk: int = 0) -> str:
     if problems == ["the final draft changed during the run"]:
         return ("The final draft changed while the checks ran. Run the same command again without changing the file, "
                 "then follow the first line of that output.")
@@ -473,7 +473,9 @@ def first_line(status: str, attempt: int, revisions: int, same_as_previous: bool
         return ("Ran the checks (not recorded, as requested). verify cannot match an unrecorded run; report the final "
                 "match as a check that was not run (no record was kept).")
     if attempt == 1 or revisions == 0:
-        return (f"Ran the checks (attempt {attempt}). Check the findings below against the original and material. Revise at "
+        risks = (f" {tx.plural(meaning_risk, 'counted meaning risk')}: compare each with the original and restore "
+                 "unintended changes in your revision." if meaning_risk else "")
+        return (f"Ran the checks (attempt {attempt}).{risks} Check the findings below against the original and material. Revise at "
                 "most once: if you revise, run the same command again; if not, right before submitting and without "
                 f"changing the body, {verify} once.")
     if same_as_previous:

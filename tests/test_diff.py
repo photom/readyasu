@@ -659,3 +659,51 @@ def test_deleted_condition_sentence_gets_a_review() -> None:
 def test_markers_inside_underscore_emphasis_are_seen() -> None:
     assert "negation" in kinds("The job does _not_ retry.\n", "The job retries.\n")
     assert "certainty" in kinds("The fix __may__ help.\n", "The fix helps.\n")
+
+
+# ---- set 8 review
+
+@pytest.mark.parametrize(("orig", "rev", "kind"), [
+    ("Annual subscriptions are eligible for a refund.\n", "All subscriptions are eligible for a refund.\n", "scope"),
+    ("Enterprise customers get SSO.\n", "All customers get SSO.\n", "scope"),
+    ("Under normal traffic, the API responds in 200 ms.\n", "The API responds in 200 ms.\n", "condition"),
+    ("During peak hours, deploys are blocked.\n", "Deploys are blocked.\n", "condition"),
+    ("Per the vendor, the outage was caused by a DNS change.\n", "The outage was caused by a DNS change.\n", "hearsay"),
+    ("We may suspend accounts at our sole discretion.\n", "We may suspend accounts.\n", "condition"),
+    ("Fees are non-refundable except where required by applicable law.\n", "Fees are non-refundable.\n", "condition"),
+    ("Data refreshes daily.\n", "Data refreshes hourly.\n", "number"),
+    ("The plan is billed monthly.\n", "The plan is billed annually.\n", "number"),
+])
+def test_set8_meaning_changes_are_counted(orig: str, rev: str, kind: str) -> None:
+    assert kind in kinds(orig, rev)
+
+
+@pytest.mark.parametrize(("orig", "rev"), [
+    ("In production, we run 3 replicas.\n", "We run 3 replicas in production.\n"),
+    ("Backups run nightly.\n", "Backups run every night.\n"),
+    ("You will need to restart the service after the upgrade.\n", "Restart the service after the upgrade.\n"),
+    ("For more details, see the guide.\n", "See the guide for more details.\n"),
+])
+def test_set8_harmless_rewrites(orig: str, rev: str) -> None:
+    assert kinds(orig, rev) == []
+
+
+def test_section_is_not_a_name() -> None:
+    assert "name" not in kinds("Refunds follow Section 9.\n", "Refunds follow the policy.\n")
+
+
+def test_owner_swap_message_shows_full_names() -> None:
+    o = "- [ ] Lena Ortiz: Draft the plan\n- [ ] Marco Feld: Share the notes\n"
+    r = "- [ ] Marco Feld: Draft the plan\n- [ ] Lena Ortiz: Share the notes\n"
+    messages = [x.message for x in diff.compare(o, r).risks if x.kind == "name_order"]
+    assert any('"Lena Ortiz" moved from line 1 to line 2' in m for m in messages)
+
+
+def test_fact_gaps_ignore_digits_inside_names() -> None:
+    result = diff.compare("x\n", "Query latency improved significantly after the Q3 release.\n", want_fact_gaps=True)
+    assert [g.kind for g in result.fact_gaps] == ["degree"]
+
+
+def test_full_diff_shows_one_line_per_one_line_change() -> None:
+    full = diff.compare("We use a robust pipeline.\n", "We use a pipeline.\n").full_diff
+    assert "  ~ " in full and "  - " not in full
