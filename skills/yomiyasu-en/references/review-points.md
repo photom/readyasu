@@ -26,7 +26,7 @@ Each item is tagged with its kind. Counted kinds make `--fail-on meaning-risk` f
 
 | Kind | What it means | What to do |
 |---|---|---|
-| number | A number was removed, added or changed: digits, number words, quarters and versions (Q3, v2), currency and magnitudes ($1.5M, 5k), percentages. The whole-text line catches numbers in deleted or split sentences | Restore, unless it is a fill or correction from a source (fact-recovery.md), or an absolute date you added after a relative one |
+| number | A number was removed, added or changed: digits, number words, quarters and versions (Q3, v2), currency and magnitudes ($1.5M, 5k), percentages. The whole-text line catches numbers in deleted or split sentences | Restore, unless it is a fill or correction from a source (fact-recovery.md), an absolute date you added after a relative one, or a count word you removed with a count announcement or a cleft list ("Three things:") while every item stayed |
 | approximation | about, up to, at least, more than... on the same number changed | Restore the original approximation |
 | negation | The number of negations (not, no, never, n't, without, unless...) changed in the paired sentences | Read both. Removing "not only" or turning "not X but Y" into "Y" also changes the count; that is fine only when the rephrase test passes |
 | certainty | A hedge (may, might, could, likely, appears to, planned...) disappeared or was replaced by a stronger one | Restore the hedge at the same strength |
@@ -35,7 +35,7 @@ Each item is tagged with its kind. Counted kinds make `--fail-on meaning-risk` f
 | obligation | should ↔ must, or an obligation word appeared or disappeared | Restore the original strength |
 | status | TBD, pending, under investigation, not yet, unconfirmed... disappeared | Restore the state; do not turn it into a finding or a plan |
 | hearsay | reportedly, according to, said that... appeared or disappeared | Restore; hearsay is not assertion |
-| question | A question became a statement or the reverse | Restore the sentence type |
+| question | A question became a statement or the reverse | Restore the sentence type, except when you folded a self-answered question into a statement (SKILL.md "Decoration and ad copy") or turned a request into a polite question for a stated relationship (register.md section 7) |
 | request | please, could you... disappeared | Restore the request form; a bare imperative changes politeness |
 | scope | A limiting word (only, solely) disappeared; either/or ↔ both/all; or a determiner such as some, most, many or several disappeared with no other partial word, or a partial word became all/every | Restore the scope |
 | correlation | A cause word was added to a sentence that stated only a correlation | Restore the correlation wording |
@@ -134,7 +134,7 @@ Every changed line pair, not shortened. `~` lines show word-level changes as `[-
 
 ## 4. Reviewing by eye (when Python cannot run)
 
-Write `yomiyasu-en-check: not_run reason=no_python` in the check record and list lint, diff and the final match under "Checks not run (no_python)". Then, before submitting:
+Write `yomiyasu-en-check: not_run reason=no_python` in the check record and write "Checks not run: lint (no_python), diff (no_python), final match (no_python)" (add "material match (no_python)" when material was given). Then, before submitting:
 
 1. Compare every sentence of the final draft with the original for numbers, negations, hedges, permission and obligation words, status words, hearsay, questions, requests, limits (only), names and their order, citations, code and URLs.
 2. Search the final draft for the lint rules in section 3: emoji, dashes, bold labels, stock phrases, chat residue, stacked hedges, headings with colons.

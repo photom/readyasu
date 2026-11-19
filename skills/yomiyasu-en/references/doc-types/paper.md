@@ -25,4 +25,4 @@ Lint rules exempted: none
 | Original | Handling |
 |---|---|
 | These results suggest a possible link between X and Y [3]. | Keep |
-| This groundbreaking study delves into the pivotal role of sleep. | "This study examines the role of sleep in ..." from the paper's own question |
+| This groundbreaking study delves into the pivotal role of sleep. | "This study examines why sleep matters for ..." from the paper's own question ("pivotal" becomes "matters for"); ask about "groundbreaking" instead of deleting it |

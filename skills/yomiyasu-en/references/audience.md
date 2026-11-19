@@ -36,6 +36,7 @@ Read this when the reader is specified as informed or general (SKILL.md section 
 - Type: (a) the request's destination points to one type and the text has no clue for another type, or (b) the text has two or more clues for one type and none for another. Minutes and slides need at least one clue of form (attendees and agenda; `---` separators or Marp front matter).
 - Reader: (a) the request or destination names the reader, or (b) the type is pr or minutes and nothing in the request or text conflicts with expert.
 - Otherwise you are not confident. A value decided from the destination ("for the company wiki") is inferred, not specified.
+- A reader is specified only when the request states the level or describes what the readers know ("for readers with no technical background", "the readers are ML researchers"). Naming a group ("for our customers", "for the team") gives an inferred level (register.md section 2).
 - When the specified type and the text's form disagree ("these are minutes" but the text is a proposal), follow the specified type and do not reshape the text into that type's form.
 
 ## 4. Ask or proceed without deciding
@@ -106,6 +107,8 @@ Never rephrase class E, terms the original defines, words that correspond to a h
 
 In the check record, the setting is the document type: `Writer: not decided / Reader: general (specified) / Setting: manual (inferred)`. Write "(specified)" or "(inferred)" after each decided value and "not decided" otherwise.
 
+When the user corrects the type or reader after your answer, treat it as a new request: rewrite from the first original and run check with `--new-run` (in the same run, the first line would treat the new findings as a revision and tell you not to change the body). It does not count toward "Revise once only".
+
 ## 13. Rules exempted by type
 
 | Type | Lint rules exempted |
@@ -128,4 +131,4 @@ No type exempts metaphor_verb: metaphorical verbs on ordinary events are reviewe
 
 ## 14. Example (synthetic)
 
-Request: "Make this easier to read for our customers." Reader: general (specified). The original says "Re-authenticate via SSO." The material includes the UI, whose button says "Sign in with SSO". Rewrite: "Sign in again with SSO." and add "re-authenticate → sign in again (reader: general)" under "What changed". "SSO" has no explanation in the original or material: add `- Needs an explanation: "SSO" (step 2; not explained in the original or material)`.
+Request: "Make this easier to read for customers with no technical background." Reader: general (specified). The original says "Re-authenticate via SSO." The material includes the UI, whose button says "Sign in with SSO". Rewrite: "Sign in again with SSO." and add "re-authenticate → sign in again (reader: general)" under "What changed". "SSO" has no explanation in the original or material: add `- Needs an explanation: "SSO" (step 2; not explained in the original or material)`.

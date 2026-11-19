@@ -51,7 +51,7 @@ Technical write-ups often say "We suspected X, but it was Y". Removing negative 
 | These numbers are orders received, not revenue. | Corrects an easily misread meaning |
 | The new version isn't faster; we only changed how the wait is displayed. | Denies a likely misunderstanding of the effect |
 | It's not only a failure; it's also a test of one condition. | "Not only ... also" sentence; keep as one sentence |
-| This delay isn't the network. Other teams saw the same delay at the same time. | The second sentence gives evidence for the denial, not a "then what"; do not merge |
+| This delay isn't our office connection. Teams in other offices saw the same delay at the same time. | The second sentence gives evidence for the denial, not a "then what"; do not merge |
 
 ### Fix (synthetic)
 
@@ -61,6 +61,7 @@ Technical write-ups often say "We suspected X, but it was Y". Removing negative 
 | This tool doesn't collect opinions — it collects operation logs. | This tool collects operation logs. | Only when nothing nearby suggests it collects opinions; otherwise keep |
 | We didn't need a new tool. We needed a shared way to use the old one. | We didn't need a new tool; we needed a shared way to use the old one. | Two-sentence contrast; keep X and join (also in essays; not in fiction narration or dialogue, or short promo runs) |
 | It's not just a library. It's a philosophy. | (ask) | What "philosophy" means is not in the text; ask instead of guessing |
+| (The previous sentence is about the load balancer's connection limit.) Once the limit was exceeded, 503 errors were returned. | Once the limit was exceeded, the load balancer returned 503 errors. | Fills in a subject the surrounding sentences establish; the six points stay the same |
 
 ### Wrong fixes (synthetic)
 
@@ -72,5 +73,7 @@ Technical write-ups often say "We suspected X, but it was Y". Removing negative 
 
 ## 4. How to report
 
+- Under "What changed", write the original wording, the revised wording and the reason.
 - Under "AI-like wording kept", write the wording and which point would have changed ("kept 'not the cache': it corrects the likely suspicion").
+- Do not list a discarded candidate under "What changed", and do not report a change you did not make.
 - Do not report every pattern you looked at; report only those a reader might expect you to have changed.

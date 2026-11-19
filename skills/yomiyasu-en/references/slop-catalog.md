@@ -43,9 +43,9 @@ Rewrite events and technical operations described with a metaphor into plain wor
 | The X? Y. | "The result? A 40% drop in errors." | "Errors dropped by 40%." Keep in promo, slides and scripts. |
 | Here's the thing / Here's why / Here's what you need to know | "Here's the thing: caching is hard." | Delete the announcement: "Caching is hard." |
 | What makes X Y is Z | "What makes this approach powerful is its simplicity." | "This approach is powerful because it is simple." Keep both the evaluation and the reason. |
-| X is more than just Y | "This is more than just a library." | Say what more it is, from the original; if nothing, delete. |
+| X is more than just Y | "This is more than just a library." | Say what more it is, from the original; if the original does not say, keep the sentence and ask. Do not cut it to "This is a library", which reverses the claim. |
 | Whether you're X or Y | "Whether you're a beginner or an expert, ..." | Delete when the sentence works for everyone anyway. |
-| From X to Y | "from startups to enterprises" | Keep if both ends are real; delete if it only signals breadth. |
+| From X to Y | "from startups to enterprises" | Keep it: the range is a claim. Delete it only when the same sentence already states the same range in other words. |
 | Triplets of adjectives | "fast, reliable, and scalable" | Keep all three: each is a claim. When the text gives the fact behind one ("handles 10,000 requests per second"), you may write the fact instead of the adjective. Ask about adjectives nothing supports; do not delete them. |
 | em dash splice | "The fix — which took two days — was simple." | "The fix, which took two days, was simple." Choose punctuation that keeps the same scope. Ranges (2019–2021) stay. |
 | Colon reveal | "The answer: simplicity." | "The answer is simplicity", or fold into the previous sentence. |

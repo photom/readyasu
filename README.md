@@ -18,7 +18,7 @@ yomiyasu-en finds and rewrites:
 
 It tries to leave parts that already read naturally as they are.
 
-It keeps the meaning: numbers, negations, conditions, who does what, hedges and how strongly a claim is made (permission, ability, obligation, guarantees). Its instructions tell it not to add facts that are not in the original, the request or the material you provide, and to keep the original wording and ask the writer where the meaning cannot be decided from the text.
+It keeps the meaning: numbers, negations, conditions, who does what, hedges and how strongly a claim is made (permission, ability, obligation, guarantees). Its instructions tell it not to add facts that are not in the original, the request, the material you provide, or what you said, opened or ran in the conversation (fills from the conversation are listed with their source), and to keep the original wording and ask the writer where the meaning cannot be decided from the text.
 
 It knows thirteen document types (pull request descriptions, technical articles, incident reports, proposals, minutes, manuals, slides, essays and fiction, formal documents, marketing copy, mail and chat, papers, scripts) and is told not to change the usual style of each type. You can also tell it how much the readers know (expert, informed, general) and who writes to whom.
 

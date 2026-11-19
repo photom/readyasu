@@ -15,7 +15,7 @@
 | Relationship | "An email to a client from our support team." | Adjusts politeness the way that relationship would write; adds no apologies, thanks or commitments |
 | Material | "Here is the spec: ..." | Missing values may be filled from it, with the source quoted under "Fact check" |
 | Text only | "Return only the text." | No report sections; the checks still run |
-| No questions | "Don't ask me anything." | Proceeds without asking about type or reader |
+| No questions | "Don't ask me anything." | Proceeds without asking about type or reader, and leaves out questions for the writer |
 
 Without these, it infers the type when the text gives clear clues and does not change politeness.
 

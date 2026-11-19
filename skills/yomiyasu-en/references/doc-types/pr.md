@@ -16,7 +16,7 @@ Lint rules exempted: excess_list
 - Change reports without a verb and confusion between done and planned (SKILL.md "Stance and sentence form").
 - Sentences that mix what was tested with what was not. Do not write untested behavior as tested.
 - Lists that only pair a label with an explanation (`- **Improvement**: Improved the list view`, bold or not). bold_label_list is not exempted for this type.
-- Chat residue ("This PR aims to", "I hope this helps reviewers").
+- Chat residue ("I hope this helps reviewers", "Let me know if you have any questions!"). Keep "This PR aims to": removing "aims to" turns a purpose into a claim that the change works.
 
 ## 3. Length and omissions
 

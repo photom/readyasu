@@ -41,11 +41,11 @@ When there is no gap, no conflict, and the draft is not yours, do not read furth
 
 Fill only when all of these hold. When unsure, do not fill.
 
-1. The gap is content hidden by a metaphor or exaggeration, or a missing element the sentence needs (who, what, by when, under which condition, compared with what, unit). Vague quantities, times and parties ("several", "soon", "some users"), "TBD" and "under investigation", details left out of a summary, closing resolutions, and the experiences and feelings in essays are not gaps. Do not fill them and do not ask about them.
+1. The gap is content hidden by a metaphor or exaggeration, or a missing element the sentence needs (who, what, by when, under which condition, compared with what, unit). Vague quantities, times and parties ("several", "soon", "some users"), "TBD" and "under investigation", details left out of a summary, closing resolutions, and the experiences and feelings in essays are not gaps. Do not fill them and do not ask about them, except in the one case at the end of section 5.
 2. A source has a sentence with the same claim. A matching value is not enough: the value and what it is the value of (target, condition, time) must be in the same or the adjacent sentence. If the source's scope (file, environment, plan, version) is narrower than the draft's sentence, ask instead. Fill an actor only when the source sentence has that person as the subject of the same action (do not turn the person who reported something into the person who did it or owns it). Do not add names of people the original lacks, even when the material has them (not even on a speaker line in minutes).
 3. You can write it at the same strength. "Might", "planned" and "probably" stay at that strength. Use command output only when you can scope it ("in that run").
-4. The fact may go to the destination, and the source line holds no credentials, internal hostnames or e-mail addresses.
-5. Nothing suggests the writer left it out on purpose. Even without a clue, do not fill if you think the writer may have been vague on purpose. Values the user gave in their own words are not excluded for this reason.
+4. The fact may go to the destination (section 5), and the source line holds no credentials, internal hostnames or e-mail addresses.
+5. Nothing suggests the writer left it out on purpose (section 5). Even without a clue, do not fill if you think the writer may have been vague on purpose. Values the user gave in their own words are not excluded for this reason.
 6. The claim's scope stays the same. Fill only the content of what the sentence already says (referent, value, unit, actor).
 
 Amount: at most five fills and corrections in total. Do not create new sentences, paragraphs or sections; fill inside the existing sentence. Keep the number and order of headings and sections. Do not add explanations, examples, effects, causes or feelings, even when the material has them. Do not fill when the request is to summarize or shorten.
@@ -82,7 +82,7 @@ Please fill in the missing facts in the text below. If you don't know, write "do
    what is unknown in that sentence (number and unit, date, person or team, condition, before and after)
 ```
 
-- Output the section when you filled, corrected, asked or checked anything; otherwise omit it. Do not report weekdays, holidays or calendar arithmetic you checked with general knowledge or commands (`date`, `cal`).
+- Output the section when you filled, corrected, asked or checked anything; otherwise omit it. Do not report weekdays, holidays or calendar arithmetic you checked with general knowledge or commands (`date`, `cal`). One exception: when the original gives both a weekday and a full date and they disagree ("Friday, December 12, 2026" is a Saturday), ask one question under "Questions for the writer" that quotes the phrase, without changing the body.
 - When you passed the excerpt to run with `--material`, list the material match under "Checks run" in the check record (SKILL.md's "when no material was given" means when run got no material).
 - Facts filled or corrected from the material and context (including material you were handed) go here, not also in "What changed". Subjects and objects filled from the original's own sentences still go in "What changed".
 - Questions about missing facts go here and do not count toward the three "Questions for the writer" (SKILL.md section 3).
@@ -91,3 +91,55 @@ Please fill in the missing facts in the text below. If you don't know, write "do
 - "Values that matched the sources" lists only values that matched source lines without hedge words (not guesses the user only acknowledged), and always ends with "(some values and claims were not checked)". Add no explanations to this line. When you checked claims in your own draft (cause, result, done or not, owner), list each under "Values that matched the sources" or "Not confirmed".
 - Do not quote lines containing credentials, internal hostnames or e-mail addresses; give only the location.
 - Do not put sources or notes in the body. Do not write "verified", "confirmed" or "fact-checked"; write "matched the sources" or "filled from the sources".
+
+## 5. Destinations and intentional omissions
+
+Decide the destination from the request ("a notice to customers", "the internal wiki"), then the type, then the reader. When none of them settles it, or the type is not decided, treat the document as external. Treat a PR description as external unless the request says it is internal. For mail, use the external column when the recipient is outside the organization.
+
+Facts that must not go into the body or the questions, even with a source:
+
+| Kind | Known to be internal | External or unknown |
+|---|---|---|
+| Credentials (passwords, API keys, tokens, connection strings, private keys) | Never | Never |
+| Personal data (names, e-mail addresses, phone numbers, user IDs) | Only a name the original already has, when the material names that person in the same role. No names the original lacks, not even on a speaker line in minutes | Never |
+| Internal setup (internal hostnames, IP addresses, server paths, internal URLs, ticket numbers) | Only when the original already has one of the same kind | Never |
+| Unpublished figures and dates (revenue, costs, customer counts, prices, release dates, number of affected users) | Only when the original has a value of the same kind, the sentence asks for the value, and the wording is not vague | Never, except a value the writer gave in answer to your question |
+| Customer and partner names | Only when the original already names a partner | Never |
+| Security details (reproduction steps, configuration weaknesses) | Only when the original has details of the same kind | Never |
+| Names inside the repository (file names, function names, configuration keys, error codes) | Allowed | Only when the original names things from the same repository |
+
+When you leave a fact out, keep the original wording. Only when readers need the fact to act, say so without giving the value: "The material names the owner, but the document looks external, so the name was not added."
+
+Clues that the writer left something out on purpose. When one applies, do not fill that place and do not ask about it:
+
+- The user said to leave it out ("don't name the client", "keep the numbers vague").
+- The original says something was left out ("details omitted", "will be announced separately", "(confidential)").
+- Vague words for counts, times or parties ("some users", "soon", "a partner").
+- The request is to summarize or shorten, or the document drops details for its readers (a general reader and no technical details).
+- The writer has not decided ("TBD", "being arranged").
+- You think the writer may have been vague on purpose, even without a clue above. This does not apply to values the user gave in their own words.
+
+The one exception: when a missing or vague owner, deadline or request target could make readers misread (a deadline exists but the text reads as if there is none; SKILL.md "Make actors and objects explicit"), ask once and add "If there is a reason not to say, it will stay as it is." This is the only case where section 3, condition 1 allows a question about a vague word.
+
+## 6. Other situations and follow-up requests
+
+| Situation | Fill or correct | Questions | "Fact check" |
+|---|---|---|---|
+| Only the text (nothing on the topic in the conversation; a one-shot run without material) | No | Only where readers cannot act | "Sources checked: None (received the text only)" |
+| Text that already reads naturally and that you did not write | Only where there is a gap | None | Omit |
+| The user wants only the text | Not from the conversation or files (corrections from material the user handed you still apply) | None | Omit; no notes before or after the body |
+| "Don't check" or "no need to check the facts" | As for only the text | None | Omit |
+| "Don't ask me anything" | Yes | None: no "Questions for the writer" and no questions block | Only the fills and corrections |
+| Python cannot run | No (nothing checks the fills) | Yes | "Sources checked" and the questions |
+| Inside another skill (writing a PR, for example) | Yes | In your reply | In your reply; put no sections, source notes or questions in the PR body. Submit after verify |
+| A subagent that cannot see the caller's conversation | Only from material in the request | Return them to the calling AI | Yes |
+| A one-shot run (`claude -p`, `codex exec`, CI) | Yes | In the report only; do not wait for answers | Yes |
+| A long conversation whose start was summarized | Not from the summary; only when you can reopen the quoted source | Yes | Yes |
+
+When answers to your questions come back, treat them as a new request:
+
+- Save the final draft under a new name and add `--new-run` to the check run (a new name alone may continue the earlier run, and the first line would count the new draft as a revision). Pass the first original to `--source`; passing the first final draft makes your earlier fills look like original values. Put the source lines for earlier fills into the new excerpt; if you cannot, undo those fills. This round does not count toward "Revise once only".
+- Use answers the user wrote in their own words as the user's statements, at the same strength ("probably" stays "probably"). Do not fill "don't know".
+- For answers written by an AI (another AI's answer pasted in, or the answer of the AI that called this skill) and answers whose writer you do not know, use only lines that name a source (a file and line, a record, the user's statement). List the rest under "In an answer but without a stated source, so not used". When the user says "use this value", use it as the user's statement.
+- Do not ask again what was answered, and do not ask about the answers. Ask only about gaps in the first original that you have not asked about.
+- Do not send reminders. As a subagent you do not remember the earlier round; it continues only when the caller passes the original draft, the earlier questions and the answers together. Ask the caller to pass the answers as an excerpt with separator lines (`<<<yomiyasu-en:material SOURCE>>>`), and treat lines whose source is not the user's statement, a file or command output as statements by an AI.

@@ -5,7 +5,7 @@ Details of the fourth item of SKILL.md section 2, Step 1: the writer's role and 
 ## 1. When to read this
 
 - When the request states the writer ("I'm writing as the team lead", "from our support team") or the reader ("for a client", "to my manager", "for all employees"). Read this before fixing the body. Also read it when unsure whether to ask about the relationship.
-- When nothing is stated, write inferred values in one line of the check record and change neither the body nor your notices. Do not mention politeness or register.
+- When nothing is stated, write "not decided" for the writer in the check record and change neither the body nor your notices. Do not mention politeness or register.
 
 ## 2. Three values
 
