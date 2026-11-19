@@ -916,3 +916,48 @@ def test_owner_swap_counts_once_with_full_names() -> None:
     o = "- [ ] Lena Ortiz: Draft the plan\n- [ ] Marco Feld: Share the notes\n"
     r = "- [ ] Marco Feld: Draft the plan\n- [ ] Lena Ortiz: Share the notes\n"
     assert kinds(o, r) == ["name_order", "name_order"]
+
+
+# ---- set 11 review
+
+@pytest.mark.parametrize(("orig", "rev"), [
+    ("Timeouts went from 30 seconds to 10 seconds.\n", "Timeouts went from 10 seconds to 30 seconds.\n"),
+    ("We shortened the retry interval from 1 second to 0.5 seconds.\n",
+     "We shortened the retry interval from 0.5 seconds to 1 second.\n"),
+    ("Latency dropped from about 800 milliseconds to roughly 120 milliseconds.\n",
+     "Latency dropped from about 120 milliseconds to roughly 800 milliseconds.\n"),
+])
+def test_reversed_from_to_with_units_counts_once(orig: str, rev: str) -> None:
+    assert kinds(orig, rev) == ["number"]
+
+
+@pytest.mark.parametrize(("orig", "rev"), [
+    ("Churn in the SMB segment was not the main drag on margin. Infrastructure costs were.\n",
+     "Infrastructure costs, not churn in the SMB segment, were the main drag on margin.\n"),
+    ("In today's fast-paced SaaS landscape, Q3 was a strong quarter.\n", "Q3 was a strong quarter.\n"),
+])
+def test_set11_harmless(orig: str, rev: str) -> None:
+    assert kinds(orig, rev) == []
+
+
+def test_within_n_days_of_keeps_the_time_limit() -> None:
+    assert "condition" not in kinds("Submit the request soon after your first login.\n",
+                                    "Submit the request within 2 business days of your first login.\n")
+
+
+def test_you_may_removed_counts_once_as_permission() -> None:
+    assert kinds("You may set a custom timeout.\n", "Set a custom timeout.\n") == ["permission"]
+
+
+def test_every_monday_is_weekly() -> None:
+    result = diff.compare("Reports run every Monday.\n", "Reports run weekly.\n")
+    assert not any("Frequency" in x.message for x in result.risks if x.counted)
+
+
+def test_heading_colon_removal_is_not_a_review() -> None:
+    assert "heading" not in review_kinds("## Summary:\n\nText.\n", "## Summary\n\nText.\n")
+
+
+def test_reference_gap_with_a_version_name() -> None:
+    result = diff.compare("x\n", "We should triage this before the 3.8.3 cut, as discussed.\n", want_fact_gaps=True)
+    assert [g.kind for g in result.fact_gaps] == ["reference"]

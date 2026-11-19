@@ -10,7 +10,7 @@
 
 ## 3. Feelings and lessons
 - Do not add feelings or lessons the writer did not state.
-- A closing that turns the story into a stock moral ("In the end, it taught me that every journey matters") goes only when nothing in the essay leads to it; otherwise keep it and tone down the inflated words.
+- A closing that turns the story into a stock moral: keep the content and tone down only the inflated words; delete it only in a draft you wrote yourself when nothing in the essay leads to it.
 
 ## 4. Dialogue
 - Keep dialogue as written, including stock phrases a character would say.

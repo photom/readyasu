@@ -46,7 +46,7 @@ Rewrite events and technical operations described with a metaphor into plain wor
 | X is more than just Y | "This is more than just a library." | Say what more it is, from the original; if the original does not say, keep the sentence and ask. Do not cut it to "This is a library", which reverses the claim. |
 | Whether you're X or Y | "Whether you're a beginner or an expert, ..." | Delete when the sentence works for everyone anyway. |
 | From X to Y | "from startups to enterprises" | Keep it: the range is a claim. Delete it only when the same sentence already states the same range in other words. |
-| Triplets of adjectives | "fast, reliable, and scalable" | Keep all three: each is a claim. When the text gives the fact behind one ("handles 10,000 requests per second"), you may write the fact instead of the adjective. Ask about adjectives nothing supports; do not delete them. (Exception: evaluative words you added to a draft you wrote yourself; SKILL.md Step 2, item 3.) |
+| Triplets of adjectives | "fast, reliable, and scalable" | Keep all three: each is a claim. When the text gives the fact behind one ("handles 10,000 requests per second"), you may write the fact instead of the adjective. Ask about adjectives nothing supports; do not delete them. (Exception: evaluative words that are yours under fact-recovery.md section 2, step 1 and have no source; SKILL.md Step 2, item 3.) |
 | em dash splice | "The fix — which took two days — was simple." | "The fix, which took two days, was simple." Choose punctuation that keeps the same scope. Ranges (2019–2021) stay. |
 | Colon reveal | "The answer: simplicity." | "The answer is simplicity", or fold into the previous sentence. |
 | Rhetorical question opener | "But what does this mean for developers?" | Delete and state the answer, unless the document type keeps it. |
@@ -67,15 +67,15 @@ Words that appear far more often in AI text than in human text of the same kind.
 | leverage (verb) | "leverage our expertise" | "use". Keep the financial noun. |
 | realm, landscape, sphere | "in the realm of AI", "the evolving landscape" | Usually delete: "in AI". Keep "threat landscape" if the field uses it. |
 | embark, journey | "embark on a journey" | "start". Keep literal journeys. |
-| foster, cultivate | "foster collaboration" | Say what people do. |
+| foster, cultivate | "foster collaboration" | Say what people do, only from the original or material; otherwise keep and ask. |
 | underscore, highlight, showcase | "underscores the importance of" | "shows", or state the importance directly. |
-| intricate, nuanced, multifaceted | "an intricate interplay" | Name the parts. |
-| holistic, comprehensive | "a holistic approach" | Say what it covers. |
+| intricate, nuanced, multifaceted | "an intricate interplay" | Name the parts, only from the original or material; otherwise keep and ask. |
+| holistic, comprehensive | "a holistic approach" | Say what it covers, only from the original or material; otherwise keep and ask. |
 | ever-evolving, fast-paced, cutting-edge, state-of-the-art | "in today's fast-paced world" | Delete the opener. Keep "state of the art" in research papers comparing with prior results. |
 | game-changer, revolutionary, groundbreaking | "a game-changing feature" | State the change. In promo, keep energy but ask about unsupported claims. |
 | boast | "the app boasts a clean UI" | "has". |
 | meticulous(ly) | "meticulously crafted" | Say what care was taken, only from the original or material; otherwise keep and ask. |
-| synergy, alignment (as goal), stakeholders (as everyone) | "drive alignment across stakeholders" | Name the people and what they agree on. Keep "stakeholders" when it is the organization's term. |
+| synergy, alignment (as goal), stakeholders (as everyone) | "drive alignment across stakeholders" | Name the people and what they agree on, only from the original or material; otherwise keep and ask. Keep "stakeholders" when it is the organization's term. |
 
 ---
 
@@ -92,9 +92,9 @@ Do not describe small personal experiences or routine technical choices with gra
 | various, numerous, a variety of, a wide range of | "offers various features" | Keep when the original lists none; do not invent examples. If the list follows, delete the word. |
 | significant(ly), substantial(ly) | "significantly improved" | Use the number if the original gives one. In papers, keep "significant" only for statistical significance. |
 | key, core, essential | "key features", "core concepts" | Delete when every item is called key. |
-| valuable insights, actionable insights | "provides valuable insights" | Say what the reader learns. |
+| valuable insights, actionable insights | "provides valuable insights" | Say what the reader learns, only from the original or material; otherwise keep and ask. |
 | best practices | "follow best practices" | Name the practice if the original does; otherwise keep. |
-| optimize, streamline, enhance | "streamline your process" | Say which step got shorter or what changed. |
+| optimize, streamline, enhance | "streamline your process" | Say which step got shorter or what changed, only from the original or material; otherwise keep and ask. |
 | empower, enable | "enables teams to scale" | Say what teams can now do. |
 
 ---

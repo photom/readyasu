@@ -559,8 +559,12 @@ def format_run(first: str, status_line: str, mode: str, checks: list[str], recor
     if lint_final is not None:
         kept, added = split_kept_added(lint_final, lint_orig, original_text, material_text)
         if kept:
+            project = {str(f.get("match", "")).lower() for f in lint_final.get("findings", []) if f.get("rule") == "project_term"}
+            proj_kept = [w for w in kept if w.lower() in project]
+            note = (f"; project words ({', '.join(proj_kept)}): use the term after \"→\" in the lint finding, or ask"
+                    if proj_kept else "")
             out.append("Flagged words kept: " + ", ".join(kept)
-                       + " (reread these sentences; ask the writer or give the reason under \"AI-like wording kept\")")
+                       + " (reread these sentences; ask the writer or give the reason under \"AI-like wording kept\"" + note + ")")
         if added:
             fix = "restore the original wording" if original_text else "use the plain word"
             out.append("Flagged words added by the rewrite: " + ", ".join(added) + f" (do not add them; {fix})")

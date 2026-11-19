@@ -15,7 +15,7 @@ Lint rules exempted: fragment_run, exclamation, chat_residue (interjections only
 - Metaphors that do not hold ("the afternoon hugged its knees"), and metaphorical verbs on ordinary or technical events (lint reports them as metaphor_verb).
 - Inflated words for small experiences (slop-catalog.md section 4).
 - Two-sentence negative contrast in essay prose (not in fiction narration or dialogue).
-- Morals and lessons added at the end that the essay does not support: keep if they are the writer's; delete stock ones ("And that's the true meaning of growth.") only when nothing earlier supports them.
+- Morals and lessons at the end: keep the content and tone down only the inflated words (SKILL.md "Top rule"). Delete a stock moral only in a draft you wrote yourself (fact-recovery.md section 2, step 1) when nothing earlier supports it.
 - Do not add feelings the writer did not state.
 - Do not fill facts from the conversation or files, and do not ask fact questions (fact-recovery.md section 6).
 

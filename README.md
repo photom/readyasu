@@ -58,7 +58,7 @@ Revise this with readyasu.
 (paste the text here)
 ```
 
-Sending only `/readyasu` makes the skill revise the text the AI wrote in its previous answer, or the single draft (`.md` or `.txt`) directly under the working folder. When it works on a file, it does not overwrite the file; it saves the final draft in the same folder under a new name.
+Sending only `/readyasu` makes the skill revise the text the AI wrote in its previous answer (or the file it wrote in that answer), or the single draft (`.md` or `.txt`) directly under the working folder. When it works on a file, it does not overwrite the file; it saves the final draft in the same folder under a new name.
 
 You can tell it the document type, the readers, and the relationship ("This is an email to a client"). With a relationship, it adjusts politeness the way a person in that relationship would write. If you say nothing, it infers the type from the text when it can and does not change the politeness.
 

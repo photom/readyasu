@@ -12,6 +12,8 @@ Also not reported in scripts: "thank you for your attention" (a closing line), a
 
 ## 2. Still fix
 
+- Hosts' scripted lines in non-fiction (podcasts, videos, talks) are the writer's prose: fix stock vocabulary, inflated words and clause-splicing dashes there; keep slang and interjections only when they are the speaker's style.
+
 - Stage directions with stock AI vocabulary ("A tapestry of emotions plays across her face").
 
 Directions that state feelings the scene does not show are kept; ask only when they conflict with the dialogue.

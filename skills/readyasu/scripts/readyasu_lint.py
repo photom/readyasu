@@ -1342,7 +1342,7 @@ def _expression_rules(flat: str, masked: str, plain: str, letters: str, block: t
             # "Decisions:" then "– Budget approved", "— Fri 8 Mar", "logsift — filter log files" under NAME
         add("em_dash", ds, de,
             f'Dash in "{_context(plain, ds, de)}" used to splice or insert a clause. Use a comma, colon, parentheses '
-            "or a period that keeps the same scope (keep ranges, quotations and fiction dialogue).")
+            "or a period that keeps the same scope (keep ranges, quotations, code, and fiction narration and dialogue).")
     contrasts: list[tuple[int, int]] = []
     for k, pattern in enumerate(_NEG_CONTRAST):
         for m in pattern.finditer(flat):

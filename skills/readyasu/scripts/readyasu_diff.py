@@ -179,6 +179,7 @@ CONDITION = _rx(r"\b(?:if|unless|until|till|whenever|when|while|after|before|as\
                 r"(?:\w+\s+)?(?:approval|consent|permission|authori[sz]ation)\b|\bwhere\s+(?:applicable|permitted|required|possible)\b"
                 r"|\bto\s+the\s+extent\s+(?:permitted|required|possible|allowed)\b|\bon\s+a\s+case-by-case\s+basis\b"
                 r"|\bby\s+default\b|\bupon\s+(?:request|approval)\b"
+                r"|\bwithin\s+[\w.]+\s+(?:\w+\s+)?(?:second|minute|hour|day|week|month|year)s?\s+of\b"
                 r"|(?<!\bat\s)\bonce\b(?!\s+(?:a|an|per|every|more|again|or|and)\b)")
 NOT_CONDITION = _rx(r"\b(?:a|for\s+a|after\s+a|in\s+a|quite\s+a|little)\s+while\b|\bbefore(?=\s*(?:[.!?,;)]|$))"
                     r"|\b(?:check|see|ask(?:s|ed)?|know|wonder(?:ing)?|determine|verify|tell|find\s+out|sure|unsure|decide|"
@@ -238,7 +239,8 @@ CLOSING_HEADING = _rx(r"^[#*_\s]*(?:conclusions?|in\s+conclusion|final\s+thought
 QUANTIFIER = _rx(r"(?<!\bthe\s)(?<!\bat\s)\b(?:a\s+few|a\s+couple\s+of|some|most|many|few|several|all|every|each)\b"
                  r"(?=\s+(?:of\s+)?[a-z])")
 STATISTIC = _rx(r"\b(?:mean|median|average|avg|p\d{2}|percentile|peak)\b")
-FREQUENCY = _rx(r"\bevery\s+(?:weekday|business\s+day|working\s+day|other\s+(?:day|week|month|year))\b"
+FREQUENCY = _rx(r"\bevery\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b"
+                r"|\bevery\s+(?:weekday|business\s+day|working\s+day|other\s+(?:day|week|month|year))\b"
                 r"|\bevery\s+(?:\d+|two|three|four|five|six|seven|eight|nine|ten|twelve)\s+(?:second|minute|hour|day|week|month|year)s\b"
                 r"|\b(?:hourly|daily|nightly|weekly|biweekly|fortnightly|monthly|quarterly|annually|annual|yearly|semiannual(?:ly)?)\b"
                 r"|\b(?:every|each|per|an?)\s+(?:(?:few|couple\s+of|several|other)\s+)?"
@@ -256,7 +258,9 @@ CONNECTIVE_OPENER = _rx(r"(?:on\s+the\s+other\s+hand|for\s+example|for\s+instanc
                         r"|in\s+turn|on\s+the\s+contrary|in\s+essence|in\s+a\s+nutshell|in\s+reality|in\s+light\s+of\s+(?:this|that)"
                         r"|for\s+starters|in\s+closing|in\s+summary|in\s+conclusion|on\s+balance|in\s+any\s+case|at\s+the\s+same\s+time"
                         r"|in\s+general|for\s+now|at\s+first)\b")
-FROM_TO = re.compile(r"\bfrom\s+([$€£]?[\w.,:%]+)\s+to\s+([$€£]?[\w.,:%]+)", re.IGNORECASE)
+_FT_VALUE = (r"(?:(?:about|roughly|approximately|around|nearly|~)\s*)?[$€£]?[\w.,:%]+"
+             r"(?:\s+(?!to\b|and\b|in\b|on\b|at\b|for\b|by\b|with\b)[A-Za-z]{1,14}(?=[\s.,;:)]|$))?")
+FROM_TO = re.compile(r"\bfrom\s+(" + _FT_VALUE + r")\s+to\s+(" + _FT_VALUE + r")", re.IGNORECASE)
 STOCK_OPENER = _rx(r"in\s+today['’]s\b|in\s+an?\s+(?:era|world|age|landscape)\b|at\s+the\s+end\s+of\s+the\s+day\b"
                    r"|in\s+(?:the\s+)?(?:ever-|rapidly\s+)?(?:evolving|changing)\b|for\s+(?:many|most)\s+(?:teams|organizations|people)\b")
 PRIORITY_WORDS = _rx(r"\b(?:focus\w*|priorit\w*|first|both|as\s+well\s+as|in\s+addition\s+to|along\s+with|and|plus|also)\b")
@@ -274,7 +278,8 @@ After Before Because Although However Therefore Thus Also In On At For From To B
 There What Which Who Why How Please Note Yes No Not All Each Every Some Any Most Many More Monday Tuesday Wednesday
 Thursday Friday Saturday Sunday January February March April May June July August September October November December
 Let Lets OK Okay Section Sections Clause Clauses Article Chapter Appendix Figure Table Step Steps Part Page Item
-Items Annex Schedule Exhibit Mon Tue Tues Wed Thu Thur Thurs Fri Sat Sun Jan Feb Mar Apr Jun Jul Aug Sep Sept Oct Nov Dec Mondays Tuesdays Wednesdays Thursdays Fridays Saturdays Sundays TBD TBC EOD EOW COB ASAP ETA FYI FAQ WIP OOO PR PRs QA UI UX""".split())
+Items Annex Schedule Exhibit SaaS PaaS IaaS ARR MRR CSV JSON YAML XML SQL HTTP HTTPS REST KPI KPIs OKR OKRs ROI B2B B2C SMB SMBs CEO CTO CFO
+COO VP HR IT AI ML LLM GPU CPU RAM SSD SLA SLAs SLO SLOs SDK CLI API APIs URL URLs Mon Tue Tues Wed Thu Thur Thurs Fri Sat Sun Jan Feb Mar Apr Jun Jul Aug Sep Sept Oct Nov Dec Mondays Tuesdays Wednesdays Thursdays Fridays Saturdays Sundays TBD TBC EOD EOW COB ASAP ETA FYI FAQ WIP OOO PR PRs QA UI UX""".split())
 
 
 # ---------------------------------------------------------------- data
@@ -547,6 +552,8 @@ def frequencies(text: str) -> Counter[str]:
     for m in FREQUENCY.finditer(text):
         phrase = re.sub(r"\s+", " ", m.group(0).lower())
         phrase = EVERY_N.get(phrase, phrase)
+        if re.fullmatch(r"every (?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)", phrase):
+            phrase = "week"
         if phrase in FREQ_NORMAL.values():
             c[phrase] += 1
             continue
@@ -1086,8 +1093,15 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
              + (", ".join(sorted((fq_r - fq_o).elements())) or "none"))
     fr_o = [tuple(x.lower().rstrip(".,:;") for x in m.groups()) for m in FROM_TO.finditer(o)]
     fr_r = [tuple(x.lower().rstrip(".,:;") for x in m.groups()) for m in FROM_TO.finditer(r)]
+    def _ft_key(v: str) -> str:
+        return re.sub(r"^(?:about|roughly|approximately|around|nearly|~)\s*", "", v)
     for a_, b_ in fr_o:
-        if (b_, a_) in fr_r and (a_, b_) not in fr_r and a_ != b_:
+        ka, kb = _ft_key(a_), _ft_key(b_)
+        if ka != kb and any((_ft_key(x), _ft_key(y)) == (kb, ka) for x, y in fr_r) and \
+                not any((_ft_key(x), _ft_key(y)) == (ka, kb) for x, y in fr_r):
+            # one finding for the swap; drop the unit or approximation finding the swap also caused
+            risks[:] = [x for x in risks if not (x.orig_line == ch.orig_line and x.rev_line == ch.rev_line and
+                                                 (x.message.startswith("Unit changed") or x.kind == "approximation"))]
             risk("number", True, f'Order reversed: "from {a_} to {b_}" → "from {b_} to {a_}"')
             break
     do_, dr = dates(o), dates(r)
@@ -1128,7 +1142,9 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
             gone = ", ".join(sorted((prof_o - prof_r).elements()))
             new = ", ".join(sorted((prof_r - prof_o).elements()))
             risk("negation", True, f"Negation changed: {gone} → {new}. Check that the same thing is still denied.")
-        elif swapped_o and swapped_r:
+        elif swapped_o and swapped_r and not (len(ch.orig) > len(ch.rev) and any(
+                re.match(r"\W*(?:\w+\s+){0,3}" + re.escape(w) + r"\b", x.masked, re.IGNORECASE)
+                for w in swapped_r for x in ch.orig)):  # "Churn was not the main drag. Costs were." -> "Costs, not churn, were"
             risk("negation", True, f'What is denied changed: "not {sorted(swapped_o)[0]}" → "not {sorted(swapped_r)[0]}"')
 
     q_orig = [s for s in ch.orig if _is_question(s.text)]
@@ -1157,8 +1173,9 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
     o_st = STOCK_MARKERS.sub(" ", _unemphasize(" ".join(x.masked for x in ch.orig if not _is_question(x.text))))
     r_st = STOCK_MARKERS.sub(" ", _unemphasize(" ".join(x.masked for x in ch.rev if not _is_question(x.text))))
     if o_st.strip() and r_st.strip():
-        if PERMISSION.search(o_st) and PERMISSION.search(r_st):
-            # a permission "may" on both sides ("You may include" -> "You are allowed to include") is not a hedge
+        if PERMISSION.search(o_st) and (PERMISSION.search(r_st) or re.search(r"\byou\s+may\b", o_st, re.IGNORECASE)):
+            # a permission "may" ("You may include" -> "You are allowed to include", "you may set" -> "set") is compared
+            # as permission, not as a hedge
             o_st = re.sub(r"\b((?:you|users?|they|we|customers?|members?)\s+)may\b", r"\1", o_st, flags=re.IGNORECASE)
             r_st = re.sub(r"\b((?:you|users?|they|we|customers?|members?)\s+)may\b", r"\1", r_st, flags=re.IGNORECASE)
         if count(ABILITY, r_st) >= count(ABILITY, o_st):
@@ -1390,6 +1407,10 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
     for s in ch.rev:
         start = s.masked.strip().lstrip("\"'“‘(*_")
         cm = CONNECTIVE.match(start)
+        if re.match(r"it(?:\s+is|['’]s|\s+was)\s+(?:\w+\s+)?(?:clear|possible|likely|unlikely|important|true|worth|easy|hard|"
+                    r"unclear|known|necessary|essential)\b", start, re.IGNORECASE):
+            cm = None  # a dummy "it" refers to nothing earlier
+            continue
         noun = re.match(r"(?:this|that|these|those)\s+([a-z][\w-]{2,})", start, re.IGNORECASE)
         if noun and re.search(r"\b" + re.escape(noun.group(1)) + r"\b", orig_all, re.IGNORECASE):
             cm = None  # "This policy ..." names its referent
@@ -1683,6 +1704,13 @@ def _similar(a: str, b: str) -> float:
     return sm.ratio()
 
 
+def _heading_core(h: str) -> str:
+    """A heading without a trailing colon, a leading emoji or bold, for comparison."""
+    h = re.sub(r"[*_]{2}", "", h).strip()
+    h = "".join(ch for ch in h if not tx.is_emoji(ch)).strip()
+    return h.rstrip(":").strip().lower()
+
+
 def _trailing_closing(headings: list[str]) -> list[str]:
     """Closing-section headings ("Conclusion", "Final thoughts") at the end of the heading list."""
     found: list[str] = []
@@ -1801,6 +1829,9 @@ GAP_HINTS = {
 }
 
 
+VERSION_NAME = re.compile(r"\b(?:v\d+(?:\.\d+)*|\d+\.\d+\.\d+)\b")
+
+
 def fact_gaps(doc: tx.Document) -> tuple[list[Review], str]:
     rules, note = load_gap_rules()
     result: list[Review] = []
@@ -1808,7 +1839,7 @@ def fact_gaps(doc: tx.Document) -> tuple[list[Review], str]:
         if s.kind not in ("para", "list"):
             continue
         text = s.masked
-        if text.rstrip().endswith("?") or _GAP_EXCLUDE.search(text) or VAGUE_QUANTITY.search(text) or \
+        if text.rstrip().endswith("?") or _GAP_EXCLUDE.search(VERSION_NAME.sub("vX", text)) or VAGUE_QUANTITY.search(text) or \
                 CLOSING_RESOLUTION.search(text):
             continue
         for kind, pattern in rules:
@@ -1817,6 +1848,12 @@ def fact_gaps(doc: tx.Document) -> tuple[list[Review], str]:
                 result.append(Review(kind, f'"{m.group(0)}": {GAP_HINTS[kind]}', s.line, s.text))
                 break
     return result, note
+
+
+def _unit_agrees(line: str, n: str, own_units: set[str]) -> bool:
+    """A material line matches a value unless it gives that number with a different unit."""
+    theirs = {u for u in unit_pairs(line) if u.split(" ")[0] == n and not u.endswith("(no unit)")}
+    return not own_units or not theirs or bool(own_units & theirs)
 
 
 def material_check(final: tx.Document, materials: str, original: str) -> dict[str, Any]:
@@ -1841,8 +1878,11 @@ def material_check(final: tx.Document, materials: str, original: str) -> dict[st
         for n in numbers(s.masked):
             if not src_numbers.get(n):
                 missing_numbers.append({"value": n, "line": s.line, "text": s.text})
-            elif not unchanged:
-                hit = next((ln for ln, nums in line_numbers if n in nums), "")
+            elif not unchanged and s.kind != "heading":
+                own_units = {u for u in unit_pairs(s.masked) if u.split(" ")[0] == n and not u.endswith("(no unit)")}
+                hit = next((ln for ln, nums in line_numbers if n in nums and _unit_agrees(ln, n, own_units)), "")
+                if not hit:
+                    continue
                 matched.append({"value": n, "line": s.line, "material_line": hit.strip()[:160]})
         if unchanged:
             continue
@@ -2111,7 +2151,7 @@ def compare(orig_text: str, rev_text: str, doc_type: Optional[str] = None, reade
                               "repeated the body and held no number, condition or next step found nowhere else.", 0, ""))
     elif len(oh) == len(rh):
         for a, b in zip(oh, rh):
-            if a != b:
+            if a != b and _heading_core(a) != _heading_core(b):
                 reviews.append(Review("heading", f'Heading changed: "{a}" → "{b}". Check that warnings, conditions '
                                       "and the section's role were kept.", 0, b))
     elif oh != rh:
