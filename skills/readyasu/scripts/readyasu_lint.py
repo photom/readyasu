@@ -18,7 +18,7 @@ import re
 import unicodedata
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Callable, Iterator, NoReturn, Optional
+from typing import Callable, Iterator, NamedTuple, NoReturn, Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -126,6 +126,9 @@ HELP_EPILOG = """Rules exempted by --doc-type:
 """ + "\n".join(f"  {k:<9} {', '.join(v) if v else 'none'}" for k, v in EXEMPT.items()) + "\n" + _partial_help() + """
   Interjections are reported only where they start a sentence, and never inside double quotation marks.
   script also exempts bold_label_list for a run of speaker names ("**G:**", "**MAYA:**", "**Speaker 1:**").
+  slides also exempts chat_residue, the findings inside it and decorative_colon in notes to the requester before the
+  first slide (before the first heading, "---" or "Slide 1" line) or after the last one (after the last "---" when
+  no heading follows it).
   mail still reports an offer about the drafted mail after its sign-off or a thematic break. Other types report an
   offer after a thematic break with no greeting or sign-off before it only when it names a draft ("adjust the tone").
 Exempted findings do not count toward the review findings, --strict or --fail-on.
@@ -630,6 +633,21 @@ def _after_colon(text: str, pos: int) -> bool:
     return i > 0 and text[i - 1] == ":"
 
 
+# A change over time, not a contrast between two things: the first sentence ends with a past time ("I didn't like it
+# at first. I like it now.") or the second with "now" and the like ("I didn't really get it at twenty-six. I get it
+# now.").
+_THEN_END = re.compile(r"\b(?:at\s+first|back\s+then|at\s+the\s+time|until\s+recently|(?:years|months|weeks|days|"
+                       r"a\s+year|a\s+month|a\s+week|long)\s+ago)[\s*_]*$", re.IGNORECASE)
+_NOW_END = re.compile(r"[^.!?]{0,40}?\b(?:now|today|anymore|any\s+more|nowadays|these\s+days|again|at\s+last)"
+                      r"[\s*_\"”’)]*(?:[.!?]|$)", re.IGNORECASE)
+
+
+def _over_time(text: str, rest1: str, after: int) -> bool:
+    """True if a two-sentence contrast, whose first sentence goes on with rest1 after the negation and whose second
+    goes on at after, compares two times (_THEN_END, _NOW_END)."""
+    return bool(_THEN_END.search(rest1) or _NOW_END.match(text, after))
+
+
 def _two_sentence_end(text: str, masked: str, m: re.Match[str]) -> int:
     """Where the contrast that _NEG_TWO matched as m ends (the verb of the second sentence), or -1 if it is none."""
     if not _same_subject(m.group("s1"), m.group("s2")) or not _starts_sentence(masked, m.start()):
@@ -639,11 +657,12 @@ def _two_sentence_end(text: str, masked: str, m: re.Match[str]) -> int:
         return -1  # "Here's the thing: it's not hard. It's barely even cooking." is not checked
     if m.group("v1") is None and m.group("be2") is not None:
         if _be_contrast_skipped(text, m.group("s1"), m.group("rest1"), m.group("s2"), m.group("be2").strip(),
-                                m.end("be2")):
+                                m.end("be2")) or _over_time(text, m.group("rest1"), m.end("be2")):
             return -1
         return m.end("be2")
     if m.group("v1") is not None and m.group("v2") is not None \
-            and m.group("v2").lower() in _verb_forms(m.group("v1")):
+            and m.group("v2").lower() in _verb_forms(m.group("v1")) \
+            and not _over_time(text, m.group("rest1"), m.end("v2")):
         return m.end("v2")
     return -1
 
@@ -653,7 +672,9 @@ def _two_sentence_contrast(text: str, masked: str) -> Iterator[tuple[int, int]]:
 
     text is the block's flat text, masked the same with its line breaks (for _starts_sentence). When a subject of
     several words is rejected, the search goes on from its second word, so a run of capitalized words over a line
-    break does not hide the pronoun that starts the line ("Hi team" then "We don't sell software. We sell ...")."""
+    break does not hide the pronoun that starts the line ("Hi team" then "We don't sell software. We sell ..."); after
+    a rejected one-word subject it goes on after that word, so a negated title line does not hide the contrast on the
+    next line ("**It's not about the tools**" then "We didn't adopt a framework. We adopted a habit.")."""
     pos = 0
     while True:
         m = _NEG_TWO.search(text, pos)
@@ -665,15 +686,20 @@ def _two_sentence_contrast(text: str, masked: str) -> Iterator[tuple[int, int]]:
             pos = m.end()
             continue
         space = re.search(r"\s+", m.group("s1"))
-        pos = m.start("s1") + space.end() if space else m.end()
+        pos = m.start("s1") + space.end() if space else m.end("s1")
 
 
-# Software and documents only: people (an agent, an assistant) may want, remember and do things happily.
-_PERSON_SUBJECT = (r"(?:code|codebase|data|dataset|tool|system|function|method|class|logs?|architecture|design|"
+# Software and documents only: people (an agent, an assistant) may want, remember and do things happily. A server
+# (in a restaurant) and a class (of students) are often people, so they count only after a software word ("the web
+# server", "the base class").
+_PERSON_SUBJECT = (r"(?:code|codebase|data|dataset|tool|system|function|method|logs?|architecture|design|"
                    r"framework|api|metrics?|numbers|graph|chart|compiler|tests?|errors?|repository|repo|pipeline|"
                    r"model|algorithm|database|schema|spreadsheet|dashboard|platform|app|application|script|"
-                   r"service|server|daemon|scheduler|linter|cache|engine|library|plugin|bot|monitor|software|"
-                   r"program|cli|sdk|workflow|logic|parser|module|component)")
+                   r"service|daemon|scheduler|linter|cache|engine|library|plugin|bot|monitor|software|"
+                   r"program|cli|sdk|workflow|logic|parser|module|component|"
+                   r"(?:web|api|app|application|build|mail|dns|http|https|database|db|file|game|proxy|backend|origin|"
+                   r"test|dev|staging|production|prod|sql|mcp|language|media|ci|auth|license|update|graphql|grpc)\s+"
+                   r"server|(?:base|parent|child|abstract|wrapper|helper|utility|derived|super|java|python|ruby)\s+class)")
 # "feels" is left out: "The dashboard feels faster" is perception, not a feeling.
 _PERSON_VERB = (r"(?:tells?(?:\s+a\s+story)?|speaks?(?:\s+volumes)?|whispers?|screams?|sings?|knows?|wants?|loves?|"
                 r"hates?|cares?|believes?|remembers?|forgets?|understands?|thinks?|refuses?|insists?|begs?|"
@@ -805,13 +831,19 @@ _CLOSING = re.compile(
 _DASHES = re.compile(r"(?<=\S)\s*—\s*(?=\S)|\s–\s|\s--\s|―")
 _RANGE_DASH = re.compile(r"\d\s*[—–]\s*\d")
 # Range endpoints on both sides of a spaced dash: "Monday – Friday", "9 am – 5 pm", "$5 – $10", "v1.2 – v1.4",
-# "January – March", "20% – 30%", "Q1 – Q3". Month and weekday names need a capital ("may" is a verb).
+# "January – March", "20% – 30%", "Q1 – Q3", "10 kg – 12 kg". Month and weekday names need a capital ("may" is a
+# verb) and a word end ("Janet", "Monica" and "Sunil" are names); a unit is one of _UNIT, so "We fixed 3 bugs — 2
+# remain." is a clause.
+_UNIT = (r"(?:[aApP]\.?[mM]\.?|°[CF]?|[nµum]?s|secs?|mins?|h|hrs?|d|wks?|mo|yrs?|days?|weeks?|months?|years?|"
+         r"hours?|minutes?|seconds?|nights?|[mck]?m|in|ft|mi|yds?|[mk]?g|lbs?|oz|[mM]?[lL]|gal|qt|[kKMGTP]i?[Bb]|"
+         r"miles?|feet|foot|inch(?:es)?|pounds?|ounces?|grams?|kilos?|lit(?:er|re)s?|met(?:er|re)s?|cups?|tbsp|tsp|"
+         r"[kKMG]?bps|[kMG]?Hz|[kMG]?Wh?|m?V|m?Ah?|px|pt|r?em|dpi|fps|rpm|psi|mph|kph|km/h|[kKMBx]|bn)(?![\w/])")
 _ENDPOINT = (
     r"(?:(?:[$€£¥]\s?)?[~≈]?\d[\d,.:]*(?:\s?%)?|[vV]\d+(?:\.\d+)*[a-z]?|Q[1-4]|"
     r"(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|June?|July?|Aug(?:ust)?|Sept?(?:ember)?|"
     r"Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|"
-    r"Mon|Tues?|Wed|Thu(?:rs?)?|Fri|Sat|Sun)\.?)"
-    r"(?:\s?(?:[aApP]\.?[mM]\.?|[A-Za-zµ°]{1,5}))?")  # "9 am", "5 km", "10 GB"
+    r"Mon|Tues?|Wed|Thu(?:rs?)?|Fri|Sat|Sun)(?![A-Za-z])\.?)"
+    r"(?:\s?" + _UNIT + r")?")  # "9 am", "5 km", "10 GB"
 _RANGE_BEFORE = re.compile(r"(?:^|(?<=[\s(\[]))" + _ENDPOINT + r"[,.]?[ \t]*$")
 _RANGE_AFTER = re.compile(r"[ \t]*" + _ENDPOINT + r"(?![\w$€£¥])")
 _DASH_ONLY = "—–―-"
@@ -872,9 +904,15 @@ _DUE_WORD = (r"(?:(?:next|this|last)\s+(?:" + _EVENT + r"|week|month|quarter|spr
              r"monday|tuesday|wednesday|thursday|friday|saturday|sunday)|today|tomorrow|tonight|asap|eod|eow|eom|"
              r"cob|tbd|tbc|ongoing|in\s+progress|end\s+of\s+(?:the\s+)?(?:day|week|month|quarter|sprint|year))")
 _STAMP_RUN = _STAMPS + r"(?:[\s,]*(?:[-–—]|to\b)\s*" + _RANGE_END + r")?"
+# "Fri 20 Nov", "Fri 20 Nov (Thu)", "EOD", "the 20th", "mid-November", "end of Q3"; then optionally a time or day
+# ("5 pm on Friday", "Friday noon", "end of day Friday").
+_DUE_WHEN = (r"(?:" + _STAMP_RUN + r"(?:\s*\(\s*" + _STAMP_RUN + r"\s*\))?|" + _DUE_WORD
+             + r"|the\s+\d{1,2}(?:st|nd|rd|th)|(?:early|mid|late|end\s+of)[\s-]+(?:" + _MONTH + "|" + _WEEKDAY
+             + r"|q[1-4]|(?:the\s+)?(?:week|month|quarter|year)))"
+             r"(?:[\s,]+(?:(?:on|at)\s+)?(?:" + _STAMP_RUN + r"|noon|midday|midnight))?")
 _DUE_TAIL = re.compile(
-    r"[ \t]*[*_(\[]*(?:(?:(?:due\s+)?(?:by|before|after|until|on|from)\s+)?"
-    r"(?:" + _STAMP_RUN + r"(?:\s*\(\s*" + _STAMP_RUN + r"\s*\))?|" + _DUE_WORD + r")"
+    r"[ \t]*[*_(\[]*(?:(?:(?:due|deadline|eta|target)[*_]*\s*:?[*_]*\s+(?:(?:by|before|on)\s+)?"
+    r"|(?:by|before|after|until|till|on|from|no\s+later\s+than)\s+)?" + _DUE_WHEN +
     r"|(?:due\s+)?(?:by|before|after|until)\s+(?:the\s+)?(?:[\w-]+\s+){0,2}?" + _EVENT + r")"
     r"[*_)\]]*[.;]?[ \t]*$", re.IGNORECASE)
 _OWNER = r"(?:@[\w.-]+|[A-Z][\w'’-]+(?:[ \t]+[A-Z][\w'’-]+)?)"
@@ -1052,30 +1090,42 @@ _SENTENCE_END = re.compile(r"[.!?][\])*_\"”’]*(?:\s|$)")
 _SCENE_HEADING = re.compile(r"[\s*_\[(]*(?:INT\.?/EXT|EXT\.?/INT|I/E|INT|EXT)\.[ \t]+[A-Z0-9]")
 
 
-def _label_dash(masked: str, line: int, start: int, end: int) -> bool:
+class _DashLine(NamedTuple):
+    """What the em_dash rule needs to know about one line of a block, computed once per line (so that a long line
+    with many dashes is scanned once, not once per dash)."""
+
+    end: int  # the offset where the line ends
+    term_end: int  # _term_ends
+    placeholders_end: int
+    label_end: int  # where an all-capitals label at the line start ends, or -1
+    scene: bool  # the line is a screenplay scene heading
+    last_stop: int  # where the last sentence end on the line starts (_SENTENCE_END), or -1
+    reply_subject: bool  # a Subject: line of a reply or forward, or in a pasted message's header
+
+
+def _label_dash(masked: str, line: int, start: int, end: int, last_stop: int) -> bool:
     """True if a numbered label (_LINE_LABEL) is all that comes before the dash at masked[start:end] on its line, which
-    starts at offset line, and no sentence ends after the dash on the line ("## Milestone 2 — Beta")."""
+    starts at offset line, and no sentence ends after the dash on the line (the last one starts at last_stop): "##
+    Milestone 2 — Beta"."""
     if start - line > 60 or not _LINE_LABEL.match(masked, line, start):
         return False
-    return not _SENTENCE_END.search(masked, end, _line_at(masked, end)[1])
+    return last_stop < end
 
 
-def _caps_label_dash(masked: str, line: int, start: int, end: int, label_end: int) -> bool:
-    """True if the dash at masked[start:end] follows an all-capitals label that ends at label_end (_CAPS_LABEL, matched
-    on plain from the line start, so code is not a label) and no sentence ends after it on the line. A sentence after
-    the label is still checked: "[UPDATE — the fix is now live for all customers.]", "_IMPORTANT_ — back up first."."""
-    if start != label_end or label_end <= line:
-        return False
-    return not _SENTENCE_END.search(masked, end, _line_at(masked, end)[1])
+def _caps_label_dash(line: int, start: int, end: int, label_end: int, last_stop: int) -> bool:
+    """True if the dash at [start, end) follows an all-capitals label that ends at label_end (_CAPS_LABEL, matched on
+    plain from the line start, so code is not a label) and no sentence ends after it on the line (the last one starts
+    at last_stop). A sentence after the label is still checked: "[UPDATE — the fix is now live for all customers.]",
+    "_IMPORTANT_ — back up first."."""
+    return start == label_end and label_end > line and last_stop < end
 
 
-def _trailing_tag(masked: str, kind: str, line: int, start: int, end: int) -> bool:
-    """True if the dash at masked[start:end] is followed, up to the end of its line, by a date, a due time or (in a
-    list item) an owner, on a list item or on a title line: a heading, or the first line of a paragraph with no
-    sentence end before the dash, no period after the tag, and no lower-case word on the next line that would
+def _trailing_tag(masked: str, kind: str, line: int, line_end: int, start: int, end: int) -> bool:
+    """True if the dash at masked[start:end] is followed, up to the end of its line (line_end), by a date, a due time
+    or (in a list item) an owner, on a list item or on a title line: a heading, or the first line of a paragraph with
+    no sentence end before the dash, no period after the tag, and no lower-case word on the next line that would
     continue a sentence ("- Ivo: estimate egress savings — next meeting", "Platform team weekly — Tue 5 Mar 2024"
     then "Attendees: ...")."""
-    line_end = _line_at(masked, end)[1]
     if line_end - end > 60:
         return False
     if kind == "list":
@@ -1086,6 +1136,64 @@ def _trailing_tag(masked: str, kind: str, line: int, start: int, end: int) -> bo
     if kind == "para" and (line > 0 or masked[line_end + 1:line_end + 2].islower()):
         return False
     return bool(_DUE_TAIL.match(masked, end, line_end))
+
+
+# A mail's subject line. A reply or forward ("Re:", "Fwd:", "AW:") keeps the subject it answers, and so does a
+# message pasted with its header; a new subject is checked like a title.
+_SUBJECT_LINE = re.compile(r"[ \t]*[*_]*subject[*_]*[ \t]*:[*_]*[ \t]*(?P<reply>(?:re|fwd?|aw|wg|sv|tr)[ \t]*:)?",
+                           re.IGNORECASE)
+
+
+def _dash_line(masked: str, plain: str, line: int, kind: str) -> _DashLine:
+    """The _DashLine of the line that starts at offset line, in a block of this kind."""
+    end = masked.find("\n", line)
+    end = len(masked) if end < 0 else end
+    caps = _CAPS_LABEL.match(plain, line)
+    stop = -1
+    for m in _SENTENCE_END.finditer(masked, line, end):
+        stop = m.start()
+    subject = _SUBJECT_LINE.match(plain, line)
+    term_end, placeholders_end = _term_ends(masked, plain, line)
+    return _DashLine(end, term_end, placeholders_end, caps.end() if caps else -1,
+                     bool(_SCENE_HEADING.match(plain, line)), stop,
+                     bool(subject and (subject.group("reply")
+                                       or (kind == "para" and _MESSAGE_HEADER.search(plain)))))
+
+
+# A news or press dateline that opens a paragraph: a place in capitals, then optionally a state or country, a date
+# and a news agency or wire ("HARBOR CITY —", "SAN FRANCISCO, March 3, 2025 —", "PORTLAND, Ore. (AP) —", "LONDON,
+# March 3 (Reuters) —", "AUSTIN, Texas, Jan. 5, 2026 /PRNewswire/ --"). Checked in _dateline.
+_DATELINE = re.compile(
+    r"[*_]*(?P<place>[A-Z][A-Z.'’&-]+(?:[ \t]+[A-Z][A-Z.'’&-]*){0,3})"
+    r"(?:,[ \t]*[A-Z][A-Za-z.]*(?:[ \t]+[A-Z][A-Za-z.]*)?)?"  # ", Calif.", ", N.Y.", ", New Mexico"
+    r"(?:,?[ \t]+(?i:" + _DATE + r"))?"
+    r"(?:[ \t]*\([A-Z][\w .&/-]{0,30}\)|[ \t]*/[A-Za-z][\w .&-]{0,30}/)?[*_]*[ \t]*")
+# Words in capitals that open a paragraph as a label or an announcement, not as a place: "UPDATE — The fix is
+# live.", "BREAKING NEWS — Acme ...", "PRO TIP — Save often."
+_NOT_PLACES = frozenset("""
+NOTE NOTES UPDATE UPDATED UPDATES EDIT EDITED FYI IMPORTANT WARNING CAUTION DANGER TIP TIPS PSA BREAKING NEWS SPOILER
+SPOILERS CORRECTION DISCLAIMER REMINDER ALERT URGENT TL;DR TLDR PS P.S. NB N.B. ETA ANNOUNCEMENT ACTION TODO DONE FIXED
+RESOLVED QUESTION ANSWER SUMMARY CONTEXT BACKGROUND PROBLEM SOLUTION RESULT RESULTS STATUS OK OKAY YES NO AND BUT OR SO
+THE A AN I WE IT THIS THAT NEW HOT TAKE PRO FUN FACT SIDE HEADS UP FULL DISCLOSURE QUICK BIG LAST FINAL BONUS LIVE
+NOW TODAY TONIGHT WATCH LISTEN READ SEE ALSO MORE SALE FREE OFFER DEAL LIMITED TIME ONLY SPECIAL EXCLUSIVE
+ATTENTION GOOD BAD GREAT HUGE WOW YAY THANKS LOL OMG GAME CHANGER PLOT TWIST STOP REAL TALK TRUE STORY LESSON LESSONS
+KEY TAKEAWAY TAKEAWAYS RULE MYTH TRUTH REALITY CONFESSION UNPOPULAR OPINION THREAD ICYMI FINALLY OFFICIALLY JUST
+ANNOUNCING INTRODUCING COMING SOON OUT AVAILABLE WELCOME HELLO HI HEY CONGRATS CONGRATULATIONS PLEASE NOTICE MEMO FAQ
+WHY WHAT HOW WHEN WHERE WHO MY OUR YOUR ME YOU US THEY HE SHE IS ARE WAS NOT NEVER ALWAYS EVERY ALL ONE FIRST NEXT TOP
+BEST STEP PART CHAPTER ROUND DAY WEEK INT EXT I/E INT./EXT EXT./INT INT/EXT EXT/INT
+""".split())
+
+
+def _dateline(masked: str, start: int, end: int) -> bool:
+    """True if the dash at masked[start:end] follows a dateline (_DATELINE) that opens the block, and a capitalized
+    word follows the dash."""
+    if start > 80:
+        return False
+    m = _DATELINE.fullmatch(masked, 0, start)
+    if m is None or any(word.strip(".") in _NOT_PLACES or word in _NOT_PLACES for word in m.group("place").split()):
+        return False
+    nxt = re.match(r"[ \t]*[*_\"“‘']*([^\W\d_])", masked[end:end + 8])
+    return bool(nxt and nxt.group(1).isupper())
 
 
 def _line_start(newlines: list[int], pos: int) -> int:
@@ -1230,6 +1338,28 @@ def _title_block(doc: tx.Document) -> int:
     return -1
 
 
+# A line that starts a slide in a deck written without headings: "**Slide 1: Title**", "Slide 2 - Agenda".
+_SLIDE_LINE = re.compile(r"^[\s*_#]*slide\s+\d+\b", re.IGNORECASE)
+
+
+def _slide_notes(doc: tx.Document) -> set[int]:
+    """Indexes of the blocks that are notes to the requester around a deck, not slides: the blocks before the first
+    heading, thematic break or "Slide 1" line ("Here's a revised version of your deck:"), and the blocks after the last
+    thematic break when no heading comes after it and a heading or another break comes before it ("---" then "Let me
+    know if you'd like me to add speaker notes.")."""
+    rules = [ln.no for ln in doc.lines if ln.kind == "rule"]
+    starts = [b.lines[0].no for b in doc.blocks
+              if b.kind == "heading" or (b.kind == "para" and _SLIDE_LINE.match(b.lines[0].content))]
+    headings = [b.lines[0].no for b in doc.blocks if b.kind == "heading"]
+    if not rules and not starts:
+        return set()
+    first = min(rules + starts)
+    notes = {bi for bi, b in enumerate(doc.blocks) if b.lines[-1].no < first}
+    if rules and not any(no > rules[-1] for no in headings) and min(rules + starts) < rules[-1]:
+        notes.update(bi for bi, b in enumerate(doc.blocks) if b.lines[0].no > rules[-1])
+    return notes
+
+
 def lint(text: str, doc_type: Optional[str] = None, reader: Optional[str] = None,
          words: Optional[tx.Words] = None) -> LintResult:
     words = words or tx.Words()
@@ -1272,8 +1402,10 @@ def lint(text: str, doc_type: Optional[str] = None, reader: Optional[str] = None
         after_greeting = 0 if greeted else (starts[1][0] if greeting and len(starts) > 1 else -1)
         greeted = greeted or greeting
         # A new message in a pasted thread starts with a greeting or a header ("From:", "On ... wrote:"): the offers
-        # in it are its writer's, not an assistant's after the mail.
-        header = block.kind == "para" and bool(_MESSAGE_HEADER.search(plain))
+        # in it are its writer's, not an assistant's after the mail. Only offers before the header (offset
+        # header_at) can be after the mail.
+        header = _MESSAGE_HEADER.search(plain) if block.kind == "para" else None
+        header_at = header.start() if header else len(plain)
         if greeting:
             signed = False
         # After the mail: after its sign-off, or right after a thematic break ("---" then the assistant's offer) in
@@ -1282,6 +1414,8 @@ def lint(text: str, doc_type: Optional[str] = None, reader: Optional[str] = None
         rule_before = _after_rule(doc, block)
         loose = signed or (rule_before and (doc_type == "mail" or mail_seen))
         offer_mode = "loose" if loose else "strict" if rule_before else ""
+        if header_at == 0:
+            offer_mode = ""  # the block starts an earlier message
         sign_off = block.kind == "para" and _SIGN_OFF.match(block.lines[0].content)
         new_sign_off = bool(sign_off and (sign_off.group("comma") or len(block.lines) > 1))
         signed = (signed or new_sign_off) and not header
@@ -1313,7 +1447,7 @@ def lint(text: str, doc_type: Optional[str] = None, reader: Optional[str] = None
                             continue
                     note = entry.note or RULES[rule][1]
                     exempt_in = types
-                    if offer_mode and "mail" in types and name == "closing-courtesies" \
+                    if offer_mode and "mail" in types and name == "closing-courtesies" and m.start() < header_at \
                             and _draft_offer(_sentence_around(seen, m.start(), m.end()), offer_mode):
                         exempt_in = tuple(t for t in types if t != "mail")
                         note = _AFTER_DRAFT_NOTE
@@ -1322,7 +1456,7 @@ def lint(text: str, doc_type: Optional[str] = None, reader: Optional[str] = None
                                           for f in found[listed:]):
             offer_mode = "loose"  # the paragraph is already assistant chat ("Let me know if you'd like ...")
         if offer_mode and not is_title:
-            for m in _OFFER_OPENER.finditer(seen):
+            for m in _OFFER_OPENER.finditer(seen, 0, header_at):
                 if _starts_sentence(masked, m.start()) \
                         and _draft_offer(_sentence_around(seen, m.start(), m.end()), offer_mode):
                     quotes = quotes or _Quotes(plain)
@@ -1392,6 +1526,15 @@ def lint(text: str, doc_type: Optional[str] = None, reader: Optional[str] = None
                 _fragment_runs(doc, view, plain, spans, locate, bi, found)
 
     _block_rules(doc, found)
+    # Notes to the requester before or after the slides are kept in slides ("Here's a revised version of your deck:"),
+    # and so is the colon that introduces the deck. A finding inside their chat ("Absolutely" and "!" in
+    # "Absolutely!") is exempted with it.
+    notes = _slide_notes(doc)
+    chat = [(f.block, f.start, f.end) for f in found if f.rule == "chat_residue" and f.block in notes and f.end]
+    for f in found:
+        if f.block in notes and (f.rule in ("chat_residue", "decorative_colon") or (
+                f.end and any(b == f.block and s < f.end and f.start < e for b, s, e in chat))):
+            f.exempt_in = f.exempt_in + ("slides",)
 
     # Split before removing overlaps, so that an exempted finding does not hide a reported one.
     exempt = set(EXEMPT.get(doc_type or "", ()))
@@ -1440,9 +1583,7 @@ def _expression_rules(flat: str, masked: str, plain: str, letters: str, block: t
             "remove the hedge.")
     # letters, not masked, so that a dash after inline code is found like any other.
     newlines = [m.start() for m in re.finditer("\n", masked)]
-    # For each line, by its start offset: _term_ends, where an all-capitals label at its start ends (or -1), and
-    # whether the line is a scene heading.
-    terms: dict[int, tuple[int, int, int, bool]] = {}
+    lines: dict[int, _DashLine] = {}  # by the offset where the line starts
     for m in _DASHES.finditer(letters):
         around = masked[max(0, m.start() - 2): m.end() + 2]
         if _RANGE_DASH.search(around):
@@ -1453,20 +1594,23 @@ def _expression_rules(flat: str, masked: str, plain: str, letters: str, block: t
         ds = m.start() + len(m.group(0)) - len(m.group(0).lstrip())
         de = ds + (2 if letters.startswith("--", ds) else 1)
         line = _line_start(newlines, ds)
-        if line not in terms:
-            caps = _CAPS_LABEL.match(plain, line)
-            terms[line] = _term_ends(masked, plain, line) + (caps.end() if caps else -1,
-                                                              bool(_SCENE_HEADING.match(plain, line)))
-        term_end, placeholders_end, label_end, scene = terms[line]
-        if scene:
-            label_end = ds  # a scene heading is a label that ends at each dash on its line
+        info = lines.get(line)
+        if info is None:
+            info = lines[line] = _dash_line(masked, plain, line, block.kind)
+        if info.reply_subject:
+            continue  # "Subject: Re: Partnership opportunity — Brightwave x Tallyhop": a reply keeps its subject
+        label_end = ds if info.scene else info.label_end  # a scene heading is a label that ends at each dash
         if _after_timestamp(masked, ds) or _FIELD_AFTER.match(masked, m.end()) or _attribution(masked, ds) \
-                or _range_dash(masked, ds, de) or (term_end >= 0 and ds in (term_end, placeholders_end)) \
-                or _caps_label_dash(masked, line, ds, de, label_end) or _label_dash(masked, line, ds, de) \
-                or _dash_bullet(masked, ds, de) or _trailing_tag(masked, block.kind, line, ds, de) \
-                or (name_line and line == 0 and _NAME_LINE.fullmatch(masked, 0, ds)):
+                or _range_dash(masked, ds, de) \
+                or (info.term_end >= 0 and ds in (info.term_end, info.placeholders_end)) \
+                or _caps_label_dash(line, ds, de, label_end, info.last_stop) \
+                or _label_dash(masked, line, ds, de, info.last_stop) \
+                or _dash_bullet(masked, ds, de) or _trailing_tag(masked, block.kind, line, info.end, ds, de) \
+                or (name_line and line == 0 and _NAME_LINE.fullmatch(masked, 0, ds)) \
+                or (block.kind == "para" and line == 0 and _dateline(masked, ds, de)):
             continue  # timelines, "— Owner: ..." fields, "— Jeff Atwood", "Monday – Friday", "`-v` — verbose",
-            # "Decisions:" then "– Budget approved", "— Fri 8 Mar", "logsift — filter log files" under NAME
+            # "Decisions:" then "– Budget approved", "— Fri 8 Mar", "logsift — filter log files" under NAME,
+            # "HARBOR CITY — Andrés ..."
         add("em_dash", ds, de,
             f'Dash in "{_context(plain, ds, de)}" used to splice or insert a clause. Use a comma, colon, parentheses '
             "or a period that keeps the same scope (keep ranges, quotations, code, and fiction narration and dialogue).")
@@ -1552,8 +1696,9 @@ def _preambles(doc: tx.Document, block: tx.Block, flat: str, masked: str, plain:
 
     The lead-in ends with a colon, ends the block, or (in the first prose block) goes on with more sentences up to a
     colon that ends the block ("Sure — here's a draft you can send. It's polite but firm:"). After an interjection:
-    reported when the clause ends with a colon, or in the first prose block. Without one, only in the first prose
-    block: a revision lead-in when the clause ends with a colon (in mail only when a drafted mail follows; with a noun
+    reported when the clause ends with a colon, in the first prose block, or when a greeting or "Subject:" follows the
+    paragraph ("Sure! Here's a draft email. I kept it polite but firm." then "Dear Mr. Lee,"). Without one, only in
+    the first prose block: a revision lead-in when the clause ends with a colon (in mail only when a drafted mail follows; with a noun
     that is not a text, only when a greeting or "Subject:" follows), "Here's a draft:" like a revision lead-in, an
     offer of a drafted mail when a drafted mail or message follows, and a mail noun without a verb offered as a draft
     (_DRAFT_SIGN) when a greeting or "Subject:" follows. Without a verb, a mail someone wrote or sent ("Here's a quick
@@ -1602,8 +1747,8 @@ def _preambles(doc: tx.Document, block: tx.Block, flat: str, masked: str, plain:
             continue  # "Here is the letter my grandfather wrote in 1944:", "Here's a quick note from our CEO:"
         exempt_in: tuple[str, ...] = ()
         if interjection:
-            if not (colon or (first and lead_end >= 0)):
-                continue
+            if not (colon or (first and lead_end >= 0) or _mail_follows(doc, block, masked, block_end, strict=True)):
+                continue  # reported before a greeting: "Sure! Here's a draft email. I kept it polite." then "Dear ..."
         elif not first:
             continue
         elif m.group("below") and not (colon and _mail_follows(doc, block, masked, colon.end(), strict=True)):
@@ -1701,6 +1846,11 @@ def _block_rules(doc: tx.Document, found: list[Finding]) -> None:
     blocks = doc.blocks
     # bold labels in consecutive items or paragraphs
     group: list[int] = []
+    # The speaker of each block that is a turn of a dialogue or an interview (a run of speaker-name labels in which a
+    # name repeats), and of each block in a run of speaker-name labels without a repeat (character names in script),
+    # for sentence_start_repeat.
+    turns: dict[int, str] = {}
+    cast: dict[int, str] = {}
 
     def flush_group() -> None:
         if len(group) < 2:
@@ -1709,7 +1859,10 @@ def _block_rules(doc: tx.Document, found: list[Finding]) -> None:
         names = [label.group(1).strip() if label else "" for label in labels]
         speakers = all(_SPEAKER.fullmatch(name) for name in names)
         if speakers and len({name.lower() for name in names}) < len(names):
+            turns.update((bi, name.lower()) for bi, name in zip(group, names))
             return  # turns of a dialogue or an interview: "**G:** ...", "**O:** ...", "**G:** ..."
+        if speakers:
+            cast.update((bi, name.lower()) for bi, name in zip(group, names))
         what = "Item" if blocks[group[0]].kind == "list" else "Paragraph"
         for bi, label in zip(group, labels):
             line = blocks[bi].lines[0]
@@ -1795,15 +1948,20 @@ def _block_rules(doc: tx.Document, found: list[Finding]) -> None:
         # Code, URLs and e-mail are letters in this view, so "run: `pip install x`" does not end with a colon.
         plain, starts = block.joined(False)
         text = tx.split_view(plain).rstrip()
-        if text.endswith(":") and not text.endswith("::"):
+        if text.endswith(":") and not text.endswith("::") \
+                and not any(m.end() >= len(text) for m in _MESSAGE_HEADER.finditer(plain)):  # "On ... wrote:"
             no, col = _Locator(block, starts)(len(text) - 1)
             found.append(_make(doc, "decorative_colon", no, col,
                                "Paragraph ends with a colon but no list, table, code or quotation follows. Remove the "
                                "colon or finish the sentence.", ":", 0, 0, bi))
 
-    # sentence starts
+    # sentence starts. A run ends where the speaker of a dialogue changes ("**Interviewer:** So ..." then "**Dana:**
+    # So ..."); a run that goes on across speaker-name labels without a repeat is exempt in script.
     current: list[tx.Sentence] = []
     prev_word = ""
+    prev_speaker: Optional[str] = None
+    prev_character: Optional[str] = None
+    crossed = False  # the run goes on across two character names
 
     def flush_starts() -> None:
         if len(current) >= 3:
@@ -1812,11 +1970,17 @@ def _block_rules(doc: tx.Document, found: list[Finding]) -> None:
             no, col = _Locator(block, block.joined(True)[1])(first.start)
             found.append(_make(doc, "sentence_start_repeat", no, col,
                                f'{len(current)} sentences in a row start with "{prev_word}". Vary only where it '
-                               "reads as a pattern; keep parallel steps and lists.", prev_word, 0, 0, first.block_index))
+                               "reads as a pattern; keep parallel steps and lists.", prev_word, 0, 0, first.block_index,
+                               ("script",) if crossed else ()))
     for sent in doc.sentences:
-        if sent.kind != "para":
+        speaker = turns.get(sent.block_index)
+        if sent.kind != "para" or speaker != prev_speaker:
             flush_starts()
-            current, prev_word = [], ""
+            current, prev_word, crossed = [], "", False
+        character = cast.get(sent.block_index)
+        cross = character != prev_character and bool(current)
+        prev_speaker, prev_character = speaker, character
+        if sent.kind != "para":
             continue
         # A bold label is not the sentence's first word: "**Speaker 1:** So ..." then "**Speaker 2:** In ...".
         label = _BOLD_LABEL.match(sent.masked)
@@ -1826,9 +1990,11 @@ def _block_rules(doc: tx.Document, found: list[Finding]) -> None:
             w = ""  # numbered clauses ("3.1 ...", "3.2 ...") and figures are not a repeated word
         if w and w.lower() not in _STOP_STARTS and w.lower() == prev_word.lower():
             current.append(sent)
+            crossed = crossed or cross
         else:
             flush_starts()
             current = [sent] if w and w.lower() not in _STOP_STARTS else []
+            crossed = False
         prev_word = w
     flush_starts()
 

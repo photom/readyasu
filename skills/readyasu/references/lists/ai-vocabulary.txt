@@ -32,7 +32,7 @@ holistic	say what it covers, only from the original or material; otherwise keep 
 synerg*	name the people and what they do together, only from the original or material; otherwise keep and ask
 ever-evolving	delete
 ever-changing	delete
-fast-paced	delete the opener
+fast-paced	say what makes it fast (volume, deadlines), only from the original or material; otherwise keep and ask; delete it with the opener in "In today's fast-paced world"
 cutting-edge	say what is new, only from the original or material; otherwise keep and ask
 game-chang*	state the change, only from the original or material; otherwise keep and ask
 game changer	state the change, only from the original or material; otherwise keep and ask
