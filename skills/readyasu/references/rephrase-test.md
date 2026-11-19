@@ -60,6 +60,7 @@ Technical write-ups often say "We suspected X, but it was Y". Removing negative 
 | What you need isn't magic, it's a morning checklist. | What you need is a morning checklist. | No reader expects magic; removing it keeps the claim |
 | This tool doesn't collect opinions — it collects operation logs. | This tool collects operation logs. | Only when nothing nearby suggests it collects opinions; otherwise keep |
 | We didn't need a new tool. We needed a shared way to use the old one. | We didn't need a new tool; we needed a shared way to use the old one. | Two-sentence contrast; keep X and join (also in essays; not in fiction narration or dialogue, or short promo runs) |
+| It isn't a tool. It's a mindset. | It's a mindset, not a tool. | With "is", the semicolon join ("It isn't a tool; it's a mindset.") is the one-sentence tell; put the affirmation first |
 | It's not just a library. It's a philosophy. | (ask) | What "philosophy" means is not in the text; ask instead of guessing |
 | (The previous sentence is about the load balancer's connection limit.) Once the limit was exceeded, it returned 503 errors. | Once the limit was exceeded, the load balancer returned 503 errors. | Replaces a pronoun whose referent the previous sentence makes certain; the six points stay the same. An agentless passive ("503 errors were returned") stays as it is unless the text names who returned them |
 

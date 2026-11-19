@@ -30,7 +30,7 @@ Rewrite events and technical operations described with a metaphor into plain wor
 | skyrocket | "sales skyrocketed" | "rose sharply" with the number if given. |
 | elevate | "elevate your writing" | "improve", or say what changes. |
 | bridge the gap | "bridges the gap between design and code" | Say what connects to what ("generates code from design files"), only from the original or material; otherwise keep and ask. |
-| quietly break / silently brought down | "a misconfiguration quietly broke the export" | Write what was missing only when the text says it ("without an error message", "without an alert") for the whole event (a later alert or page limits it: "no alert fired until 14:26"); otherwise keep the original. Keep "fails silently" / "silently fails" in technical text: it is an established term. Do not write "without anyone noticing" unless the text says nobody noticed. |
+| quietly break / silently brought down | "a misconfiguration quietly broke the export" | Write what was missing only when the text says it ("without an error message", "without an alert") for the whole event (a later alert or page limits it: keep "silently", or use the time the timeline gives for the first alert, "14:20 alert fired" → "no alert fired until 14:20"; an acknowledgement time is not when the alert fired); otherwise keep the original. Keep "fails silently" / "silently fails" in technical text: it is an established term. Do not write "without anyone noticing" unless the text says nobody noticed. |
 
 ---
 
@@ -81,7 +81,7 @@ Words that appear far more often in AI text than in human text of the same kind.
 
 ## 4. Inflated words for ordinary experiences
 
-Do not describe small personal experiences or routine technical choices with grand words: "profound", "transformative", "epiphany", "masterpiece", "symphony", "odyssey", "saga", "quest", "magic", "alchemy", "elegant dance". "Removing the noise of daily life revealed the tool's true essence" → "With the noise of daily life gone, it became clear what the tool really is." (Keep the original's subject: do not add "I" when the original has none.) Do not add proper nouns or big lessons that the original does not have.
+Do not describe small personal experiences or routine technical choices with grand words: "profound", "transformative", "epiphany", "masterpiece", "symphony", "odyssey", "saga", "quest", "magic", "alchemy", "elegant dance". "Removing the noise of daily life revealed the tool's true essence" → "Removing the noise of daily life showed what the tool really is." (Keep the original's subject: do not add "I" when the original has none.) Do not add proper nouns or big lessons that the original does not have.
 
 ---
 

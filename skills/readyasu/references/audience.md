@@ -22,6 +22,8 @@ Read this when the reader is specified as informed or general (SKILL.md section 
 
 - Documents that fit none (company-wide announcements, weekly reports, chat posts sharing a link, release notes) get no type.
 - An article that recommends products or places is promo, even on a personal blog.
+- A news or civic article (a newsletter piece, a local report) uses article with its general rules; items that apply only to technical articles (code blocks, "In this article" introductions) do not apply.
+- A release announcement with calls to action or prices is promo; a plain changelog or list of release notes gets no type.
 - Specifications are formal (readers follow them as rules). Documents that show how to use something step by step are manual. When a document spans two types (slides with a script, minutes containing a proposal), use the main type if one is clear; otherwise do not decide.
 - The stance (recommend, rule, explain) is decided separately from the type. Do not derive the stance from the type.
 

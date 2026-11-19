@@ -1166,3 +1166,55 @@ def test_code_block_risk_points_at_changed_line() -> None:
     risk = next(r for r in diff.compare(orig, rev).risks if r.kind == "code")
     assert (risk.orig_line, risk.original, risk.revised) == (6, "retries: 3", "retries: 5")
     assert "\n" not in risk.message
+
+
+@pytest.mark.parametrize(("orig", "rev", "kind"), [
+    ("IT Security, not the employee's manager, decides whether the device is wiped.\n",
+     "The employee's manager, not IT Security, decides whether the device is wiped.\n", "negation"),
+    ("IT, not the manager, decides.\n", "The manager, not IT, decides.\n", "negation"),
+    ("We will move from an annual review to a semi-annual review.\n",
+     "We will move from a semi-annual review to an annual review.\n", "number"),
+    ("We switched from a weekly run to a daily run.\n", "We switched from a daily run to a weekly run.\n", "number"),
+    ("You will see a warning when you open the file.\n", "You will see a warning.\n", "condition"),
+])
+def test_set14_diff_counted(orig: str, rev: str, kind: str) -> None:
+    assert kind in kinds(orig, rev)
+
+
+def test_set14_reversed_order_message() -> None:
+    risks = diff.compare("We switched from a weekly run to a daily run.\n",
+                         "We switched from a daily run to a weekly run.\n").risks
+    assert any(r.kind == "number" and r.counted and "Order reversed" in r.message for r in risks)
+
+
+def test_set14_actor_from_material_is_review() -> None:
+    result = diff.compare("Our engineering team is investigating the issue.\n",
+                          "Raj Patel from our engineering team is investigating the issue.\n", "mail",
+                          materials="Owner: Raj Patel (SRE)\n")
+    review = next(v for v in result.reviews if v.kind == "actor_added")
+    assert "comes from the material" in review.message
+
+
+def test_set14_instruction_replaces_when_clause() -> None:
+    assert kinds("2. Verify the installation (you should see `2.4.1` when you run `logsift --version`).\n",
+                 "2. Run `logsift --version` to verify the installation; you should see `2.4.1`.\n", "manual") == []
+
+
+def test_set14_numbered_closing_heading_removed() -> None:
+    orig = "# Policy\n\n## 1. Scope\n\nApplies to staff.\n\n## 7. Conclusion\n\nThat is all.\n"
+    rev = "# Policy\n\n## 1. Scope\n\nApplies to staff.\n"
+    result = diff.compare(orig, rev, "formal")
+    assert not [r for r in result.risks if r.counted]
+    assert any(v.kind == "heading" and "Closing section removed" in v.message for v in result.reviews)
+
+
+@pytest.mark.parametrize(("text", "listed"), [
+    ("To mitigate risk, we will run both paths in parallel for at least four weeks before switching traffic.\n", False),
+    ("Send it before the deadline of Friday, December 18.\n", False),
+    ("Send it before the deadline.\n", True),
+])
+def test_set14_fact_gaps_reference(text: str, listed: bool) -> None:
+    gaps = diff.compare(text, text, want_fact_gaps=True).fact_gaps
+    assert bool(gaps) is listed
+    if listed:
+        assert gaps[0].kind == "reference"
