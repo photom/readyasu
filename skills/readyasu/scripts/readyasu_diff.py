@@ -48,7 +48,7 @@ HELP_EPILOG = """Meaning risks counted by --fail-on meaning-risk:
   request           a request marker (please, could you) disappeared
   approximation     an approximation word (about, up to, at least) on the same number changed
   scope             a limiting word (only) disappeared, or choice or quantifier scope changed
-                    (either/or <-> both/all, some -> all)
+                    (either/or <-> both/all, some -> all), or a "who"/"that" clause limiting the subject was dropped
   condition         a condition or time limit (if, unless, until, at launch, for now) disappeared
   correlation       a cause word was added to a sentence that stated a correlation
   commitment        a commitment (we will, we guarantee) was added
@@ -93,7 +93,7 @@ CERTAINTY = (
             r"|\b(?:we['’]re|i['’]m|we\s+are|i\s+am)\s+hoping\s+(?!to\b)"
             r"|\b(?:unclear|unknown|not\s+clear)\s+(?:whether|if)\b")),
     (2, _rx(r"\b(?:likely|probably|apparently|presumably|seemingly|reportedly)\b|\b(?:appears?|appeared)\s+(?:to|that|like)\b"
-            r"|\b(?:seems?|seemed)\b|\b(?:is|are|was|were)\s+believed\s+to\b|\blooks?\s+like\b|\bas\s+far\s+as\s+(?:we|I)\s+know\b"
+            r"|\b(?:seems?|seemed)\b|\b(?:is|are|was|were)\s+(?:believed|thought)\s+to\b|\blooks?\s+like\b|\bas\s+far\s+as\s+(?:we|I)\s+know\b"
             r"|\b(?:we|I)\s+assume\b"
             r"|\b(?:is|are)\s+expected\s+to\b|\bsuggests?\b|\bwe\s+(?:believe|think|suspect|estimate)\b"
             r"|\bi\s+(?:believe|think|suspect|guess|expect)\b|\bwe\s+expect\b|\bestimated\b")),
@@ -107,34 +107,41 @@ PERMISSION = _rx(r"\b(?:you|users?|they|we|customers?|members?)\s+may\b|\b(?:all
                  r"|\boptional(?:ly)?\b|\bmay\s+be\s+(?:omitted|skipped|left|used|included|ignored|removed)\b"
                  r"|\bno\s+need\s+to\b|\b(?:don['’]t|do\s+not|doesn['’]t|does\s+not)\s+(?:have|need)\s+to\b"
                  r"|\b(?:is|are)\s+not\s+required\b|\b(?:is|are)n['’]t\s+required\b|\bn['’]t\s+mandatory\b|\bnot\s+mandatory\b"
+                 r"|\b(?:don['’]t|do\s+not|doesn['’]t|does\s+not)\s+(?:need|require)\s+(?:an?\s+|any\s+|the\s+)?(?:approval|sign-?off|review|permission)\b"
                  r"|\b\w+n['’]t\s+(?:have|need)\s+to\b|\b(?:will|should|would)\s+not\s+(?:have|need)\s+to\b")
 OBLIGATION_STRONG = _rx(r"\b(?:must|shall|mandatory|required|requires?)\b|\b(?:mustn|shan)['’]t\b|\b(?:have|has|had)\s+to\b|\bneeds?\s+to\b"
-                        r"|(?<!\bno\s)\bneeds?\s+(?!to\b|for\b)(?=[\w$€£])"
-                        r"|\bis\s+obligated\b")
+                        r"|(?<!\bno\s)\bneeds?\s+(?!to\b|for\b|(?:urgent\s+|immediate\s+|more\s+|some\s+)?attention\b)(?=[\w$€£])"
+                        r"|\bis\s+obligated\b|\b(?:is|are)\s+responsible\s+for\s+(?=[a-z]+ing\b)")
 OBLIGATION_SOFT = _rx(r"\b(?:should|ought\s+to|recommended|advisable|encouraged)\b|\bshouldn['’]t\b|\bwe\s+recommend\b|\bbest\s+to\b")
 ABILITY = _rx(r"\bcan\b|\bable\s+to\b|\bcapable\s+of\b")
-STATUS = _rx(r"\b(?:tbd|tbc|pending|unconfirmed|undecided|tentative(?:ly)?|on\s+hold|in\s+progress|ongoing|underway)\b"
+STATUS = _rx(r"\b(?:tbd|tbc|pending|unconfirmed|unverified|unresolved|undecided|tentative(?:ly)?|on\s+hold|in\s+progress|ongoing|underway)\b"
              r"|\bunder\s+way\b|\b(?:is|are|was|still)\s+(?:a\s+|still\s+a\s+)?drafts?\b|\(draft\)|\bin\s+draft\b"
              r"|\bto\s+be\s+(?:determined|decided|confirmed|announced)\b|\bunder\s+(?:investigation|review|discussion)\b"
-             r"|\bnot\s+yet\b|\b(?:still\s+)?investigating\b|\bbeing\s+investigated\b"
+             r"|\bnot\s+yet\b|(?:\bnot|n['’]t)\s+(?:[a-z]+\s+){1,3}?yet\b|\b(?:still\s+)?investigating\b|\bbeing\s+investigated\b"
              r"|\bnot\s+(?:been\s+)?(?:decided|confirmed|finalized|verified)\b|\bhaven['’]t\s+(?:decided|confirmed|verified)\b")
 HEARSAY = _rx(r"\b(?:reportedly|allegedly|rumou?red)\b|\baccording\s+to\b|\b(?:is|are|was|were)\s+said\s+to\b"
               r"|\b(?:reported|claims?|claimed|indicated|noted|mentioned|stated|confirmed|announced)\s+that\b|\b(?:i|we)\s+heard\b"
               r"|\b(?:says|said|told\s+(?:us|me|them|him|her|the\s+team))\b"
-              r"|\b(?:people|colleagues|users|customers|experts|critics|others|they|sources|analysts|reports|some|many)\s+(?:say|report|suggest)\b"
+              r"|\b(?:people|colleagues|users|customers|experts|critics|others|they|sources|analysts|reports|some|many|researchers|"
+              r"scientists|engineers|economists|investigators|officials|observers)\s+(?:say|report|reported|suggest|suggested)\b"
               r"|\b(?:we|i)\s+(?:were|was)\s+told\b"
               r"|\b(?:experts|analysts|researchers|scientists|engineers|economists|investigators|officials|observers|critics|"
-              r"others|some|many|they|people|sources)\s+(?:believe|think|estimate|suspect|argue|predict|fear|speculate)\b"
+              r"others|some|many|they|people|sources)\s+(?:believe|think|estimate|suspect|argue|predict|fear|speculate|expect)\b"
               r"|\b(?:claims?|claimed|noted|mentioned|stated)\s+(?=(?:the|a|an|it|we|they|this|that|our|its|there)\b)"
               r"|\b(?:docs|documents|reports|studies|sources|notes|guidelines|records)\s+(?:say|state)\b|\bstates\s+that\b"
               r"|\btells?\s+us\b|\bper\s+(?:the|our|their|its)\s+(?!(?:conversation|call|discussion|meeting|agreement|email|chat)\b)(?!(?:hour|minute|second|day|week|month|year|user|request|instance|"
               r"unit|seat|item)s?\b)\w+|(?-i:\b[Pp]er\s+[A-Z][a-z][\w'’-]*)"
               r"|\b(?:we['’]re|i['’]m|we\s+are|i\s+am)\s+told\b")
+# what a contract or a policy "says" is its text, not hearsay ("unless their contract says otherwise")
+DOCUMENT_SAYS = _rx(r"\b(?:contract|policy|agreement|licen[cs]e|document|manual|guide|spec|specification|readme|label|sign|"
+                    r"form|terms|law|rule|clause|section|invoice|ticket|log|page|lease|letter|notice|warranty|handbook|statute)s?\s+"
+                    r"(?:says|said|states|stated)\b")
 REQUEST = _rx(r"\bplease\b|\b(?:could|would|can|will)\s+you\b|\bkindly\b|\bwe\s+ask\s+(?:that|you)\b"
               r"|\bi(?:['’]d|\s+would)\s+like\s+you\s+to\b|\bi\s+need\s+you\s+to\b")
 APPROX_BEFORE = _rx(r"(?:not\s+more\s+than|not\s+less\s+than|no\s+fewer\s+than|a\s+maximum\s+of|a\s+minimum\s+of|"
                     r"maximum\s+of|minimum\s+of|about|approximately|approx\.?|around|roughly|nearly|almost|~|up\s+to|at\s+least|at\s+most|"
-                    r"more\s+than|less\s+than|fewer\s+than|over|under|some|circa|close\s+to|just\s+over|just\s+under|"
+                    r"more\s+than|less\s+than|fewer\s+than|(?:larger|bigger|greater|higher|longer|smaller|lower|shorter)\s+than|"
+                    r"over|under|some|circa|close\s+to|just\s+over|just\s+under|"
                     r"upwards\s+of|no\s+more\s+than|no\s+less\s+than|below|above|within)\s*$")
 APPROX_AFTER = _rx(r"^(?:\s*(?:\+|-ish|ish\b)|\s*(?:[a-z]+\s+)?(?:or\s+so|or\s+more|or\s+less|or\s+fewer|or\s+above|"
                    r"or\s+below|or\s+later|or\s+newer|or\s+higher|or\s+greater|and\s+above|and\s+up|and\s+later|and\s+newer)\b)")
@@ -199,8 +206,8 @@ CONDITION = _rx(r"\b(?:if|unless|until|till|whenever|when|while|after|before|as\
                 r"|\bat\s+(?:its|our|their|his|her|the\s+\w+['’]s)\s+(?:sole\s+|own\s+|reasonable\s+)?discretion\b"
                 r"|\bsubject\s+to\b|\bwith\s+(?:(?:the|their|your|prior|written|explicit|express|advance)\s+){0,3}"
                 r"(?:\w+\s+)?(?:approval|consent|permission|authori[sz]ation)\b|\bwhere\s+(?:applicable|permitted|required|possible)\b"
-                r"|\bto\s+the\s+extent\s+(?:permitted|required|possible|allowed)\b|\bon\s+a\s+case-by-case\s+basis\b"
-                r"|\bby\s+default\b|\bupon\s+(?:request|approval)\b"
+                r"|\bto\s+the\s+extent\s+(?:permitted|required|possible|allowed)\b|\b(?:on\s+a\s+)?case[- ]by[- ]case(?:\s+basis)?\b"
+                r"|\bby\s+default\b|\b(?:up)?on\s+(?:request|approval)\b"
                 r"|\bwithin\s+[\w.]+\s+(?:\w+\s+)?(?:second|minute|hour|day|week|month|year)s?\s+of\b"
                 r"|(?<!\bat\s)\bonce\b(?!\s+(?:a|an|per|every|more|again|or|and)\b)")
 OPPOSITE_CONDITION = {"before": ("after",), "after": ("before", "until", "till"), "until": ("after",), "till": ("after",),
@@ -219,9 +226,17 @@ STOCK_MARKERS = _rx(r"\bit\s+should\s+be\s+noted\s+that\b|\bit\s+(?:is|['’]s)\
                     r"|\bit\s+goes\s+without\s+saying\b|\bit['’]s\s+no\s+secret\s+that\b|\bthere['’]s\s+no\s+denying\s+(?:that\s+)?"
                     r"|\bmake\s+no\s+mistake\b|\bbefore\s+you\s+(?:begin|start|get\s+started)\b"
                     r"|\b(?:everything|all|what)\s+you\s+need\s+to\s+know\b|\bneed[- ]to[- ]know\s+basis\b")
+# "Please" in a courtesy formula asks for nothing ("Please note that the office is closed", "Please find attached the
+# report", "Please don't hesitate to contact me" offers help).
+COURTESY_PLEASE = _rx(r"\bplease\s+(?:(?:do\s+not|don['’]t)\s+hesitate\s+to|note(?:\s+that)?\b|find\s+(?:attached|enclosed|below)\b"
+                      r"|be\s+(?:advised|aware)\s+that\b)")
+# An indirect yes/no question ("let me know if", "wanted to check whether") that a rewrite may ask directly.
+INDIRECT_QUESTION = _rx(r"\b(?:let\s+(?:me|us)\s+know|(?:wanted|want|like)\s+to\s+(?:\w+\s+)?(?:check|ask|confirm|see)|wondering)"
+                        r"\s+(?:if|whether)\b")
 # Negated obligations are not obligations ("you don't have to", "not required").
 NEG_OBLIGATION = _rx(r"(?:\b\w+n['’]t|\b(?:do|does|did|is|are|was|were|will|would|should)\s+not|\bnot|\bno|\bnever|\bneedn['’]t)"
-                     r"\s+(?:have\s+to|has\s+to|need\s+to|needs?|required|requires?|mandatory)\b")
+                     r"\s+(?:have\s+to|has\s+to|need\s+to|needs?|required|requires?|mandatory)\b"
+                     r"|^\W*no\s+(?:[\w-]+\s+){1,3}(?:required|needed|necessary)\b")
 # Wording that is not a hedge: requests and "would like".
 NOT_HEDGE = _rx(r"\b(?:could|would|can|will)\s+you\b|\bwould\s+(?:like|love|appreciate|prefer|be\s+grateful|be\s+happy|mind)\b"
                 r"|\bcould\s+not\b")
@@ -461,6 +476,43 @@ def numbers(text: str) -> Counter[str]:
     return c
 
 
+_COUNT_WORDS = {"two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6}
+_ORDINALS = ("first", "second", "third", "fourth", "fifth", "sixth", "seventh")
+COUNT_TO_LIST = _rx(r"\b(two|three|four|five|six|[2-6])\s+(?:[a-z][\w-]*\s+){0,4}?[a-z][\w-]*\s*:\s*([^.!?:;\n]+)")
+COUNT_TO_ORDINALS = _rx(r"\b(two|three|four|five|six|[2-6])\s+(?:[a-z][\w-]*\s+){0,2}?(?:reasons?|ways?|steps?|things?|points?|"
+                        r"causes?|changes?|problems?|issues?|options?|parts?|stages?|phases?|factors?|lessons?|goals?)\b")
+
+
+def _list_items(text: str) -> list[str]:
+    items = re.split(r"\s*,\s*(?:and\s+|or\s+)?|\s+(?:and|or)\s+", text.strip())
+    return [x for x in items if x.strip()]
+
+
+def _kept(item: str, rev: str) -> bool:
+    words = [w for w in re.findall(r"[A-Za-z][\w'’-]*", item) if w.lower() not in STOPWORDS]
+    return bool(words) and all(re.search(r"(?<![\w-])" + re.escape(w) + r"(?![\w-])", rev, re.IGNORECASE) for w in words)
+
+
+def count_announcements(orig: str, rev: str) -> Counter[str]:
+    """Numbers that only announce how many items follow ("three things to check: A, B and C", "There are three
+    reasons. First, ... Second, ... Third, ..."), when the revision keeps every item (or every ordinal). Dropping such a
+    count drops no fact."""
+    found: Counter[str] = Counter()
+    for m in COUNT_TO_LIST.finditer(orig):
+        n = _COUNT_WORDS[m.group(1).lower()]
+        items = _list_items(m.group(2))
+        if len(items) == n and all(_kept(x, rev) for x in items):
+            found[str(n)] += 1
+    for m in COUNT_TO_ORDINALS.finditer(orig):
+        n = _COUNT_WORDS[m.group(1).lower()]
+        after = orig[m.end():]
+        def has(word: str, text: str) -> bool:
+            return bool(re.search(r"(?:^|[.!?:]\s+|\n\s*)" + word + r"\b", text, re.IGNORECASE))
+        if all(has(w, after) and has(w, rev) for w in _ORDINALS[:n]) and not has(_ORDINALS[n], after):
+            found[str(n)] += 1
+    return found
+
+
 def mask_month_may(text: str) -> str:
     """A capitalized "May" is the month, not the hedge "may", except at the start of a sentence before a subject
     ("May I ask", "May we")."""
@@ -482,6 +534,9 @@ def dates(text: str) -> Counter[str]:
     """Month and weekday names, abbreviations normalized ("Fri" -> "Friday")."""
     c: Counter[str] = Counter()
     text = mask_month_may(text)
+    text = re.sub(r"\b(" + "|".join(DATE_FULL) + r")\s*\(\s*(" + "|".join(sorted(DATE_ABBR, key=len, reverse=True)) + r")\.?\s*\)",
+                  lambda m: m.group(1) if DATE_ABBR[m.group(2)] == m.group(1) else m.group(0), text)  # "Friday (Fri)"
+    text = re.sub(r"\b(?:from\s+)?Mon(?:day)?s?\s*(?:through|thru|to|-|–)\s*Fri(?:day)?s?\b", "weekdays", text)
     spans: list[tuple[int, int]] = []
     for m in DATE_WORD.finditer(text):
         spans.append((m.start(), m.end()))
@@ -547,6 +602,7 @@ def hedges(text: str) -> list[tuple[int, str]]:
     for start, end, level, word in spans:
         gap = text[last_end:start] if last_end >= 0 else ""
         clause_stack = bool(found) and bool(re.match(r"(?:it\s+)?(?:seems?|seemed|appears?|appeared)(?:\s+(?:that|like))?$|it(?:\s+is|['’]s)\s+possible$"
+                                                     r"|(?:we|i)\s+(?:think|believe|suspect)$"
                                                      r"|there(?:\s+is|['’]s)\s+a\s+chance$|looks?\s+like$|perhaps$|maybe$",
                                                      found[-1][1], re.IGNORECASE)) and len(gap) <= 40 and \
             not re.search(r"[,;:.!?]|\b(?:and|but|or|so|because|although)\b", gap)
@@ -621,11 +677,88 @@ def denied_words(text: str) -> set[str]:
     return found
 
 
+_CONTRAST_SKIP = {"to", "by", "in", "on", "at", "for", "from", "with", "into", "via", "the", "a", "an", "our", "your",
+                  "their", "its", "his", "her", "my", "about", "do", "does", "did", "be", "been", "being", "is", "are",
+                  "was", "were", "will", "would", "should", "can", "could"}
+
+
+def _heads_after(pattern: re.Pattern[str], text: str) -> list[str]:
+    """The first content word after each match: "not to your manager" -> manager, "rather than 5" -> 5."""
+    heads = []
+    for m in pattern.finditer(text):
+        for w in re.findall(r"[A-Za-z][\w'’-]*|\d[\d.,:]*", text[m.end():m.end() + 60])[:4]:
+            if w.lower() not in _CONTRAST_SKIP:
+                heads.append(_stem(w.lower()))
+                break
+    return heads
+
+
+def _negation_as_contrast(o: str, r: str, lost: int) -> bool:
+    """Each lost "not" became "rather than" or "instead of" before the same word ("to HR, not to your manager" ->
+    "to HR rather than to your manager"; "Don't email them; call them" -> "Call them instead of emailing them")."""
+    if len(INSTEAD.findall(r)) - len(INSTEAD.findall(o)) != lost:
+        return False
+    plain_not = _rx(r"\b(?:not|never)\b|n['’]t\b")
+    new = Counter(_heads_after(INSTEAD, r)) - Counter(_heads_after(INSTEAD, o))
+    gone = Counter(_heads_after(plain_not, o)) - Counter(_heads_after(plain_not, r))
+    return sum(new.values()) == lost and new == gone
+
+
+UN_WORD = _rx(r"\bun(?!der|til|ique|iver|ion|it|less)([a-z]{2,}(?:ed|own|ear|ain|able|ible|ure))\b")
+NOT_YET = _rx(r"\b(?:not|n['’]t)\s+(?:[a-z]+\s+){0,3}?yet\b")
+ONGOING = _rx(r"\b(?:still|pending|waiting|in\s+progress|ongoing|underway|being\s+[a-z]+(?:ed|en))\b")
+_UNKNOWN_FROM = ("known", "determined", "identified", "found", "clear", "sure", "certain")
+
+
+def _negation_restated(o: str, r: str, neg_o: int, neg_r: int) -> bool:
+    """The negation changed form but not meaning: "not" + a word became "un" + the same word ("is not clear" ->
+    "is unclear", "has not been verified" -> "is unverified", "hasn't been determined" -> "is unknown"), or an ongoing
+    state became "not ... yet" ("is still pending" -> "has not been approved yet")."""
+    if neg_o > neg_r:
+        new_un = Counter(m.group(1).lower() for m in UN_WORD.finditer(r)) - \
+            Counter(m.group(1).lower() for m in UN_WORD.finditer(o))
+        if sum(new_un.values()) != neg_o - neg_r:
+            return False
+        o_stems = {_stem(w.lower()) for w in re.findall(r"[A-Za-z]+", o)}
+        for word in new_un:
+            if word == "known" and any(_stem(w) in o_stems for w in _UNKNOWN_FROM):
+                continue
+            if _stem(word) not in o_stems and word not in o_stems:
+                return False
+        return True
+    if neg_r > neg_o:
+        return len(NOT_YET.findall(r)) - len(NOT_YET.findall(o)) == neg_r - neg_o and bool(ONGOING.search(o))
+    return False
+
+
 INSTEAD = _rx(r"\b(?:instead\s+of|rather\s+than)\b")
 VERBAL_DENIED = _rx(r"\b(?:(?:do|does|did|will|would|can|could|should|must|may|might)\s+not|(?:do|does|did|wo|would|ca|could|"
                     r"should|must)n['’]t|cannot|never)\s+(?:(?:[a-z]+ly|yet|even|ever|always|still)\s+)?([a-z]+)\s+(?:(?:the|a|an|our|their|your|its|his|her|my|any|both|all|"
                     r"this|that|these|those)\s+)*([a-z][\w-]{2,})")
 COPULA_VERBS = {"be", "been", "being", "seem", "appear", "become", "get", "feel", "look", "sound", "know", "think", "mean"}
+
+
+_TIMES_A = {("4", "year"): "quarterly", ("2", "year"): "semiannually", ("12", "year"): "monthly", ("52", "year"): "weekly",
+            ("365", "year"): "daily", ("7", "week"): "daily", ("24", "day"): "hourly"}
+
+
+def _rate_text(text: str) -> str:
+    """Spell rates one way: "every fifteen minutes" -> "every 15 minutes", "$9/month" -> "$9 per month", "four times
+    a year" -> "quarterly", "twice a year" -> "semiannually", "24/7" -> "around the clock"."""
+    text = re.sub(r"(?<![\w/.])24\s*(?:/|x)\s*7(?![\w/]|\.\d)", "around the clock", text)
+    text = re.sub(r"(?<=[\w%])\s*/\s*(month|mo|year|yr|week|wk|day|hour|hr)\b",
+                  lambda m: " per " + {"mo": "month", "yr": "year", "wk": "week", "hr": "hour"}.get(m.group(1).lower(), m.group(1)),
+                  text, flags=re.IGNORECASE)
+    def every(m: re.Match[str]) -> str:
+        words = _COMPOUND.sub(_compound_value, m.group(1))
+        return "every " + NUMBER_WORDS.get(words.lower(), words) + " "
+    text = re.sub(r"\bevery\s+((?:" + "|".join(_TENS) + r")[- ](?:" + "|".join(_UNITS) + r")|" + "|".join(_SMALL) + r")\s+",
+                  every, text, flags=re.IGNORECASE)
+    def times(m: re.Match[str]) -> str:
+        n = "2" if m.group(1).lower() == "twice" else NUMBER_WORDS.get(m.group(1).lower(), m.group(1))
+        return _TIMES_A.get((n, m.group(2).lower()), m.group(0))
+    return re.sub(r"\b(twice|\d+|two|four|seven|twelve)(?:\s+times)?\s+(?:a|an|per|each)\s+(year|week|day)\b", times, text,
+                  flags=re.IGNORECASE)
 
 
 EVERY_N_RX = re.compile(r"\bevery\s+(?:\d+|two|three|four|five|six|seven|eight|nine|ten|twelve)\s+(?:second|minute|hour|day|"
@@ -644,8 +777,10 @@ def frequencies(text: str) -> Counter[str]:
     text = DURATION_A.sub(" ", text)  # "lasts an hour" is a duration of 1, compared as a number
     text = re.sub(r"\b(semi|bi)-(annual(?:ly)?|weekly)\b", r"\1\2", text, flags=re.IGNORECASE)  # "semi-annual"
     text = re.sub(r"\bARR\b", "annual", re.sub(r"\bMRR\b", "monthly", text))  # spelled out in a rewrite
-    text = re.sub(r"\bon\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)s\b", r"every \1", text,
-                  flags=re.IGNORECASE)  # "on Mondays" is weekly
+    if not re.search(r"\bevery\s+(?:2|two|other)\s+weeks?\b|\b(?:bi|fort)nightly\b|\bbiweekly\b", text, re.IGNORECASE):
+        # "on Mondays" is weekly, but "every two weeks, on Mondays" names the day of a biweekly rate
+        text = re.sub(r"\bon\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)s\b", r"every \1", text,
+                      flags=re.IGNORECASE)
     text = re.sub(r"\beach(?=\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|weekday|business\s+day|working\s+day)\b)",
                   "every", text, flags=re.IGNORECASE)
     text = re.sub(r"\bevery\s+second(?=\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|day|week|month|year)\b)",
@@ -691,7 +826,42 @@ def _clause_deleted(o: str, r: str) -> bool:
 
 def conditions(text: str) -> list[str]:
     text = re.sub(r"\blet\s+(?:me|us|them|him|her|[A-Z]\w+)\s+know\s+(?=if\b)", "", text, flags=re.IGNORECASE)
+    # "prior to" and "ahead of the meeting" are "before"; "ahead of schedule" is no condition
+    text = re.sub(r"\bprior\s+to\b|\bahead\s+of\b(?!\s+(?:schedule|time|plan|target|the\s+curve|the\s+competition))", "before",
+                  text, flags=re.IGNORECASE)
     return [m.group(0) for m in CONDITION.finditer(NOT_CONDITION.sub(" ", text))]
+
+
+CURRENTLY_ONGOING = _rx(r"\bcurrently\s+(?=(?:being\s+)?[a-z]{3,}ing\b|in\s+(?:beta|alpha|preview|progress|testing|draft|review)\b)")
+
+
+RELATIVE_LIMIT = re.compile(r"(?:^|(?<=[.!?]\s))\W*([A-Z][a-z]+s|People|Anyone|Everyone)\s+(who|that)\s+([^,.;:!?]{3,80}?)\s+"
+                            r"(?=(?:may|can|must|should|will|are|get|need|have|receive|qualify)\b)")
+
+
+def _relative_restriction_gone(o: str, r: str) -> str:
+    """A restrictive relative clause on the subject was dropped ("Employees who have completed probation may work
+    remotely" -> "Employees may work remotely"): the subject stays, and no content word of the clause is left."""
+    for m in RELATIVE_LIMIT.finditer(o):
+        head = m.group(1)
+        if not re.search(r"\b" + re.escape(head[:-1] if head.endswith("s") else head), r, re.IGNORECASE):
+            continue
+        words = [w for w in re.findall(r"[A-Za-z][\w'’-]+", m.group(3)) if w.lower() not in STOPWORDS and len(w) > 2]
+        if words and not any(re.search(r"\b" + re.escape(w[:4]), r, re.IGNORECASE) for w in words):
+            return m.group(0).strip()
+    return ""
+
+
+def _drop_ongoing_currently(o: str, r: str) -> str:
+    """Leave out "currently" when the revision still marks the state as ongoing: the progressive ("is currently
+    investigating" -> "is investigating"), a stage that is temporary by name ("currently in beta"), or "still" / "for
+    now" in its place. "Currently, the API is free" -> "The API is free" is still a removed limit."""
+    if not re.search(r"\bcurrently\b", o, re.IGNORECASE) or re.search(r"\bcurrently\b", r, re.IGNORECASE):
+        return o
+    if CURRENTLY_ONGOING.search(o) or re.search(r"\b(?:still|for\s+now|right\s+now|at\s+the\s+moment|at\s+present)\b",
+                                               r, re.IGNORECASE):
+        return re.sub(r"\bcurrently\b", " ", o, flags=re.IGNORECASE)
+    return o
 
 
 def _ordinary_word_use(text: str, m: re.Match[str]) -> bool:
@@ -743,9 +913,12 @@ APPROX_GROUPS = (
                   "and up", "and later", "and newer")),
     ("about", ("about", "approximately", "approx.", "approx", "around", "roughly", "~", "circa", "some", "close to",
                "or so")),
-    ("more than", ("more than", "over", "above", "just over")),
-    ("less than", ("less than", "under", "below", "fewer than", "just under")),
+    ("more than", ("more than", "over", "above", "just over", "larger than", "bigger than", "greater than", "higher than",
+                   "longer than")),
+    ("less than", ("less than", "under", "below", "fewer than", "just under", "smaller than", "lower than", "shorter than")),
 )
+COMPARATIVE_BOUND = {"larger than", "bigger than", "greater than", "higher than", "longer than", "smaller than", "lower than",
+                     "shorter than"}
 _APPROX_INDEX = {re.sub(r"\s+", " ", w): g for g, words in APPROX_GROUPS for w in words}
 NOT_NEGATION = _rx(r"\bnothing\s+short\s+of\b|\b(?:no|not)\s+(?:more|less|fewer)\s+than\s+(?=[$€£¥~#]?\d|(?:one|two|three|four|five|six|seven|"
                    r"eight|nine|ten|eleven|twelve|twenty|thirty|fifty|hundred|a\s+(?:few|dozen|hundred|thousand))\b)")
@@ -1215,10 +1388,13 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
         return  # deleted sentences are reviewed in compare()
 
     every_n = EVERY_N_RX  # "every 2 weeks" is compared as a frequency
-    on, rn = numbers(every_n.sub(" ", o)), numbers(every_n.sub(" ", r))
+    o_rate, r_rate = _rate_text(o), _rate_text(r)
+    on, rn = numbers(every_n.sub(" ", o_rate)), numbers(every_n.sub(" ", r_rate))
     uneven = len(ch.orig) != len(ch.rev)
     if uneven and set(on) == set(rn) and not (rn - on):
         rn = on  # a merge or split that drops a repeated number keeps the value
+    announced = count_announcements(o, rev_all or r) & (on - rn) if on - rn else Counter()
+    on = on - announced  # "three things to check: A, B and C" -> "Check A, B and C"
     if on != rn:
         removed = sorted((on - rn).elements())
         added = sorted((rn - on).elements())
@@ -1236,18 +1412,24 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
         risk("number", True, "Number changed: " + "; ".join(parts))
     oa, ra = approx_map(o), approx_map(r)
     for key in sorted(set(oa) & set(ra)):  # also when another number in the sentence changed
+        # "larger than 2 GB" -> "over 2 GB" is the same bound; a comparative against no marker is not compared
+        # ("limited to 50 MB. Larger files are rejected" -> "Uploads larger than 50 MB are rejected")
+        if (not oa[key] and ra[key] and all(w in COMPARATIVE_BOUND for w in ra[key])) or \
+                (not ra[key] and oa[key] and all(w in COMPARATIVE_BOUND for w in oa[key])):
+            continue
         if {approx_group(w) for w in oa[key]} != {approx_group(w) for w in ra[key]}:
             before = ", ".join(sorted(oa[key])) or "none"
             after = ", ".join(sorted(ra[key])) or "none"
             risk("approximation", True, f"Approximation on {key} changed: {before} → {after}")
     if on == rn:
-        uo, ur = unit_pairs(every_n.sub(" ", o)), unit_pairs(every_n.sub(" ", r))
+        uo, ur = unit_pairs(every_n.sub(" ", o_rate)), unit_pairs(every_n.sub(" ", r_rate))
+        uo = uo - Counter({k + " (no unit)": n for k, n in announced.items()})
         if uneven and set(uo) == set(ur) and not (ur - uo):
             ur = uo
         if uo != ur:
             risk("number", True, "Unit changed: " + ", ".join(sorted((uo - ur).elements())) + " → "
                  + ", ".join(sorted((ur - uo).elements())))
-    fq_o, fq_r = frequencies(o), frequencies(r)
+    fq_o, fq_r = frequencies(o_rate), frequencies(r_rate)
     if set(fq_o) != set(fq_r):  # "weekly, every Tuesday" -> "every Tuesday" repeats one frequency
         fq_gone = Counter({k: n for k, n in fq_o.items() if k not in fq_r})
         fq_new = Counter({k: n for k, n in fq_r.items() if k not in fq_o})
@@ -1294,6 +1476,10 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
     if re.search(r"\bno\s+later\s+than\b", o, re.IGNORECASE) and re.search(r"\bby\b", r, re.IGNORECASE) and \
             not re.search(r"(?<!no )\blater\s+than\b", r, re.IGNORECASE):
         o_neg = re.sub(r"\bno\s+later\s+than\b", "by", o_neg, flags=re.IGNORECASE)  # "no later than Friday" = "by Friday"
+    if re.search(r"\bno\s+later\s+than\b", o, re.IGNORECASE) and re.search(r"\bat\s+the\s+latest\b", r, re.IGNORECASE):
+        o_neg = re.sub(r"\bno\s+later\s+than\b", " ", o_neg, flags=re.IGNORECASE)  # "no later than May 5" = "May 5 at the latest"
+    if re.search(r"\b(?:remember|make\s+sure)\b", r, re.IGNORECASE):
+        o_neg = re.sub(r"(?:\b(?:do\s+not|never)|\bdon['’]t)\s+forget\b", " forget", o_neg, flags=re.IGNORECASE)  # "Don't forget to" = "Remember to"
     if STATUS.search(o) and STATUS.search(r):
         o_neg, r_neg = STATUS.sub(" ", o_neg), STATUS.sub(" ", r_neg)  # "TBD" -> "not decided yet" keeps the status
     if PERMISSION.search(o) and PERMISSION.search(r):
@@ -1312,6 +1498,10 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
     elif neg_o != neg_r and denied_words(o) == denied_words(r) and denied_words(o) and \
             abs(neg_o - neg_r) == abs(len(INSTEAD.findall(o)) - len(INSTEAD.findall(r))):
         pass  # "Use the CLI, not the web UI" -> "Use the CLI instead of the web UI": the same side is denied
+    elif _negation_restated(o_neg, r_neg, neg_o, neg_r):
+        pass  # "is not clear" -> "is unclear"; "is still pending" -> "has not been approved yet"
+    elif neg_o > neg_r and _negation_as_contrast(o_neg, r_neg, neg_o - neg_r):
+        pass  # "Send it to HR, not to your manager" -> "Send it to HR rather than to your manager"
     elif neg_o != neg_r:
         risk("negation", True, f"Number of negations changed: {neg_o} → {neg_r}")
     else:
@@ -1336,6 +1526,9 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
     q_orig = [s for s in ch.orig if _is_question(s.text)]
     q_rev = [s for s in ch.rev if _is_question(s.text)]
     questions_o, questions_r = len(q_orig), len(q_rev)
+    # "Let me know if Tuesday works" -> "Does Tuesday work?": the same yes/no question, asked directly
+    made_direct = questions_r == questions_o + 1 and bool(INDIRECT_QUESTION.search(o)) and \
+        bool(re.match(r"\W*(?:is|are|was|were|does|do|did|will|would|can|could|has|have)\b", q_rev[0].masked, re.IGNORECASE))
     if questions_o != questions_r:
         message = f"Number of questions changed: {questions_o} → {questions_r}"
         folded = questions_o > questions_r and len(ch.orig) > questions_o and \
@@ -1345,7 +1538,9 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
         polite = questions_r > questions_o and bool(q_rev) and \
             bool(re.match(r"\s*(?:could|would|can|will)\s+you\b", q_rev[0].masked, re.IGNORECASE)) and \
             (bool(REQUEST.search(o)) or _imperative(ch.orig))
-        if folded:
+        if made_direct:
+            pass
+        elif folded:
             risk("question", False, message + ". A short self-answered question was folded into a statement; "
                  "fine when the answer is kept.")
         elif polite:
@@ -1359,6 +1554,11 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
     o_st = STOCK_MARKERS.sub(" ", _unemphasize(" ".join(x.masked for x in ch.orig if not _is_question(x.text))))
     r_st = STOCK_MARKERS.sub(" ", _unemphasize(" ".join(x.masked for x in ch.rev if not _is_question(x.text))))
     if o_st.strip() and r_st.strip():
+        for modal in ("may", "might", "could"):
+            if re.search(r"\b" + modal + r"\b(?!\s+(?:possibly|potentially|conceivably|perhaps|maybe)\b)", r_st, re.IGNORECASE):
+                # "may potentially" -> "may" reduces a stack (SKILL.md), also after a subject that reads as permission
+                o_st = re.sub(r"\b(" + modal + r")\s+(?:possibly|potentially|conceivably|perhaps|maybe)\b", r"\1", o_st,
+                              flags=re.IGNORECASE)
         if PERMISSION.search(o_st) and (PERMISSION.search(r_st) or re.search(r"\byou\s+may\b", o_st, re.IGNORECASE)):
             # a permission "may" ("You may include" -> "You are allowed to include", "you may set" -> "set") is compared
             # as permission, not as a hedge
@@ -1422,14 +1622,16 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
     obl_o, w_obl_o = obligation_level(o)
     obl_r, w_obl_r = obligation_level(r)
     governed = re.search(r"\byou(?:['’]ll|\s+will)?(?:['’]re|\s+are)?(?:\s+(?:then|also|first|now|going\s+to))?\s+"
-                         r"(?:must|have\s+to|need\s+to|required\s+to)\s+"
+                         r"(?:must|should|have\s+to|need\s+to|required\s+to)\s+"
                          r"(?:(?:first|then|also|always)\s+)?(not\s+|never\s+)?([a-z]+)", o, re.IGNORECASE)
     neg_imp = r"(?:do\s+not\s+|don['’]t\s+|never\s+)" if governed and governed.group(1) else ""
     r_imp = re.sub(r"^\s*(?:\[![A-Za-z]+\]\s*)?(?:[-*]\s+)?(?:\*\*[^*]+\*\*:?\s*)?", "", (r_st or r).strip())
-    if obl_o == 2 and obl_r == 0 and governed and len(conditions(r)) <= len(conditions(o)) and \
+    if obl_o >= 1 and obl_r == 0 and governed and len(conditions(r)) <= len(conditions(o)) and \
             re.search(r"(?:^|[,;:]\s+)(?:(?:first|then|also|always)\s+)?" + neg_imp + re.escape(governed.group(2)) + r"\b",
                       r_imp, re.IGNORECASE):
-        pass  # "You will need to restart" -> "Restart": the imperative keeps the instruction
+        pass  # "You will need to restart" -> "Restart", "you should check" -> "check": the imperative keeps the instruction
+    elif obl_o >= 1 and obl_r == 0 and _passive_made_imperative(o, r_imp):
+        pass  # "The key should be stored in a vault" -> "Store the key in a vault"
     elif obl_o != obl_r:
         risk("obligation", True, "Obligation strength changed: "
              + (f'"{w_obl_o}"' if w_obl_o else "none") + " → " + (f'"{w_obl_r}"' if w_obl_r else "none"))
@@ -1450,13 +1652,14 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
     if st_o and not st_r:
         risk("status", True, f'Status word disappeared: "{st_o[0]}"')
 
-    h_o, h_r = bool(HEARSAY.search(o)), bool(HEARSAY.search(r))
+    h_o, h_r = bool(HEARSAY.search(DOCUMENT_SAYS.sub(" ", o))), bool(HEARSAY.search(DOCUMENT_SAYS.sub(" ", r)))
     if h_o and not h_r and re.search(r"\b[A-Za-z]+\s+(?:thinks|believes|estimates|suspects|argues|predicts|fears|speculates|says)\b", r):
         h_r = True  # "They think" -> "The vendor thinks": the opinion is still attributed
     if h_o != h_r:
         risk("hearsay", True, f'Hearsay marker {"removed" if h_o else "added"}: "{first(HEARSAY, o if h_o else r).strip()}"')
 
-    rq_o, rq_r = bool(REQUEST.search(o)), bool(REQUEST.search(r))
+    rq_o = bool(REQUEST.search(COURTESY_PLEASE.sub(" ", _unemphasize(ch.orig_text)))) and not made_direct
+    rq_r = bool(REQUEST.search(r))
     if rq_o and not rq_r:
         risk("request", True, f'Request marker removed: "{first(REQUEST, o)}"')
     elif rq_r and not rq_o:
@@ -1518,7 +1721,11 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
                 risk("scope", True, f'Scope narrowed: "{am.group(0)}" → "{nm.group(0)}"')
                 break
 
-    cond_o, cond_r = conditions(o), conditions(r)
+    gone_rel = _relative_restriction_gone(o, r)
+    if gone_rel:
+        risk("scope", True, f'Restriction removed: "{gone_rel}". Check that the sentence did not become true for more people '
+             "or things.")
+    cond_o, cond_r = conditions(_drop_ongoing_currently(INDIRECT_QUESTION.sub(" ", o) if made_direct else o, r)), conditions(r)
     contrast = re.compile(r"\b(?:but|although|though|however|yet|whereas)\b", re.IGNORECASE)
     if len(cond_o) > len(cond_r) and all(w.lower() == "while" for w in cond_o if w.lower() not in
                                          {x.lower() for x in cond_r}) and len(contrast.findall(r)) > len(contrast.findall(o)):
@@ -1692,6 +1899,35 @@ point link connect subscribe report refer listen look turn change roll revert lo
 commit forward send submit post publish deploy ship compare convert set reset map assign delegate transfer append attach
 bring take give explain introduce adapt adjust contribute default limit navigate prepare proceed react relate stay keep
 hold scale lean pin rebase redirect route save upload download export import reach email ping ask tell remind""".split())
+
+
+PASSIVE_DUTY = _rx(r"^\W*(?:(?:the|a|an|your|all|each|every|any|this|these|those)\s+)?"
+                   r"(?!(?:you|we|they|it|i|he|she|this|that)\s)((?:[\w-]+\s+){0,3}?[\w-]+)\s+"
+                   r"(?:should|must|has\s+to|have\s+to|needs\s+to|need\s+to)\s+(not\s+)?be\s+([a-z]+)\b")
+
+
+IRREGULAR_PARTICIPLES = {"kept": "keep", "sent": "send", "written": "write", "done": "do", "made": "make", "built": "build",
+                         "held": "hold", "shown": "show", "given": "give", "taken": "take", "left": "leave", "sold": "sell",
+                         "told": "tell", "paid": "pay", "brought": "bring", "bought": "buy", "chosen": "choose",
+                         "driven": "drive", "frozen": "freeze", "hidden": "hide", "sung": "sing", "spent": "spend",
+                         "sworn": "swear", "torn": "tear", "worn": "wear", "won": "win", "begun": "begin", "known": "know"}
+
+
+def _passive_made_imperative(o: str, r_imp: str) -> bool:
+    """A passive duty with a thing as its subject became an imperative on that thing ("The API key should be stored
+    in a vault" -> "Store the API key in a vault"; "Old logs must not be kept" -> "Do not keep old logs")."""
+    m = PASSIVE_DUTY.search(o)
+    if not m:
+        return False
+    part = m.group(3).lower()
+    stems = {part, part[:-1], part[:-2], part[:-3]} if part.endswith("ed") else {part, IRREGULAR_PARTICIPLES.get(part, part)}
+    stems = {x for x in stems if len(x) >= 3}
+    neg = r"(?:do\s+not|don['’]t|never)\s+" if m.group(2) else ""
+    lead = re.match(r"\W*" + neg + r"([a-z]+)\s+(?:the|a|an|your|all|each|every|any|this|these|those)?\s*(.*)$", r_imp, re.IGNORECASE)
+    if not lead or lead.group(1).lower() not in stems:
+        return False
+    head = m.group(1).split()[-1]
+    return bool(re.search(r"\b" + re.escape(head) + r"\b", lead.group(2), re.IGNORECASE))
 
 
 def _step_made_imperative(o: str, r: str) -> bool:
@@ -2420,8 +2656,8 @@ def compare(orig_text: str, rev_text: str, doc_type: Optional[str] = None, reade
     risks[:] = _dedupe_risks(_cancel_moved_values(risks, orig))
 
     # whole-text checks catch sentences that were deleted, added, split or moved
-    o_nums = numbers(EVERY_N_RX.sub(" ", orig_all))
-    r_nums = numbers(EVERY_N_RX.sub(" ", " ".join(s.masked for s in rev.sentences)))
+    o_nums = numbers(EVERY_N_RX.sub(" ", _rate_text(orig_all)))
+    r_nums = numbers(EVERY_N_RX.sub(" ", _rate_text(" ".join(s.masked for s in rev.sentences))))
     reported_o: Counter[str] = Counter()
     reported_r: Counter[str] = Counter()
     for r in risks:
@@ -2433,7 +2669,9 @@ def compare(orig_text: str, rev_text: str, doc_type: Optional[str] = None, reade
     closing_r = set(_trailing_closing([b.lines[0].content for b in rev.blocks if b.kind == "heading"]))
     closing_nums = numbers(" ".join(h for h in _trailing_closing([b.lines[0].content for b in orig.blocks
                                                                   if b.kind == "heading"]) if h not in closing_r))
-    lost = sorted(n for n in set(o_nums) - set(r_nums) if not reported_o.get(n) and not closing_nums.get(n))
+    announced = count_announcements(orig_all, rev_all)
+    lost = sorted(n for n in set(o_nums) - set(r_nums) if not reported_o.get(n) and not closing_nums.get(n)
+                  and not (announced.get(n, 0) >= o_nums[n]))
     gained = sorted(n for n in set(r_nums) - set(o_nums) if not reported_r.get(n))
     if lost or gained:
         risks.append(Risk("number", True, "Number missing from or added to the whole text: "

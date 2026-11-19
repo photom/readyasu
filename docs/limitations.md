@@ -41,6 +41,7 @@
 - A decimal's trailing zero is ignored ("0.50" equals 0.5, "1.0" equals 1), except after a product or version word ("Python 3.10", "Node 18.20", "version 2.10"); a version written without such a word ("3.10 is out") is compared as 3.1.
 - "unable to" counts as a negation ("could not"); "failed to" does not, so "failed to deliver on time" → "delivered late" passes, and so does "failed to deliver" → "delivered".
 - Role and term acronyms (CEO, ARR, QA...) are compared only when one replaces another in the same sentence; one that disappears is listed only under the words that disappeared.
+- Harmless rewordings are recognized by form, so a real change written in the same form passes: "currently" dropped before an -ing verb or "in beta", a list count dropped while its items stay, "not X" → "rather than X" before the same word, "not clear" → "unclear", "still pending" → "not approved yet", "you should X" → "X", and "may/might/could" + "possibly" → the modal alone. A dropped restrictive "who"/"that" clause is checked only on a plural subject that starts the sentence.
 
 ## What has been tested
 

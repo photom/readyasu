@@ -1237,3 +1237,223 @@ def test_phase0_correct_joins_are_not_swaps(orig: str, rev: str) -> None:
 def test_phase0_wrong_join_with_need_is_a_swap() -> None:
     assert "negation" in kinds("We didn't need a new tool. We needed a shared way to use the old one.\n",
                                "We needed a new tool, not a shared way to use the old one.\n")
+
+
+# loop 1: false positives on harmless rewrites, each with a nearby change that stays caught
+
+@pytest.mark.parametrize(("orig", "rev"), [
+    ("The service is currently in preview.\n", "The service is in preview.\n"),
+    ("Support is currently reviewing your ticket.\n", "Support is reviewing your ticket.\n"),
+    ("The bridge is currently closed.\n", "The bridge is still closed.\n"),
+])
+def test_loop1_ongoing_currently_dropped(orig: str, rev: str) -> None:
+    assert kinds(orig, rev) == []
+
+
+def test_loop1_currently_on_a_plain_state_still_counted() -> None:
+    assert "condition" in kinds("Currently, shipping is free.\n", "Shipping is free.\n")
+
+
+@pytest.mark.parametrize(("orig", "rev"), [
+    ("We support two platforms: Linux and macOS.\n", "We support Linux and macOS.\n"),
+    ("There are four steps to follow: plan, build, test and ship.\n", "Plan, build, test and ship.\n"),
+    ("There are two causes. First, the disk filled up. Second, the alert was muted.\n",
+     "First, the disk filled up. Second, the alert was muted.\n"),
+])
+def test_loop1_count_announcement_dropped(orig: str, rev: str) -> None:
+    assert kinds(orig, rev) == []
+
+
+@pytest.mark.parametrize(("orig", "rev"), [
+    ("We support two platforms: Linux and macOS.\n", "We support Linux.\n"),
+    ("We support three platforms: Linux, macOS and Windows.\n", "We support Linux and macOS.\n"),
+    ("We support two platforms.\n", "We support several platforms.\n"),
+])
+def test_loop1_count_with_a_dropped_item_still_counted(orig: str, rev: str) -> None:
+    assert "number" in kinds(orig, rev)
+
+
+@pytest.mark.parametrize(("orig", "rev"), [
+    ("If the build fails, you should clear the cache.\n", "If the build fails, clear the cache.\n"),
+    ("The token should be kept in a secrets manager.\n", "Keep the token in a secrets manager.\n"),
+    ("Old snapshots must not be shared publicly.\n", "Do not share old snapshots publicly.\n"),
+])
+def test_loop1_should_or_passive_duty_as_imperative(orig: str, rev: str) -> None:
+    assert "obligation" not in kinds(orig, rev)
+
+
+@pytest.mark.parametrize(("orig", "rev"), [
+    ("You should clear the cache.\n", "You can clear the cache.\n"),
+    ("The token should be kept in a secrets manager.\n", "The token is kept in a secrets manager.\n"),
+    ("The patch should fix the crash.\n", "The patch fixes the crash.\n"),
+])
+def test_loop1_should_still_counted_without_an_imperative(orig: str, rev: str) -> None:
+    assert "obligation" in kinds(orig, rev)
+
+
+@pytest.mark.parametrize(("orig", "rev"), [
+    ("Please note that the lab is closed on Monday.\n", "The lab is closed on Monday.\n"),
+    ("Please find attached the signed contract.\n", "The signed contract is attached.\n"),
+    ("Please don't hesitate to call me.\n", "Call me anytime.\n"),
+])
+def test_loop1_courtesy_please_is_no_request(orig: str, rev: str) -> None:
+    assert "request" not in kinds(orig, rev)
+
+
+def test_loop1_real_please_still_counted() -> None:
+    assert "request" in kinds("Please return the badge by Friday.\n", "Return the badge by Friday.\n")
+
+
+@pytest.mark.parametrize(("orig", "rev"), [
+    ("Ship it to Berlin, not to the Paris office.\n", "Ship it to Berlin rather than to the Paris office.\n"),
+    ("Don't text the client; phone them instead.\n", "Phone the client instead of texting them.\n"),
+    ("The total is 12, not 15.\n", "The total is 12 rather than 15.\n"),
+])
+def test_loop1_not_rewritten_as_rather_than(orig: str, rev: str) -> None:
+    assert "negation" not in kinds(orig, rev)
+
+
+def test_loop1_rather_than_on_the_other_side_still_counted() -> None:
+    assert "negation" in kinds("Ship it to Berlin, not to the Paris office.\n",
+                               "Ship it to the Paris office rather than to Berlin.\n")
+
+
+@pytest.mark.parametrize(("orig", "rev"), [
+    ("It is not clear who owns the bucket.\n", "It is unclear who owns the bucket.\n"),
+    ("The backup has not been tested.\n", "The backup is untested.\n"),
+    ("The supplier hasn't confirmed the price.\n", "The price is unconfirmed.\n"),
+    ("The root cause has not been identified.\n", "The root cause is unknown.\n"),
+    ("The budget is still pending.\n", "The board has not approved the budget yet.\n"),
+    ("We are still waiting for the auditor.\n", "The auditor has not replied yet.\n"),
+])
+def test_loop1_negation_restated(orig: str, rev: str) -> None:
+    assert kinds(orig, rev) == []
+
+
+@pytest.mark.parametrize(("orig", "rev"), [
+    ("The backup has not been tested.\n", "The backup is tested.\n"),
+    ("The budget is approved.\n", "The board has not approved the budget yet.\n"),
+    ("The backup has not been tested.\n", "The backup is unencrypted.\n"),
+])
+def test_loop1_negation_changes_still_counted(orig: str, rev: str) -> None:
+    assert kinds(orig, rev)
+
+
+@pytest.mark.parametrize(("orig", "rev"), [
+    ("Users might possibly lose unsaved work.\n", "Users might lose unsaved work.\n"),
+    ("You may potentially need a new token.\n", "You may need a new token.\n"),
+    ("We think it's likely that the cable is loose.\n", "The cable is likely loose.\n"),
+    ("The painting is believed to be a copy.\n", "The painting is thought to be a copy.\n"),
+])
+def test_loop1_hedge_kept_in_another_form(orig: str, rev: str) -> None:
+    assert "certainty" not in kinds(orig, rev)
+
+
+@pytest.mark.parametrize(("orig", "rev"), [
+    ("Users might possibly lose unsaved work.\n", "Users lose unsaved work.\n"),
+    ("The painting is thought to be a copy.\n", "The painting is a copy.\n"),
+])
+def test_loop1_dropped_hedge_still_counted(orig: str, rev: str) -> None:
+    assert "certainty" in kinds(orig, rev)
+
+
+@pytest.mark.parametrize(("orig", "rev"), [
+    ("Don't forget to lock the door.\n", "Remember to lock the door.\n"),
+    ("Payment is due no later than March 3.\n", "Payment is due March 3 at the latest.\n"),
+])
+def test_loop1_negation_idioms(orig: str, rev: str) -> None:
+    assert "negation" not in kinds(orig, rev)
+
+
+@pytest.mark.parametrize(("orig", "rev"), [
+    ("The backup runs every 12 hours.\n", "The backup runs every twelve hours.\n"),
+    ("The index is rebuilt every 30 minutes.\n", "The index is rebuilt every thirty minutes.\n"),
+    ("Plans start at $5/month.\n", "Plans start at $5 per month.\n"),
+    ("The council meets four times a year.\n", "The council meets quarterly.\n"),
+    ("The hotline is staffed 24/7.\n", "The hotline is staffed around the clock.\n"),
+    ("We demo every other Tuesday.\n", "We demo every two weeks, on Tuesdays.\n"),
+    ("The shop is open Monday through Friday.\n", "The shop is open on weekdays.\n"),
+    ("Dana will call on Tuesday.\n", "Dana will call on Tuesday (Tue).\n"),
+    ("Files larger than 4 GB are skipped.\n", "Files over 4 GB are skipped.\n"),
+])
+def test_loop1_same_number_written_another_way(orig: str, rev: str) -> None:
+    assert kinds(orig, rev) == []
+
+
+@pytest.mark.parametrize(("orig", "rev"), [
+    ("The backup runs every 12 hours.\n", "The backup runs every twenty hours.\n"),
+    ("Plans start at $5/month.\n", "Plans start at $5 per year.\n"),
+    ("The council meets four times a year.\n", "The council meets monthly.\n"),
+    ("The shop is open Monday through Friday.\n", "The shop is open Monday through Thursday.\n"),
+    ("Files larger than 4 GB are skipped.\n", "Files under 4 GB are skipped.\n"),
+])
+def test_loop1_number_changes_still_counted(orig: str, rev: str) -> None:
+    assert "number" in kinds(orig, rev) or "approximation" in kinds(orig, rev)
+
+
+@pytest.mark.parametrize(("orig", "rev"), [
+    ("Please submit the form before the deadline.\n", "Please submit the form ahead of the deadline.\n"),
+    ("Exceptions are approved on a case-by-case basis.\n", "Exceptions are approved case by case.\n"),
+    ("A parking pass is available upon request.\n", "A parking pass is available on request.\n"),
+])
+def test_loop1_condition_kept_in_another_form(orig: str, rev: str) -> None:
+    assert "condition" not in kinds(orig, rev)
+
+
+def test_loop1_condition_dropped_still_counted() -> None:
+    assert "condition" in kinds("A parking pass is available upon request.\n", "A parking pass is available.\n")
+
+
+@pytest.mark.parametrize(("orig", "rev"), [
+    ("Members are exempt unless their lease states otherwise.\n", "Members are exempt unless their lease says otherwise.\n"),
+    ("Some customers reported delays at checkout.\n", "Some customers said checkout was slow.\n"),
+    ("Economists say inflation will ease.\n", "Economists expect inflation to ease.\n"),
+])
+def test_loop1_hearsay_kept_or_not_hearsay(orig: str, rev: str) -> None:
+    assert "hearsay" not in kinds(orig, rev)
+
+
+def test_loop1_dropped_attribution_still_counted() -> None:
+    assert "hearsay" in kinds("Economists expect inflation to ease.\n", "Inflation will ease.\n")
+
+
+def test_loop1_dropped_relative_restriction_counted() -> None:
+    assert "scope" in kinds("Tenants who have paid the deposit can collect keys on Monday.\n",
+                            "Tenants can collect keys on Monday.\n")
+
+
+def test_loop1_relative_restriction_reworded_not_counted() -> None:
+    assert "scope" not in kinds("Tenants who have paid the deposit can collect keys on Monday.\n",
+                                "Tenants can collect keys on Monday once they have paid the deposit.\n")
+
+
+@pytest.mark.parametrize(("orig", "rev", "kind"), [
+    ("These logs deserve a closer look.\n", "These logs need attention.\n", "obligation"),
+    ("No account required.\n", "You don't need an account.\n", "obligation"),
+    ("Sign-off is not required for small fixes.\n", "Small fixes do not need sign-off.\n", "permission"),
+    ("The tenant is responsible for paying the utilities.\n", "The tenant must pay the utilities.\n", "obligation"),
+])
+def test_loop1_obligation_and_permission_forms(orig: str, rev: str, kind: str) -> None:
+    assert kind not in kinds(orig, rev)
+
+
+@pytest.mark.parametrize(("orig", "rev"), [
+    ("These logs deserve a closer look.\n", "These logs need a cleanup.\n"),
+    ("An account is optional.\n", "You need an account.\n"),
+    ("The tenant pays the utilities.\n", "The tenant is responsible for paying the utilities.\n"),
+])
+def test_loop1_obligation_changes_still_counted(orig: str, rev: str) -> None:
+    assert "obligation" in kinds(orig, rev)
+
+
+@pytest.mark.parametrize(("orig", "rev"), [
+    ("Let me know if Monday suits you.\n", "Does Monday suit you?\n"),
+    ("Please let me know if the room is free.\n", "Is the room free?\n"),
+    ("I wanted to check whether the invoice was paid.\n", "Was the invoice paid?\n"),
+])
+def test_loop1_indirect_question_asked_directly(orig: str, rev: str) -> None:
+    assert kinds(orig, rev) == []
+
+
+def test_loop1_new_question_still_counted() -> None:
+    assert "question" in kinds("The room is free.\n", "Is the room free?\n")
