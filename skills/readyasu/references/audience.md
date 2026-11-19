@@ -46,7 +46,7 @@ Ask once, before rewriting, only when the answer changes the rewrite (for exampl
 - Ask at most once per request, even when there are several drafts.
 - An answer such as "up to you", or no answer, leaves the value undecided; do not ask again.
 - Do not mix questions about facts into this question; they go with your answer after the rewrite (`fact-recovery.md`).
-- For promo, do not ask new fact questions; ask only about claims that look exaggerated (`doc-types/promo.md`).
+- For promo, ask no new fact questions except "Not confirmed" items from your own draft (`references/fact-recovery.md` section 6); otherwise ask only about claims that look exaggerated (`doc-types/promo.md`).
 
 ## 5. When you do not decide
 
@@ -94,7 +94,7 @@ Never rephrase class E, terms the original defines, words that correspond to a h
 
 ## 10. How to write "Needs an explanation"
 
-- Put it under "Questions for the writer" (create the heading for it if there are no other questions). Form: `- Needs an explanation: "TTL" (paragraph 3; not explained in the original or material)`. Never put it in the body.
+- Put it under "Questions for the writer" (create the heading for it if there are no other questions; when told "don't ask", follow SKILL.md Step 1). Form: `- Needs an explanation: "TTL" (paragraph 3; not explained in the original or material)`. Never put it in the body.
 - Up to three, counted separately from the three questions. When there are more, choose headings, the first paragraph and words that recur, and add "N more places".
 - Do not draft an explanation for each term; the writer writes it.
 - Do not output it for expert readers, when the reader is not decided or only inferred, or when the user wants only the text.

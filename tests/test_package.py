@@ -84,6 +84,9 @@ def test_versions_agree() -> None:
 
 def test_skill_license_copied() -> None:
     assert (SKILL / "LICENSE").read_text(encoding="utf-8") == (ROOT / "LICENSE").read_text(encoding="utf-8")
+    unicode = (ROOT / "UNICODE-LICENSE.txt").read_text(encoding="utf-8")
+    assert "UNICODE LICENSE" in unicode
+    assert (SKILL / "UNICODE-LICENSE.txt").read_text(encoding="utf-8") == unicode
 
 
 def test_list_files_compile() -> None:

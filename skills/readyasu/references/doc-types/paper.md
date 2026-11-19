@@ -9,6 +9,7 @@ Lint rules exempted: none
 - "Significant" in the statistical sense, "robust" in the statistical or engineering sense, "state of the art" when compared with cited work.
 - Passive voice in methods ("Samples were collected"), "we" for the authors.
 - Citations in any style; keep their form and position.
+- Field terms: do not rephrase them or add explanations in the body, even for a specified general reader; list "Needs an explanation" lines instead (this overrides audience.md section 8).
 
 ## 2. Still fix
 

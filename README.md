@@ -97,4 +97,4 @@ The checks catch fixed patterns only. Places without findings still need to be r
 
 ## License
 
-The code and documents in this repository are released under the [MIT License](./LICENSE). readyasu is derived from [yomiyasu](https://github.com/nanaism/yomiyasu) by nanaism (Aiichiro Oga), also released under the MIT License; its copyright notice is kept in [LICENSE](./LICENSE). readyasu is not an official part of the yomiyasu project.
+The code and documents in this repository are released under the [MIT License](./LICENSE). readyasu is derived from [yomiyasu](https://github.com/nanaism/yomiyasu) by nanaism (Aiichiro Oga), also released under the MIT License; its copyright notice is kept in [LICENSE](./LICENSE). readyasu is not an official part of the yomiyasu project. The emoji code point list in `readyasu_text.py` is derived from Unicode data; its copyright and permission notice is in [UNICODE-LICENSE.txt](./UNICODE-LICENSE.txt).

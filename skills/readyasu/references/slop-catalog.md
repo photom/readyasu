@@ -30,7 +30,7 @@ Rewrite events and technical operations described with a metaphor into plain wor
 | skyrocket | "sales skyrocketed" | "rose sharply" with the number if given. |
 | elevate | "elevate your writing" | "improve", or say what changes. |
 | bridge the gap | "bridges the gap between design and code" | Say what connects to what ("generates code from design files"), only from the original or material; otherwise keep and ask. |
-| quietly break / silently brought down | "a misconfiguration quietly broke the export" | Write what was missing only when the text says it ("without an error message", "without an alert"); otherwise keep the original. Keep "fails silently" / "silently fails" in technical text: it is an established term. Do not write "without anyone noticing" unless the text says nobody noticed. |
+| quietly break / silently brought down | "a misconfiguration quietly broke the export" | Write what was missing only when the text says it ("without an error message", "without an alert") for the whole event (a later alert or page limits it: "no alert fired until 14:26"); otherwise keep the original. Keep "fails silently" / "silently fails" in technical text: it is an established term. Do not write "without anyone noticing" unless the text says nobody noticed. |
 
 ---
 
@@ -71,7 +71,7 @@ Words that appear far more often in AI text than in human text of the same kind.
 | underscore, highlight, showcase | "underscores the importance of" | "shows", or state the importance directly. |
 | intricate, nuanced, multifaceted | "an intricate interplay" | Name the parts, only from the original or material; otherwise keep and ask. |
 | holistic, comprehensive | "a holistic approach" | Say what it covers, only from the original or material; otherwise keep and ask. |
-| ever-evolving, fast-paced, cutting-edge, state-of-the-art | "in today's fast-paced world" | Delete the opener. Keep "state of the art" in research papers comparing with prior results. |
+| ever-evolving, fast-paced, cutting-edge, state-of-the-art | "in today's fast-paced world" | Delete the opener. Elsewhere ("our cutting-edge parser"), say what is new or fast only from the original or material; otherwise keep and ask. Keep "state of the art" in research papers comparing with prior results. |
 | game-changer, revolutionary, groundbreaking | "a game-changing feature" | State the change, only from the original or material; otherwise keep and ask. In promo, keep energy but ask about unsupported claims. |
 | boast | "the app boasts a clean UI" | "has". |
 | meticulous(ly) | "meticulously crafted" | Say what care was taken, only from the original or material; otherwise keep and ask. |
@@ -81,7 +81,7 @@ Words that appear far more often in AI text than in human text of the same kind.
 
 ## 4. Inflated words for ordinary experiences
 
-Do not describe small personal experiences or routine technical choices with grand words: "profound", "transformative", "epiphany", "masterpiece", "symphony", "odyssey", "saga", "quest", "magic", "alchemy", "elegant dance". "Removing the noise of daily life revealed the tool's true essence" → "Away from the usual rush, it became clear what the tool really is." (Keep the original's subject: do not add "I" when the original has none.) Do not add proper nouns or big lessons that the original does not have.
+Do not describe small personal experiences or routine technical choices with grand words: "profound", "transformative", "epiphany", "masterpiece", "symphony", "odyssey", "saga", "quest", "magic", "alchemy", "elegant dance". "Removing the noise of daily life revealed the tool's true essence" → "With the noise of daily life gone, it became clear what the tool really is." (Keep the original's subject: do not add "I" when the original has none.) Do not add proper nouns or big lessons that the original does not have.
 
 ---
 
@@ -95,7 +95,7 @@ Do not describe small personal experiences or routine technical choices with gra
 | valuable insights, actionable insights | "provides valuable insights" | Say what the reader learns, only from the original or material; otherwise keep and ask. |
 | best practices | "follow best practices" | Name the practice if the original does; otherwise keep. |
 | optimize, streamline, enhance | "streamline your process" | Say which step got shorter or what changed, only from the original or material; otherwise keep and ask. |
-| empower, enable | "enables teams to scale" | Say what teams can now do, only from the original or material; otherwise keep and ask. |
+| empower, enable | "enables teams to scale" | "lets" or "allows" keeps the meaning (section 1). When what teams can now do is itself vague ("scale"), say it only from the original or material; otherwise keep it and ask. |
 
 ---
 

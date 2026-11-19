@@ -12,7 +12,7 @@ Also not reported in scripts: "thank you for your attention" (a closing line), r
 
 ## 2. Still fix
 
-- Hosts' scripted lines in non-fiction (podcasts, videos, talks) are the writer's prose: fix stock vocabulary, inflated words and clause-splicing dashes there; keep slang and interjections only when they are the speaker's style.
+- Hosts' scripted lines in non-fiction (podcasts, videos, talks), meaning lines written before recording (an intro, a segment lead-in, an ad read), are the writer's prose: fix stock vocabulary, inflated words and clause-splicing dashes there; keep slang and interjections only when they are the speaker's style. A transcript of recorded speech is a quotation: keep every speaker's words as spoken, the host's included (SKILL.md keeps intensifiers in quotations and dialogue). When you cannot tell whether a host line was scripted, keep it and ask once.
 
 - Stage directions with stock AI vocabulary ("A tapestry of emotions plays across her face").
 

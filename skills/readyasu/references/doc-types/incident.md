@@ -26,5 +26,5 @@ Lint rules exempted: excess_list
 
 | Original | Handling |
 |---|---|
-| A perfect storm of misconfigurations silently brought down the API. | "Misconfigurations together silently made the API unavailable"; replace "silently" with "without triggering an alert" only if the report says no alert fired. Give a count only if the report gives one |
+| A perfect storm of misconfigurations silently brought down the API. | "Misconfigurations together silently made the API unavailable"; replace "silently" with "without triggering an alert" only if the report says no alert fired at any point; when a later alert or page appears ("14:26 Priya acknowledged the page"), keep "silently" or scope it with the report's own time ("no alert fired until 14:26"). Give a count only if the report gives one |
 | Root cause: likely a stale DNS cache (under investigation). | Keep |
