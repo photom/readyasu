@@ -85,7 +85,7 @@ python3 readyasu_check.py verify --final FINAL|- [--state-dir DIR] [--json]
 
 ### Runs and attempts
 
-A run groups the attempts on one original. A new attempt continues the previous run only when the original (in compose mode, the material, whether or not it was adopted as the original) is the same, the working folder is the same, the session ID is the same (each session ID keeps its own run), and the previous attempt was less than two hours ago. `--new-run` always starts a new run; use it only on the first run of a new request. The revision count comes from the run's latest record, so `--run-id` resumes a run with its own count. An attempt whose final draft is identical to the previous attempt's is not counted as a revision.
+A run groups the attempts on one original. A new attempt continues the previous run only when the original (in compose mode, the material, whether or not it was adopted as the original) is the same, the working folder is the same, the session ID is the same (each session ID keeps its own run; each working folder too), and the previous attempt was less than two hours ago. `--new-run` always starts a new run; use it only on the first run of a new request. The revision count comes from the run's latest record, so `--run-id` resumes a run with its own count. An attempt whose final draft is identical to the previous attempt's is not counted as a revision.
 
 ### verify
 

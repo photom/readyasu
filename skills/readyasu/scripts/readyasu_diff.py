@@ -121,7 +121,8 @@ HEARSAY = _rx(r"\b(?:reportedly|allegedly|rumou?red)\b|\baccording\s+to\b|\b(?:i
               r"|\b(?:people|colleagues|users|customers|experts|critics|others|they|sources|analysts|reports|some|many)\s+(?:say|report|suggest)\b"
               r"|\b(?:we|i)\s+(?:were|was)\s+told\b"
               r"|\b(?:claims?|claimed|noted|mentioned|stated)\s+(?=(?:the|a|an|it|we|they|this|that|our|its|there)\b)"
-              r"|\btells?\s+us\b|\bper\s+(?:the|our|their|its)\s+(?!(?:hour|minute|second|day|week|month|year|user|request|instance|"
+              r"|\b(?:docs|documents|reports|studies|sources|notes|guidelines|records)\s+(?:say|state)\b|\bstates\s+that\b"
+              r"|\btells?\s+us\b|\bper\s+(?:the|our|their|its)\s+(?!(?:conversation|call|discussion|meeting|agreement|email|chat)\b)(?!(?:hour|minute|second|day|week|month|year|user|request|instance|"
               r"unit|seat|item)s?\b)\w+|(?-i:\b[Pp]er\s+[A-Z][a-z][\w'’-]*)"
               r"|\b(?:we['’]re|i['’]m|we\s+are|i\s+am)\s+told\b")
 REQUEST = _rx(r"\bplease\b|\b(?:could|would|can|will)\s+you\b|\bkindly\b|\bwe\s+ask\s+(?:that|you)\b"
@@ -141,7 +142,8 @@ PARTIAL_DET = _rx(r"\b(?:some|several|many|few)\b|\bpart\s+of\b"
                   r"|(?<!\bbe\s)(?<!\bam\s)(?<!['’]m\s)(?<!\bis\s)(?<!\bare\s)(?<!\bwas\s)(?<!\bfeel\s)(?<!\bnot\s)"
                   r"\bcertain\s+(?!that\b|of\b|about\b)(?=[a-z])")
 MOST_ANY = _rx(r"(?<!\bthe\s)(?<!\bat\s)\bmost\s+(?![a-z]+ly\b|of\s+all\b|important\b|notabl)(?=[a-z])")
-PARTIAL_ADV = _rx(r"\b(?:often|usually|mostly|partly|partially)\b|\bin\s+some\s+cases\b")
+PARTIAL_ADV = _rx(r"\b(?:often|usually|mostly|partly|partially|typically|generally|normally|ordinarily)\b"
+                  r"|\bin\s+(?:some\s+cases|general)\b|\bas\s+a\s+rule\b|\bfor\s+the\s+most\s+part\b")
 STILL_PARTIAL = _rx(r"\b(?:some|several|many|most|few|certain|often|usually|mostly|partly|partially|typically|generally|"
                     r"normally|commonly|frequently|numerous|majority|specific|rarely|seldom|various|occasionally|"
                     r"sometimes|particular|select(?:ed)?|portion|minority|handful|lots?)\b|\bin\s+(?:some|many|most)\s+cases\b"
@@ -425,10 +427,24 @@ def mask_month_may(text: str) -> str:
     return re.sub(r"\bMay\b", repl, text)
 
 
+_ABBR_TOKEN = re.compile(r"\b(" + "|".join(sorted(DATE_ABBR, key=len, reverse=True)) + r")\b\.?")
+_ABBR_BEFORE = re.compile(r"(?:\(|(?:by|on|until|after|every|before|due|from|to|and|or)\s*:?\s*|[-–]\s*|:\s+)$", re.IGNORECASE)
+_ABBR_AFTER = re.compile(r"^\s*(?:\)|[-–]|and\b|or\b|,?\s*\d)")
+
+
 def dates(text: str) -> Counter[str]:
     """Month and weekday names, abbreviations normalized ("Fri" -> "Friday")."""
     c: Counter[str] = Counter()
-    for m in DATE_WORD.finditer(mask_month_may(text)):
+    text = mask_month_may(text)
+    spans: list[tuple[int, int]] = []
+    for m in DATE_WORD.finditer(text):
+        spans.append((m.start(), m.end()))
+    for m in _ABBR_TOKEN.finditer(text):
+        if any(a <= m.start() < b for a, b in spans):
+            continue
+        if _ABBR_BEFORE.search(text[max(0, m.start() - 10):m.start()]) or _ABBR_AFTER.match(text[m.end():m.end() + 8]):
+            c[DATE_ABBR[m.group(1)]] += 1  # "(Fri)", "Due: Fri", "Tue and Thu", "Mon-Fri"
+    for m in DATE_WORD.finditer(text):
         if m.group(1):
             c["May" if m.group(1) == "MONTHMAY" else DATE_FULL[m.group(1)]] += 1
         else:
@@ -535,7 +551,7 @@ def denied_words(text: str) -> set[str]:
 
 EVERY_N_RX = re.compile(r"\bevery\s+(?:\d+|two|three|four|five|six|seven|eight|nine|ten|twelve)\s+(?:second|minute|hour|day|"
                         r"week|month|year)s\b", re.IGNORECASE)
-EVERY_N = {"every other week": "fortnight", "every 2 weeks": "fortnight", "every two weeks": "fortnight",
+EVERY_N = {"every 2 weeks": "fortnight", "every other week": "fortnight", "every two weeks": "fortnight",
            "every 7 days": "week", "every seven days": "week", "every 24 hours": "day", "every 12 months": "year",
            "every twelve months": "year", "every 6 months": "half-year", "every six months": "half-year",
            "every 3 months": "quarter", "every three months": "quarter"}
@@ -551,6 +567,8 @@ def frequencies(text: str) -> Counter[str]:
                   " ", text, flags=re.IGNORECASE)  # a point in time, not a frequency
     for m in FREQUENCY.finditer(text):
         phrase = re.sub(r"\s+", " ", m.group(0).lower())
+        phrase = re.sub(r"\b(two|three|four|five|six|seven|eight|nine|ten|twelve)\b", lambda w: NUMBER_WORDS[w.group(1)], phrase)
+        phrase = re.sub(r"^every other (\w+)$", lambda w: f"every 2 {w.group(1)}s", phrase)
         phrase = EVERY_N.get(phrase, phrase)
         if re.fullmatch(r"every (?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)", phrase):
             phrase = "week"
@@ -569,6 +587,7 @@ def frequencies(text: str) -> Counter[str]:
 
 
 def conditions(text: str) -> list[str]:
+    text = re.sub(r"\blet\s+(?:me|us|them|him|her|[A-Z]\w+)\s+know\s+(?=if\b)", "", text, flags=re.IGNORECASE)
     return [m.group(0) for m in CONDITION.finditer(NOT_CONDITION.sub(" ", text))]
 
 
@@ -665,6 +684,8 @@ def names(sentence: str, include_initial: bool = False, lower_words: Optional[se
         word = re.sub(r"['’]s?$", "", word)
         if not word or not word[0].isupper() or word in NAME_STOP or word.upper() in UNIT_CODES:
             continue
+        if "-" in word and all(part in DATE_ABBR or part in DATE_FULL for part in word.split("-")):
+            continue  # "Mon-Fri"
         if i == 0 and not include_initial:
             if lower_words is None or not _initial_name(word, sentence[m.end():], lower_words):
                 continue
@@ -1057,7 +1078,7 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
     every_n = EVERY_N_RX  # "every 2 weeks" is compared as a frequency
     on, rn = numbers(every_n.sub(" ", o)), numbers(every_n.sub(" ", r))
     uneven = len(ch.orig) != len(ch.rev)
-    if uneven and set(on) == set(rn):
+    if uneven and set(on) == set(rn) and not (rn - on):
         rn = on  # a merge or split that drops a repeated number keeps the value
     if on != rn:
         removed = sorted((on - rn).elements())
@@ -1082,7 +1103,7 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
             risk("approximation", True, f"Approximation on {key} changed: {before} → {after}")
     if on == rn:
         uo, ur = unit_pairs(every_n.sub(" ", o)), unit_pairs(every_n.sub(" ", r))
-        if uneven and set(uo) == set(ur):
+        if uneven and set(uo) == set(ur) and not (ur - uo):
             ur = uo
         if uo != ur:
             risk("number", True, "Unit changed: " + ", ".join(sorted((uo - ur).elements())) + " → "
@@ -1114,7 +1135,8 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
         risk("number", True, "Month or weekday changed: " + "; ".join(parts))
 
     o_neg, r_neg = o, r
-    if re.search(r"\bno\s+later\s+than\b", o, re.IGNORECASE) and not re.search(r"(?<!no )\blater\s+than\b", r, re.IGNORECASE):
+    if re.search(r"\bno\s+later\s+than\b", o, re.IGNORECASE) and re.search(r"\bby\b", r, re.IGNORECASE) and \
+            not re.search(r"(?<!no )\blater\s+than\b", r, re.IGNORECASE):
         o_neg = re.sub(r"\bno\s+later\s+than\b", "by", o_neg, flags=re.IGNORECASE)  # "no later than Friday" = "by Friday"
     if STATUS.search(o) and STATUS.search(r):
         o_neg, r_neg = STATUS.sub(" ", o_neg), STATUS.sub(" ", r_neg)  # "TBD" -> "not decided yet" keeps the status
@@ -1226,12 +1248,14 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
 
     obl_o, w_obl_o = obligation_level(o)
     obl_r, w_obl_r = obligation_level(r)
-    governed = re.search(r"\byou(?:['’]ll|\s+will)?(?:['’]re|\s+are)?\s+(?:must|have\s+to|need\s+to|required\s+to)\s+"
+    governed = re.search(r"\byou(?:['’]ll|\s+will)?(?:['’]re|\s+are)?(?:\s+(?:then|also|first|now|going\s+to))?\s+"
+                         r"(?:must|have\s+to|need\s+to|required\s+to)\s+"
                          r"(?:(?:first|then|also|always)\s+)?(not\s+|never\s+)?([a-z]+)", o, re.IGNORECASE)
     neg_imp = r"(?:do\s+not\s+|don['’]t\s+|never\s+)" if governed and governed.group(1) else ""
-    if obl_o == 2 and obl_r == 0 and governed and \
+    r_imp = re.sub(r"^\s*(?:\[![A-Za-z]+\]\s*)?(?:[-*]\s+)?(?:\*\*[^*]+\*\*:?\s*)?", "", (r_st or r).strip())
+    if obl_o == 2 and obl_r == 0 and governed and len(conditions(r)) <= len(conditions(o)) and \
             re.search(r"(?:^|[,;:]\s+)(?:(?:first|then|also|always)\s+)?" + neg_imp + re.escape(governed.group(2)) + r"\b",
-                      (r_st or r).strip(), re.IGNORECASE):
+                      r_imp, re.IGNORECASE):
         pass  # "You will need to restart" -> "Restart": the imperative keeps the instruction
     elif obl_o != obl_r:
         risk("obligation", True, "Obligation strength changed: "
@@ -1297,7 +1321,10 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
             head = am.group(1).lower()
             stem = head[:-1] if head.endswith("s") and len(head) > 3 else head
             mm = re.search(r"\b([A-Za-z][\w-]+)\s+" + re.escape(stem) + r"(?:s|es)?\b", o, re.IGNORECASE)
-            if mm and mm.group(1).lower() not in STOPWORDS | {"all", "every", "each", "any", "per", "a", "an"} and \
+            # the restriction is gone only when its word no longer appears in the revision ("Delete all old backups"
+            # keeps "Delete"; "All subscriptions" lost "Annual")
+            still_there = mm and re.search(r"\b" + re.escape(mm.group(1)) + r"\b", r, re.IGNORECASE)
+            if mm and not still_there and mm.group(1).lower() not in STOPWORDS | {"all", "every", "each", "any", "per", "a", "an"} and \
                     not mm.group(1)[0].isdigit():
                 risk("scope", True, f'Restriction removed: "{mm.group(1)} {head}" → "{am.group(0)}"')
                 break
@@ -1462,11 +1489,10 @@ def _sentence_names(sentences: list[tx.Sentence], proper: set[str]) -> set[str]:
     for x in sentences:
         if x.kind == "heading":
             continue
-        label = LABEL_PREFIX.match(x.masked)
-        masked = x.masked
+        masked = TASK_VERB.sub(lambda m: m.group(1) + m.group(2).lower(), re.sub(r"^\s*\[![A-Za-z]+\]\s*", "", x.masked))
+        label = LABEL_PREFIX.match(masked)
         if label and not (set(re.findall(r"[A-Z][\w'’-]+", label.group(0))) & proper):
             masked = masked[label.end():]  # a label such as "**Faster Startup**:", not a name such as "Dana:"
-        masked = TASK_VERB.sub(lambda m: m.group(1) + m.group(2).lower(), masked)
         x = tx.Sentence(x.text, CITATION.sub(" ", masked), x.line, x.kind, x.block_index)
         found |= set(names(x.masked))
         first = names(x.masked, include_initial=True)[:1]
@@ -1571,6 +1597,8 @@ def _dedupe_risks(risks: list[Risk]) -> list[Risk]:
         if x.kind == "permission" and key in may_can and x.message.lower().endswith(' may"'):
             continue
         if x.kind == "name" and any(y.kind == "name_order" and (y.orig_line, y.rev_line) == key for y in risks):
+            continue
+        if x.kind == "booster" and any(y.kind == "commitment" and (y.orig_line, y.rev_line) == key for y in risks):
             continue
         result.append(x)
     return result
@@ -2077,7 +2105,8 @@ def compare(orig_text: str, rev_text: str, doc_type: Optional[str] = None, reade
     orig_all = " ".join(s.masked for s in orig.sentences)
     rev_all = " ".join(s.masked for s in rev.sentences)
     lower_words = lower_word_set(orig_all, rev_all, materials)
-    proper = {n for x in orig.sentences + rev.sentences for n in names(BOLD_LABEL.sub("", x.masked, count=1))} | \
+    proper = {n for x in orig.sentences + rev.sentences
+              for n in names(BOLD_LABEL.sub("", re.sub(r"^\s*\[![A-Za-z]+\]\s*", "", x.masked), count=1))} | \
         set(names(materials))
     for ch in chunks:
         compare_chunk(ch, doc_type, risks, reviews, orig_all, materials, proper, rev_all)

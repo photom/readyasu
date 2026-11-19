@@ -358,3 +358,30 @@ def test_other_folder_run_keeps_the_index(tmp_path: Path) -> None:
     write(tmp_path / "f.md", "We use a pipeline.\n")
     p = run(["run", "--source", src, "--final", fin, "--state-dir", st, "--no-words"], tmp_path)
     assert "attempt 2" in p.stdout.splitlines()[0]
+
+
+def test_second_folder_keeps_its_own_run(tmp_path: Path) -> None:
+    src = write(tmp_path / "o.md", "We leverage a robust pipeline.\n")
+    st = str(tmp_path / "st")
+    a, b = tmp_path / "a", tmp_path / "b"
+    a.mkdir()
+    b.mkdir()
+    write(tmp_path / "f.md", "We use pipeline 1.\n")
+    run(["run", "--source", src, "--final", str(tmp_path / "f.md"), "--state-dir", st, "--no-words"], a)
+    firsts = []
+    for i in (1, 2, 3):
+        write(tmp_path / "f.md", f"We use pipeline {i}.\n")
+        p = run(["run", "--source", src, "--final", str(tmp_path / "f.md"), "--state-dir", st, "--no-words"], b)
+        firsts.append(p.stdout.splitlines()[0])
+    assert "attempt 1" in firsts[0] and "another folder" in firsts[0]
+    assert "attempt 2" in firsts[1] and "attempt 3" in firsts[2]
+
+
+def test_first_line_with_several_sourced_numbers(tmp_path: Path) -> None:
+    src = write(tmp_path / "o.md", "Sync is faster now. Uploads are faster too.\n")
+    fin = write(tmp_path / "f.md", "Sync takes 2 seconds now. Uploads take 3 seconds too.\n")
+    mat = write(tmp_path / "m.txt", "Sync: 2 seconds. Uploads: 3 seconds.\n")
+    p = run(["run", "--source", src, "--final", fin, "--material", mat, "--state-dir", str(tmp_path / "st"), "--no-words"],
+            tmp_path)
+    first = p.stdout.splitlines()[0]
+    assert "counted meaning risks (of which 2 involve numbers" in first

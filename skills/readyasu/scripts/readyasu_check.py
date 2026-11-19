@@ -359,21 +359,31 @@ def cmd_run(args: argparse.Namespace) -> int:
             if session:
                 # each session keeps its own run on the same original, so interleaved sessions do not reset counts
                 key += "-" + tx.sha256_text(session)[:12]
-            by_source = folder / "index" / "by-source" / f"{key}.json"
+            cwd = str(Path.cwd().resolve())
+            # one index entry per original (and session) and working folder, so each folder keeps its own run
+            index_dir = folder / "index" / "by-source"
+            by_source = index_dir / f"{key}~{tx.sha256_text(cwd)[:12]}.json"
             previous = read_json(by_source) or {}
             if not valid_run_id(str(previous.get("run", ""))):
                 previous = {}
-            cwd = str(Path.cwd().resolve())
             try:
                 age = now_utc().timestamp() - float(previous.get("updated_ts", 0))
             except (TypeError, ValueError):
                 age = RUN_WINDOW_SECONDS + 1
             if args.run_id:
                 run_id = args.run_id
-            elif args.new_run or not previous.get("run") or age > RUN_WINDOW_SECONDS or previous.get("cwd") != cwd:
-                if previous.get("run") and previous.get("cwd") != cwd and age <= RUN_WINDOW_SECONDS and not args.new_run:
-                    other_run = (str(previous["run"]), str(previous.get("cwd")))
+            elif args.new_run or not previous.get("run") or age > RUN_WINDOW_SECONDS:
                 run_id = new_run_id()
+                if not args.new_run and index_dir.is_dir():
+                    for other in sorted(index_dir.glob(f"{key}~*.json")):
+                        data = read_json(other) or {}
+                        try:
+                            fresh = now_utc().timestamp() - float(data.get("updated_ts", 0)) <= RUN_WINDOW_SECONDS
+                        except (TypeError, ValueError):
+                            fresh = False
+                        if other != by_source and fresh and valid_run_id(str(data.get("run", ""))):
+                            other_run = (str(data["run"]), str(data.get("cwd")))
+                            break
             else:
                 run_id = str(previous["run"])
             run_dir = folder / "runs" / run_id
@@ -384,8 +394,9 @@ def cmd_run(args: argparse.Namespace) -> int:
             last = read_json(run_dir / f"attempt-{max(existing)}.json") or {} if existing else {}
             last_final = last.get("final_sha256") or (previous.get("last_final") if previous.get("run") == run_id else None)
             same_as_previous = attempt > 1 and last_final == final_hash
+            fallback = previous.get("revisions", 0) if previous.get("run") == run_id else 0
             try:
-                revisions = int(last.get("revisions", 0) or 0)
+                revisions = int((last.get("revisions") if last else fallback) or 0)
             except (TypeError, ValueError):
                 revisions = 0
             if attempt > 1 and not same_as_previous:
@@ -411,9 +422,8 @@ def cmd_run(args: argparse.Namespace) -> int:
             write_json(record_path, record)
             if diff is not None:
                 record_path.with_suffix(".diff.txt").write_text(str(diff.get("full_diff", "")) + "\n", encoding="utf-8")
-            if other_run is None:  # a run from another folder does not replace that folder's run in the index
-                write_json(by_source, {"run": run_id, "attempts": attempt, "revisions": revisions, "last_final": final_hash,
-                                       "cwd": cwd, "session": session, "updated_ts": now_utc().timestamp()})
+            write_json(by_source, {"run": run_id, "attempts": attempt, "revisions": revisions, "last_final": final_hash,
+                                   "cwd": cwd, "session": session, "updated_ts": now_utc().timestamp()})
             write_json(folder / "index" / "by-final" / f"{final_hash}.json",
                        {"run": run_id, "attempt": attempt, "record": str(record_path.relative_to(folder))})
             write_json(folder / "state.json", {"last_run": run_id, "last_attempt": attempt,
@@ -448,9 +458,10 @@ def cmd_run(args: argparse.Namespace) -> int:
         sourced = sum(1 for r in (diff or {}).get("meaning_risks", [])
                       if r.get("counted") and "elsewhere in the original or material" in str(r.get("message", "")))
         if sourced and meaning_risk:
-            first = first.replace(" counted meaning risk", f" counted meaning risk (of which {sourced} involve numbers "
-                                  "found elsewhere in the original or material; check each against that line)", 1) \
-                if f"{meaning_risk} counted meaning risk" in first else first
+            label = tx.plural(meaning_risk, "counted meaning risk")
+            verb = "involves" if sourced == 1 else "involve"
+            first = first.replace(label, f"{label} (of which {sourced} {verb} numbers found elsewhere in the original or "
+                                  "material; check each against that line)", 1)
         if other_run:
             first += (f" (A run of the same original from another folder exists: {other_run[0]} in {other_run[1]}. If this "
                       f"is a revision of it, run the same command again with --run-id {other_run[0]}.)")

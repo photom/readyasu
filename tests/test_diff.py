@@ -907,9 +907,9 @@ def test_repeated_value_moved_does_not_crash() -> None:
                  "to cancel.\n")
 
 
-def test_guarantees_is_a_booster() -> None:
-    assert "booster" in kinds("The checksum detects corruption.\n",
-                              "The checksum guarantees that corruption is detected.\n", "manual")
+def test_guarantees_counts_once() -> None:
+    assert kinds("The checksum detects corruption.\n", "The checksum guarantees that corruption is detected.\n",
+                 "manual") == ["commitment"]
 
 
 def test_owner_swap_counts_once_with_full_names() -> None:
@@ -961,3 +961,37 @@ def test_heading_colon_removal_is_not_a_review() -> None:
 def test_reference_gap_with_a_version_name() -> None:
     result = diff.compare("x\n", "We should triage this before the 3.8.3 cut, as discussed.\n", want_fact_gaps=True)
     assert [g.kind for g in result.fact_gaps] == ["reference"]
+
+
+@pytest.mark.parametrize(("orig", "rev"), [
+    ("> [!WARNING]\n> Truncating the table removes every row.\n", "> [!WARNING]\n> This removes every row in the table.\n"),
+    ("> [!WARNING]\n> You must not run `drop_all()` on production.\n", "> [!WARNING]\n> Do not run `drop_all()` on production.\n"),
+    ("> **Warning:** You must not run the script twice.\n", "> **Warning:** Do not run the script twice.\n"),
+    ("- Priya: Spearhead the migration plan\n", "- Priya: Lead the migration plan\n"),
+    ("Feel free to reach out if anything is unclear.\n", "Let me know if anything is unclear.\n"),
+    ("Per our conversation, I've attached the revised quote.\n", "As we discussed, I've attached the revised quote.\n"),
+    ("Per the vendor's docs, the limit is 100 requests.\n", "The vendor's docs say the limit is 100 requests.\n"),
+    ("Delete old backups weekly.\n", "Delete all old backups weekly.\n"),
+    ("Backups run every 6 hours.\n", "Backups run every six hours.\n"),
+    ("Rotate logs every 2 days.\n", "Rotate logs every other day.\n"),
+    ("You will then need to run `terraform apply`.\n", "Then run `terraform apply`.\n"),
+    ("Due May 5 (Fri).\n", "Due Friday, May 5.\n"),
+    ("Office hours: Tue and Thu.\n", "Office hours: Tuesday and Thursday.\n"),
+    ("Open Mon-Fri.\n", "Open Monday to Friday.\n"),
+])
+def test_set11_diff_review_harmless(orig: str, rev: str) -> None:
+    assert kinds(orig, rev) == []
+
+
+@pytest.mark.parametrize(("orig", "rev", "kind"), [
+    ("Retries wait 30 seconds, and the timeout is configurable.\n", "Retries wait 30 seconds. The timeout is 30 seconds.\n",
+     "number"),
+    ("You must restart the service.\n", "If you like, restart the service.\n", "obligation"),
+    ("Submit no later than Friday.\n", "Submit after Friday.\n", "negation"),
+])
+def test_set11_diff_review_counted(orig: str, rev: str, kind: str) -> None:
+    assert kind in kinds(orig, rev)
+
+
+def test_typically_gone_is_reviewed() -> None:
+    assert "quantifier_gone" in review_kinds("Builds typically take 5 minutes.\n", "Builds take 5 minutes.\n")
