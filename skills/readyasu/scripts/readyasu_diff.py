@@ -587,6 +587,11 @@ def _has_word(word: str, text: str) -> bool:
     return bool(re.search(r"\b" + re.escape(word) + r"\b", text, flags))
 
 
+def _affirmed(word: str, text: str) -> bool:
+    """The word appears in a clause without a negation."""
+    return any(_has_word(word, c) and not NEGATION.search(c) for c in re.split(r"[.;!?,:]|\s[—–-]\s", text))
+
+
 def denied_words(text: str) -> set[str]:
     """Words denied by "not (the) X", "rather than X", "instead of X", leaving out "not just/only X" (which affirms X)."""
     found: set[str] = set()
@@ -620,8 +625,7 @@ INSTEAD = _rx(r"\b(?:instead\s+of|rather\s+than)\b")
 VERBAL_DENIED = _rx(r"\b(?:(?:do|does|did|will|would|can|could|should|must|may|might)\s+not|(?:do|does|did|wo|would|ca|could|"
                     r"should|must)n['’]t|cannot|never)\s+(?:(?:[a-z]+ly|yet|even|ever|always|still)\s+)?([a-z]+)\s+(?:(?:the|a|an|our|their|your|its|his|her|my|any|both|all|"
                     r"this|that|these|those)\s+)*([a-z][\w-]{2,})")
-COPULA_VERBS = {"be", "been", "being", "seem", "appear", "become", "get", "feel", "look", "sound", "need", "want", "have",
-                "know", "think", "mean"}
+COPULA_VERBS = {"be", "been", "being", "seem", "appear", "become", "get", "feel", "look", "sound", "know", "think", "mean"}
 
 
 EVERY_N_RX = re.compile(r"\bevery\s+(?:\d+|two|three|four|five|six|seven|eight|nine|ten|twelve)\s+(?:second|minute|hour|day|"
@@ -1313,8 +1317,11 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
     else:
         prof_o, prof_r = negation_profile(o_neg), negation_profile(r_neg)
         den_o, den_r = denied_words(o), denied_words(r)
-        swapped_o = {w for w in den_o - den_r if _has_word(w, r)}
-        swapped_r = {w for w in den_r - den_o if _has_word(w, o)}
+        # a swap: the word denied before is now affirmed, and the word now denied was affirmed before
+        # ("We did not choose Redis. We chose Postgres." -> "We chose Redis, not Postgres"); a joined contrast whose
+        # new denied word ("Friday") was only in the negative sentence is not a swap
+        swapped_o = {w for w in den_o - den_r if _affirmed(w, r)}
+        swapped_r = {w for w in den_r - den_o if _affirmed(w, o)}
         if prof_o != prof_r:
             gone = ", ".join(sorted((prof_o - prof_r).elements()))
             new = ", ".join(sorted((prof_r - prof_o).elements()))

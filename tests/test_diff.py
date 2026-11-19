@@ -1218,3 +1218,22 @@ def test_set14_fact_gaps_reference(text: str, listed: bool) -> None:
     assert bool(gaps) is listed
     if listed:
         assert gaps[0].kind == "reference"
+
+
+@pytest.mark.parametrize(("orig", "rev"), [
+    ("We did not ship the fix on Friday. We shipped it on Monday.\n", "We shipped the fix on Monday, not on Friday.\n"),
+    ("The team did not fix the bug in the parser. They fixed it in the lexer.\n",
+     "The team fixed the bug in the lexer, not in the parser.\n"),
+    ("Don't send the report to the whole team. Send it to the leads.\n", "Send the report to the leads, not the whole team.\n"),
+    ("We're not able to extend the discount, but we may be able to waive the setup fee.\n",
+     "We can't extend the discount, but we may be able to waive the setup fee.\n"),
+    ("We didn't need a new tool. We needed a shared way to use the old one.\n",
+     "We needed a shared way to use the old one, not a new tool.\n"),
+])
+def test_phase0_correct_joins_are_not_swaps(orig: str, rev: str) -> None:
+    assert "negation" not in kinds(orig, rev)
+
+
+def test_phase0_wrong_join_with_need_is_a_swap() -> None:
+    assert "negation" in kinds("We didn't need a new tool. We needed a shared way to use the old one.\n",
+                               "We needed a new tool, not a shared way to use the old one.\n")
