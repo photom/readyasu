@@ -8,9 +8,10 @@ The lint and diff scripts read these files. One phrase per line; an optional TAB
 - A phrase matches inside underscore emphasis (`_seamless_`, `__leverage__`), but not inside a snake_case name (`enable_seamless_mode`).
 - Matches inside code and URLs are ignored. Block quotations are ignored too, except callouts (`> **Note:**`, `> [!WARNING]`, `> 💡 **Tip:**`, `> **⚠️ Warning:**`, `> *Note:*`), which are the writer's own text.
 - When matches overlap, lint reports one of them: the more severe one, then a project word, then the longer phrase ("plays a crucial role" rather than "crucial" inside it). A match exempted by `--doc-type` does not hide an overlapping match that is reported.
+- An entry in the project's `.readyasu-words/allow.txt` hides every match that lies inside one of its occurrences, so allowing "robust statistics" or "plays a crucial role" also hides "robust" or "crucial" there (see docs/tools.md).
 - The document title (the first level-1 heading) is not checked against these lists.
 - A few single entries are exempt in some doc types, set in `ENTRY_EXEMPT` in `readyasu_lint.py`: "thank you for your attention" (closing-courtesies.txt) in slides and script, and "key takeaways" (ai-vocabulary.txt) in slides. `--help` lists them.
-- In slides, matches of chat-residue.txt, closing-courtesies.txt and chat-interjections.txt in the notes to the requester before the first slide or after the last one are not reported, nor are other list matches inside them ("Absolutely" in "Absolutely! Here's a revised version of your deck:"); see review-points.md section 3.
+- In slides, no match in the notes to the requester before the first slide or after the last one is reported (from any list, and no other rule's finding either: "Absolutely! Here's a revised version of your deck:", "Let me know if you'd like me to add speaker notes!"); see review-points.md section 3.
 
 | File | Rule | Severity |
 |---|---|---|

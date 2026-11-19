@@ -541,3 +541,26 @@ def test_read_text_accepts_a_named_pipe(tmp_path) -> None:  # noqa: ANN001
     for name in (str(tmp_path), str(tmp_path / "missing.md")):
         with pytest.raises(tx.InputError, match="not a file"):
             tx.read_text(name)
+
+
+def test_setext_underline_is_marked() -> None:
+    lines = tx.classify("Title\n=====\n\nText\n\n---\n\nSub\n---\n")
+    assert [(ln.kind, ln.setext) for ln in lines if ln.kind == "rule"] == [("rule", True), ("rule", False),
+                                                                          ("rule", True)]
+
+
+def test_phrase_regex_without_wildcard_keeps_a_literal_star() -> None:
+    import re
+    literal = re.compile(tx.phrase_regex("C*", wildcard=False), re.I)
+    assert literal.search("use C* here") and not literal.search("use Cpp here")
+    assert re.compile(tx.phrase_regex("C*"), re.I).search("use Cpp here")
+
+
+def test_allow_patterns_match_like_list_phrases() -> None:
+    words = tx.Words(allow=["plays a crucial role", "it's worth noting"])
+    patterns = dict(words.allow_patterns())
+    assert patterns["plays a crucial role"].search("Caching PLAYS a crucial\nrole here")
+    assert patterns["it's worth noting"].search("It’s worth noting that")
+    assert not patterns["plays a crucial role"].search("replays a crucial role")
+    words.allow.append("robust statistics")
+    assert len(words.allow_patterns()) == 3
