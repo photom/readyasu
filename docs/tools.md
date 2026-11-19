@@ -53,7 +53,7 @@ python3 yomiyasu_en_check.py verify --final FINAL|- [--state-dir DIR] [--json]
 - `--source` (or `--original`): the original. Must be a different file from the final draft.
 - `--material` (repeatable): material files. Lines `<<<yomiyasu-en:material SOURCE>>>` inside them are separators and are not compared.
 - With only `--material` (compose mode), if one material is very close to the final draft, it is used as the original and diff runs too; the output says so.
-- `--stdin`: read everything from standard input, separated by lines that are exactly `<<<yomiyasu-en:original>>>`, `<<<yomiyasu-en:material SOURCE>>>` (SOURCE optional, up to 200 characters) and `<<<yomiyasu-en:final>>>`. Any other line starting with `<<<yomiyasu-en:` stops with exit 2. An original or material section is required, unless `--material FILE` is also given. A record is still written (see `--state-dir` and `--no-record`).
+- `--stdin`: read everything from standard input, separated by lines that are exactly `<<<yomiyasu-en:original>>>`, `<<<yomiyasu-en:material SOURCE>>>` (SOURCE optional, up to 200 characters) and `<<<yomiyasu-en:final>>>`. Any other line starting with `<<<yomiyasu-en:` stops with exit 2. An original or material section is required, unless `--material FILE` is also given. An empty original or material stops with exit 2. A record is still written (see `--state-dir` and `--no-record`).
 
 ### Options
 
@@ -66,28 +66,28 @@ python3 yomiyasu_en_check.py verify --final FINAL|- [--state-dir DIR] [--json]
 | `--run-id ID`, `--new-run` | Continue a given run, or start a new one |
 | `--session ID` | Stored in the record (default: `YOMIYASU_EN_SESSION`) |
 | `--state-dir DIR` | Where records go (default: `YOMIYASU_EN_STATE_DIR`, else `.yomiyasu-en/` at the git top, else in the working folder) |
-| `--no-record` | Write no record (status `unrecorded`); only when the user asked |
+| `--no-record` | Write no record (status `unrecorded`); only when the user asked, or when no writable folder exists |
 | `--words DIR`, `--no-words` | Project word list for lint |
 | `--json` | Print the result as JSON (includes the lint and diff JSON) |
 
 ### Output
 
 1. What to do next (attempt and revision count, and the verify command to run).
-2. The status line: `yomiyasu-en-check: executed via=run run=ID attempt=N final=sha256:XXXXXXXXXXXX mode=rewrite|compose checks=lint,diff[,material] meaning_risk=N`. Other statuses: `unrecorded`, `partial` (with `reason=check_error`), `not_run reason=usage_error`.
+2. The status line: `yomiyasu-en-check: executed via=run run=ID attempt=N final=sha256:XXXXXXXXXXXX mode=rewrite|compose checks=lint,diff[,material] meaning_risk=N` (compose mode without an adopted original: `checks=lint,material`). Other statuses: `unrecorded`, `partial` (with `reason=check_error` when a check did not finish, `reason=record_error` when the record could not be written, `reason=internal_error`), `not_run reason=usage_error`.
 3. `Checks run:`, the record path, `Stiffness check:` and `Energy check:` (not in compose mode), `Review findings: original N → final M`, and when present `Flagged words kept:` and `Flagged words added by the rewrite:`.
 4. The diff sections and the lint findings on the final draft.
 5. The first line and the status line again.
 
 ### Runs and attempts
 
-A run groups the attempts on one original. A new attempt continues the previous run only when the original (in compose mode, the material) is the same, the working folder is the same, and the previous attempt was less than two hours ago. An attempt whose final draft is identical to the previous attempt's is not counted as a revision.
+A run groups the attempts on one original. A new attempt continues the previous run only when the original (in compose mode, the material, whether or not it was adopted as the original) is the same, the working folder is the same, the session ID is the same (when both attempts have one), and the previous attempt was less than two hours ago. `--new-run` always starts a new run. An attempt whose final draft is identical to the previous attempt's is not counted as a revision.
 
 ### verify
 
 `verify` hashes the final draft and looks for a record with the same hash. It writes nothing.
 
 - Match: line 1 starts with "The hash matches the record", line 2 is `yomiyasu-en-check: executed via=verify ...`. Exit 0.
-- No match: line 2 is `yomiyasu-en-check: unverified via=verify final=sha256:... reason=no_record|record_unreadable|hash_mismatch`. Exit 1.
+- No match: line 2 is `yomiyasu-en-check: unverified via=verify final=sha256:... reason=no_record|record_unreadable|hash_mismatch|superseded`. `superseded` means the text matches an earlier attempt of a run that has a later attempt with a different final draft. Exit 1.
 
 The hash is taken over a canonical form: line endings normalized to `\n`, leading and trailing empty lines removed, one final newline. Any other change, including a single character or trailing spaces on a line, gives a different hash.
 
@@ -112,7 +112,7 @@ A record shows that the checks ran on a final draft with that hash. Anyone who c
 | 0 | All checks finished and no `--fail-on` condition matched | The record matches |
 | 1 | A `--fail-on` condition matched (record written) | No record, or it does not match |
 | 2 | Usage or input error; nothing written | Usage or input error |
-| 3 | Some checks did not finish (`partial`), or an internal error | |
+| 3 | Some checks did not finish, the record could not be written, or an internal error (`partial`) | |
 
 ## Project word lists
 

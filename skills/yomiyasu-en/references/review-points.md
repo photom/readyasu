@@ -26,22 +26,23 @@ Each item is tagged with its kind. Counted kinds make `--fail-on meaning-risk` f
 
 | Kind | What it means | What to do |
 |---|---|---|
-| number | A number was removed, added or changed: digits, number words, quarters and versions (Q3, v2), currency and magnitudes ($1.5M, 5k), percentages. The whole-text line catches numbers in deleted or split sentences | Restore, unless it is a fill or correction from a source (fact-recovery.md), an absolute date you added after a relative one, or a count word you removed with a count announcement or a cleft list ("Three things:") while every item stayed |
+| number | A number was removed, added or changed: digits, number words, quarters and versions (Q3, v2), currency and magnitudes ($1.5M, 5k), percentages; a unit written next to an unchanged number (30 seconds → 30 ms, 30 days → 30 business days); a month or weekday name. The whole-text line catches numbers that disappeared from or appeared in the whole text | Restore, unless it is a fill or correction from a source (fact-recovery.md), an absolute date you added after a relative one, or a count word you removed with a count announcement or a cleft list ("Three things:") while every item stayed |
 | approximation | about, up to, at least, more than... on the same number changed | Restore the original approximation |
 | negation | The number of negations (not, no, never, n't, without, unless...) changed in the paired sentences | Read both. Removing "not only" or turning "not X but Y" into "Y" also changes the count; that is fine only when the rephrase test passes |
-| certainty | A hedge (may, might, could, likely, appears to, planned...) disappeared or was replaced by a stronger one | Restore the hedge at the same strength |
-| booster | always, guaranteed, definitely, ensures... was added. Counted only for pr, article, incident, proposal, manual, formal and paper (not when the original sentence already has an obligation word); otherwise listed as a review finding | Remove the added certainty |
+| certainty | A hedge (may, might, could, would, likely, appears to, we expect, planned...) disappeared or was replaced by a stronger one. Stacked hedges ("could potentially") count as one, so reducing a stack to one hedge is not reported | Restore the hedge at the same strength |
+| booster | always, guaranteed, definitely, ensures... was added. Counted only for pr, article, incident, proposal, manual, formal and paper (not when the original sentence already has a strong obligation word such as must or required); otherwise listed as a review finding | Remove the added certainty |
 | permission | you may, allowed to, optional, no need to... appeared or disappeared | Restore; permission is not ability ("may" is not "can") |
 | obligation | should ↔ must, or an obligation word appeared or disappeared | Restore the original strength |
 | status | TBD, pending, under investigation, not yet, unconfirmed... disappeared | Restore the state; do not turn it into a finding or a plan |
-| hearsay | reportedly, according to, said that... appeared or disappeared | Restore; hearsay is not assertion |
-| question | A question became a statement or the reverse | Restore the sentence type, except when you folded a self-answered question into a statement (SKILL.md "Decoration and ad copy") or turned a request into a polite question for a stated relationship (register.md section 7) |
+| hearsay | reportedly, according to, says, said, told us, noted that, colleagues say... appeared or disappeared | Restore; hearsay is not assertion |
+| question | A question became a statement or the reverse. A short self-answered question folded into a statement, and a request turned into a polite question, are listed as not counted | Restore the sentence type, except when you folded a self-answered question into a statement (SKILL.md "Decoration and ad copy") or turned a request into a polite question for a stated relationship (register.md section 7) |
 | request | please, could you... disappeared | Restore the request form; a bare imperative changes politeness |
 | scope | A limiting word (only, solely) disappeared; either/or ↔ both/all; or a determiner such as some, most, many or several disappeared with no other partial word, or a partial word became all/every | Restore the scope |
+| condition | A condition or time limit disappeared: if, unless, until, when, as long as, provided, at launch, initially, for now, temporarily | Restore it; without it the sentence is true in more cases. A rewrite that keeps the condition in other words ("when" → "after") is fine |
 | correlation | A cause word was added to a sentence that stated only a correlation | Restore the correlation wording |
 | commitment | we will, we guarantee, will never happen again... was added | Remove it unless the request or material states the commitment |
 | citation | A citation ([1], (Smith, 2020)) changed | Restore; which source supports which claim must not move |
-| name_order | The same names appear in a different order | Check who does what to whom; restore if the roles swapped |
+| name_order | The same names appear in a different order, or a name moved to another sentence or line (owners swapped between list items) | Check who does what to whom; restore if the roles swapped |
 | material_number | (compose) A number in the final draft is not in the material | Remove it or use the material's value |
 | contrast_reversed [not counted] | A word the original denied ("not X", "rather than X") now appears with focus, priority, first, both, and... | If X moved to the affirmative side, the claim flipped; restore the negation (rephrase-test.md section 3). A rewrite such as "First, reduce X" can also appear; read which side X is on |
 | protected [not counted] | Inline code, URLs, e-mail addresses or code blocks changed | Restore them exactly |
@@ -58,6 +59,7 @@ Some forms are not caught. Compare sentences without findings against your note 
 | request_added | A request marker appeared. Check that the sentence was a request (register.md) |
 | quantifier_gone | An adverb such as often, usually or mostly disappeared without a replacement. Check that the sentence did not become always true |
 | limiter_added | only, solely... appeared. Do not add limits the original lacks |
+| condition_added | if, unless, until, at launch... appeared. Do not add conditions the original lacks |
 | causal_added | because, led to, as a result... appeared. Keep facts side by side if the original did not connect them |
 | booster | Certainty word added (in doc types where it is not counted). Remove guarantees the original lacks |
 | voice | Active/passive changed with the same names. Check who acts |
@@ -92,7 +94,7 @@ With `--fact-gaps`: sentences of the final draft that give only a metaphor (figu
 
 ### Attempts
 
-The first line counts attempts and revisions. Rerunning on an unchanged final draft (for example when verify did not match) is not a revision. A run continues the previous one only when the original is the same, the working folder is the same, and the previous run was less than two hours ago; otherwise a new run starts at attempt 1.
+The first line counts attempts and revisions. Rerunning on an unchanged final draft (for example when verify did not match) is not a revision. A run continues the previous one only when the original (in compose mode, the material) is the same, the working folder is the same, the session ID (`--session` or `YOMIYASU_EN_SESSION`, when both runs have one) is the same, and the previous run was less than two hours ago; otherwise a new run starts at attempt 1. For a new request about the same text, add `--new-run` (SKILL.md Step 3).
 
 ### == Lint findings on the final draft ==
 

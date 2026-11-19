@@ -260,3 +260,93 @@ def test_one_as_pronoun_is_not() -> None:
     assert kinds("No one replied.\n", "Nobody replied.\n") == []
     assert kinds("They help one another.\n", "They help each other.\n") == []
     assert kinds("Pick the one that works.\n", "Pick the option that works.\n") == []
+
+
+# ---- set 4 review: conditions, units, dates, hedges, hearsay, moves, names
+
+@pytest.mark.parametrize(("orig", "rev", "kind"), [
+    ("Pro costs $80 per year when billed annually.\n", "Pro costs $80 per year.\n", "condition"),
+    ("Sharing is not available on the web app at launch.\n", "Sharing is not available on the web app.\n", "condition"),
+    ("Admins can delete projects if they own them.\n", "Admins can delete projects.\n", "condition"),
+    ("Retries are capped at 30 seconds.\n", "Retries are capped at 30 ms.\n", "number"),
+    ("Disks hold 2 TB each.\n", "Disks hold 2 GB each.\n", "number"),
+    ("Refunds take 30 days.\n", "Refunds take 30 business days.\n", "number"),
+    ("We will ship in May.\n", "We will ship in June.\n", "number"),
+    ("Submit it by Monday.\n", "Submit it by Friday.\n", "number"),
+    ("The release is planned for May 5.\n", "The release is on May 5.\n", "certainty"),
+    ("The fix may ship in Q3, and a backport is planned.\n", "The fix may ship in Q3, and a backport follows.\n",
+     "certainty"),
+    ("This change would cut build time in half.\n", "This change cuts build time in half.\n", "certainty"),
+    ("We expect the migration to finish on Friday.\n", "The migration finishes on Friday.\n", "certainty"),
+    ("The vendor says the patch fixes the leak.\n", "The patch fixes the leak.\n", "hearsay"),
+    ("Sam said the staging build is green.\n", "The staging build is green.\n", "hearsay"),
+])
+def test_set4_meaning_changes_are_counted(orig: str, rev: str, kind: str) -> None:
+    assert kind in kinds(orig, rev)
+
+
+@pytest.mark.parametrize(("orig", "rev"), [
+    ("Check if the file exists.\n", "Check whether the file exists.\n"),
+    ("Wait 5 seconds.\n", "Wait 5 s.\n"),
+    ("It could potentially fail.\n", "It could fail.\n"),
+    ("I would like your approval.\n", "I'd like your approval.\n"),
+    ("You need at least 3 nodes.\n", "You need 3 or more nodes.\n"),
+    ("Upload up to 10 files.\n", "Upload 10 files or fewer.\n"),
+    ("The migration is in progress.\n", "The migration is ongoing.\n"),
+    ("Review the draft before Friday.\n", "Review the document before Friday.\n"),
+    ("The team's deadline moved.\n", "The deadline for the team moved.\n"),
+    ("We moved the job to a queue. The result? Fewer timeouts.\n",
+     "We moved the job to a queue, which reduced timeouts.\n"),
+    ("Review this by Friday.\n", "Could you review this by Friday?\n"),
+    ("It's not just a bug fix, it's a rethink.\n", "It's a rethink.\n"),  # negation only, no "just" scope risk
+])
+def test_set4_harmless_rewrites(orig: str, rev: str) -> None:
+    assert [k for k in kinds(orig, rev) if k != "negation" or "not just" not in orig] == []
+
+
+def test_moved_sentence_with_flipped_negation_is_compared() -> None:
+    o = "Stop the service before the upgrade. Do not delete the old logs. Then run the installer.\n"
+    r = "Delete the old logs. Stop the service before the upgrade. Then run the installer.\n"
+    assert "negation" in kinds(o, r)
+    o = "Customers may cancel within 30 days. Refunds are processed in 5 business days.\n"
+    r = "Refunds are processed in 5 business days. Customers must cancel within 30 days.\n"
+    assert {"permission", "obligation"} <= set(kinds(o, r))
+
+
+def test_split_sentence_keeps_its_number() -> None:
+    o = ("The nightly job copies 200 tables to the warehouse and usually finishes in 40 minutes. If it fails, the "
+         "on-call engineer may rerun it manually.\n")
+    r = ("The nightly job copies 200 tables to the warehouse. It usually finishes in 40 minutes. If it fails, the "
+         "on-call engineer may rerun it by hand.\n")
+    assert "number" not in kinds(o, r)
+
+
+def test_deleted_summary_repeating_a_number_is_not_a_number_change() -> None:
+    o = ("We moved the cache to Redis, and p95 latency fell by 40%.\n\nError rates also dropped.\n\n"
+         "In summary, the move cut latency by 40% and reduced errors.\n")
+    r = "We moved the cache to Redis, and p95 latency fell by 40%.\n\nError rates also dropped.\n"
+    assert "number" not in kinds(o, r)
+
+
+def test_owners_swapped_between_list_items() -> None:
+    o = "- Add an alert for config drift. Owner: Marco Ruiz.\n- Review the deploy checklist. Owner: Priya Nair.\n"
+    r = "- Add an alert for config drift. Owner: Priya Nair.\n- Review the deploy checklist. Owner: Marco Ruiz.\n"
+    assert "name_order" in kinds(o, r)
+
+
+def test_actor_in_subject_position_and_unit_codes() -> None:
+    assert "actor_added" in review_kinds("The budget was approved last week.\n", "Priya approved the budget last week.\n")
+    assert "actor_added" not in review_kinds("Disks hold 2 TB.\n", "Disks hold 2 GB.\n")
+    assert "actor_added" not in review_kinds("Backoff: retry with a delay.\n", "Backoff: Retries wait longer.\n")
+
+
+def test_changed_place_excerpt_shows_the_difference() -> None:
+    prefix = "Notewise 3.0 rolls out to every workspace this week and now includes up to 3 shared notebooks per user "
+    result = diff.compare(prefix + "when billed annually.\n", prefix + "with any plan.\n")
+    text = "\n".join(diff.format_sections(result))
+    assert "billed annually" in text.split("== Meaning risks")[0]
+
+
+def test_empty_fact_gaps_section_is_shown() -> None:
+    result = diff.compare("We ship on Monday.\n", "We ship Monday.\n", want_fact_gaps=True)
+    assert "None found" in "\n".join(diff.format_sections(result))

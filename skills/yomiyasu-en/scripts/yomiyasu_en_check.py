@@ -20,6 +20,7 @@ import argparse
 import datetime as _dt
 import difflib
 import json
+import math
 import os
 import re
 import secrets
@@ -40,7 +41,7 @@ STATUS_PREFIX = "yomiyasu-en-check:"
 SCRIPTS = Path(__file__).resolve().parent
 LINT = SCRIPTS / "yomiyasu_en_lint.py"
 DIFF = SCRIPTS / "yomiyasu_en_diff.py"
-MARKER = re.compile(r"^<<<yomiyasu-en:(original|final|material)(?:[ \t]+([^>\n]{1,200}))?>>>[ \t]*$")
+MARKER = re.compile(r"^<<<yomiyasu-en:(original|final|material)(?:[ \t]+([^\n]{1,200}?))?>>>[ \t]*$")
 MARKER_ANY = re.compile(r"^<<<yomiyasu-en:")
 RUN_WINDOW_SECONDS = 2 * 60 * 60  # a run continues only within this time and the same working folder
 RUN_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
@@ -62,7 +63,8 @@ EPILOG = """Exit codes:
      and final are the same file, material identical to the final draft, empty final draft, bad word
      list). Nothing is written (status not_run).
   3  some checks did not finish (lint or diff failed or timed out, or the final draft changed during
-     the run; status partial), or an unexpected internal error."""
+     the run; status partial with reason=check_error), the record could not be written (status partial
+     with reason=record_error), or an unexpected internal error (status partial with reason=internal_error)."""
 
 
 class Usage(Exception):
@@ -209,7 +211,7 @@ def cmd_run(args: argparse.Namespace) -> int:
                         "(up to 64 characters, not ending with '.', not a reserved Windows name).")
         if args.run_id and args.new_run:
             raise Usage("Use either --run-id or --new-run, not both.")
-        if args.timeout <= 0:
+        if not math.isfinite(args.timeout) or args.timeout <= 0:
             raise Usage("--timeout must be a positive number of seconds.")
         materials: list[tuple[str, str]] = []
         if args.stdin:
@@ -227,7 +229,7 @@ def cmd_run(args: argparse.Namespace) -> int:
                 raise Usage("run needs --final (or --stdin).")
             if not args.source and not args.material:
                 raise Usage("run needs --source (revising) or --material (composing).")
-            if args.final == "-" and (args.source == "-" or "-" in (args.material or [])):
+            if [args.final, args.source, *(args.material or [])].count("-") > 1:
                 raise Usage("Only one input can be standard input.")
             final = tx.read_text(args.final)
             original = tx.read_text(args.source) if args.source else None
@@ -236,10 +238,17 @@ def cmd_run(args: argparse.Namespace) -> int:
             if args.source and args.final != "-" and args.source != "-" and \
                     Path(args.source).resolve() == Path(args.final).resolve():
                 raise Usage("The original and the final draft are the same file. Save the final draft separately.")
+        if args.stdin and "-" in (args.material or []):
+            raise Usage("With --stdin, put the material in a <<<yomiyasu-en:material>>> section, not --material -.")
         for name in args.material or []:
             materials.append((name, tx.read_text(name)))
         if not final.strip():
             raise Usage("The final draft is empty.")
+        if original is not None and not original.strip():
+            raise Usage("The original is empty.")
+        for source, body in materials:
+            if not strip_markers(body).strip():
+                raise Usage(f"The material {source} is empty.")
         for source, body in materials:
             if strip_markers(body).strip() == final.strip():
                 raise Usage(f"The material {source} has the same content as the final draft.")
@@ -249,19 +258,22 @@ def cmd_run(args: argparse.Namespace) -> int:
         return 2
 
     material_text = "\n".join(strip_markers(body) for _src, body in materials)
-    mode = "rewrite" if original is not None else "compose"
+    given_original = original is not None
+    mode = "rewrite" if given_original else "compose"
     adopted = ""
     if original is None:
+        final_words = final.split()
         best, best_ratio = None, 0.0
         for source, body in materials:
-            ratio = difflib.SequenceMatcher(None, strip_markers(body), final, autojunk=False).quick_ratio()
+            ratio = difflib.SequenceMatcher(None, strip_markers(body).split(), final_words).quick_ratio()
             if ratio > best_ratio:
                 best, best_ratio = (source, strip_markers(body)), ratio
         if best is not None and best_ratio >= 0.75 and \
-                difflib.SequenceMatcher(None, best[1], final, autojunk=False).ratio() >= 0.6:
+                difflib.SequenceMatcher(None, best[1].split(), final_words).ratio() >= 0.6:
             original = best[1]
             mode = "rewrite"
             adopted = best[0]
+    started = time.monotonic()  # the timeout covers the child processes only
 
     final_hash = tx.sha256_text(final)
     source_hash = tx.sha256_text(original) if original is not None else ""
@@ -326,6 +338,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     lint_counts = lint_final.get("counts", {}) if lint_final else {}
 
     status = "partial" if problems else ("unrecorded" if args.no_record else "executed")
+    record_error = ""
     run_id = ""
     attempt = 0
     revisions = 0
@@ -335,12 +348,13 @@ def cmd_run(args: argparse.Namespace) -> int:
     if not problems and not args.no_record:
         try:
             ensure_state(folder)
-            key = source_hash if mode == "rewrite" else tx.sha256_text("\n".join(material_hashes))
-            if adopted:
-                key = source_hash
+            # The run key comes from the inputs as given, so adopting a material as the original in one attempt
+            # and not in the next does not start a new run.
+            key = source_hash if given_original else tx.sha256_text("\n".join(material_hashes))
             by_source = folder / "index" / "by-source" / f"{key}.json"
             previous = read_json(by_source) or {}
             cwd = str(Path.cwd().resolve())
+            session = args.session or os.environ.get("YOMIYASU_EN_SESSION") or None
             fresh = False
             try:
                 age = now_utc().timestamp() - float(previous.get("updated_ts", 0))
@@ -349,7 +363,8 @@ def cmd_run(args: argparse.Namespace) -> int:
             if args.run_id:
                 run_id = args.run_id
                 fresh = previous.get("run") != run_id
-            elif args.new_run or not previous.get("run") or age > RUN_WINDOW_SECONDS or previous.get("cwd") != cwd:
+            elif args.new_run or not previous.get("run") or age > RUN_WINDOW_SECONDS or previous.get("cwd") != cwd \
+                    or (session and previous.get("session") and previous.get("session") != session):
                 run_id = new_run_id()
                 fresh = True
             else:
@@ -361,7 +376,10 @@ def cmd_run(args: argparse.Namespace) -> int:
                         if (m := re.match(r"attempt-(\d+)\.json$", p.name))] if run_dir.is_dir() else []
             attempt = (max(existing) + 1) if existing else 1
             same_as_previous = attempt > 1 and previous.get("last_final") == final_hash
-            revisions = int(previous.get("revisions", 0) or 0)
+            try:
+                revisions = int(previous.get("revisions", 0) or 0)
+            except (TypeError, ValueError):
+                revisions = 0
             if attempt > 1 and not same_as_previous:
                 revisions += 1
             record_path = run_dir / f"attempt-{attempt}.json"
@@ -380,26 +398,29 @@ def cmd_run(args: argparse.Namespace) -> int:
                 "changed_places": len(diff.get("changes", [])) if diff else 0,
                 "words": {"folder": str(words.folder) if words.folder else None, "count": words.count,
                           "sha256": words.digest or None},
-                "session": args.session or os.environ.get("YOMIYASU_EN_SESSION") or None,
+                "session": session,
             }
             write_json(record_path, record)
             if diff is not None:
                 record_path.with_suffix(".diff.txt").write_text(str(diff.get("full_diff", "")) + "\n", encoding="utf-8")
             write_json(by_source, {"run": run_id, "attempts": attempt, "revisions": revisions, "last_final": final_hash,
-                                   "cwd": cwd, "updated_ts": now_utc().timestamp()})
+                                   "cwd": cwd, "session": session, "updated_ts": now_utc().timestamp()})
             write_json(folder / "index" / "by-final" / f"{final_hash}.json",
                        {"run": run_id, "attempt": attempt, "record": str(record_path.relative_to(folder))})
             write_json(folder / "state.json", {"last_run": run_id, "last_attempt": attempt,
                                                "updated": now_utc().isoformat(timespec="seconds")})
         except OSError as exc:
             sys.stderr.write(f"yomiyasu_en_check.py: cannot write the record in {folder}: {exc}\n")
-            problems.append(f"record ({exc.strerror or exc})")
+            record_error = str(exc.strerror or exc)
             status = "partial"
+            record_path = None
 
     status_line = (f"{STATUS_PREFIX} {status} via=run" + (f" run={run_id} attempt={attempt}" if run_id else "")
                    + f" final=sha256:{final_hash[:12]} mode={mode} checks={','.join(checks)} meaning_risk={meaning_risk}")
     if problems:
         status_line += " reason=check_error"
+    elif record_error:
+        status_line += " reason=record_error"
 
     hit = False
     if diff and "meaning-risk" in fail_on and meaning_risk:
@@ -408,19 +429,25 @@ def cmd_run(args: argparse.Namespace) -> int:
                         ("warn" in fail_on and (lint_counts.get("warn") or lint_counts.get("error")))):
         hit = True
 
-    first = first_line(status, attempt, revisions, same_as_previous, args, problems, folder)
+    if record_error:
+        first = (f"The checks ran, but the record could not be written in {folder} ({record_error}). Run the same "
+                 "command again with --state-dir set to a folder you can write to, or with --no-record if there is no "
+                 "such folder; then follow the first line of that output.")
+    else:
+        first = first_line(status, attempt, revisions, same_as_previous, args, problems, folder)
     if args.json:
         out = {"format": 1, "tool": TOOL, "version": __version__, "status": status, "first_line": first,
                "status_line": status_line, "run": run_id or None, "attempt": attempt or None,
                "record": str(record_path) if record_path else None, "mode": mode, "checks": checks,
-               "problems": problems, "meaning_risk": meaning_risk,
+               "problems": problems + ([f"record ({record_error})"] if record_error else []),
+               "meaning_risk": meaning_risk,
                "review_findings": {"original": orig_count, "final": final_count},
                "flagged_words_kept": kept_words(final_findings), "lint": lint_final, "diff": diff}
         sys.stdout.write(json.dumps(out, ensure_ascii=True, indent=1) + "\n")
     else:
         sys.stdout.write(format_run(first, status_line, mode, checks, record_path, lint_final, lint_orig, diff,
-                                    orig_count, final_count, adopted, problems))
-    if problems:
+                                    orig_count, final_count, adopted, problems, original))
+    if problems or record_error:
         return 3
     return 1 if hit else 0
 
@@ -454,7 +481,7 @@ def first_line(status: str, attempt: int, revisions: int, same_as_previous: bool
 def format_run(first: str, status_line: str, mode: str, checks: list[str], record: Optional[Path],
                lint_final: Optional[dict[str, Any]], lint_orig: Optional[dict[str, Any]],
                diff: Optional[dict[str, Any]], orig_count: Optional[int], final_count: int, adopted: str,
-               problems: list[str]) -> str:
+               problems: list[str], original_text: Optional[str] = None) -> str:
     out = [first, status_line]
     parts = []
     if lint_final is not None:
@@ -483,8 +510,11 @@ def format_run(first: str, status_line: str, mode: str, checks: list[str], recor
     if lint_final is not None:
         final_words = kept_words(list(lint_final.get("findings", [])))
         orig_words = {w.lower() for w in kept_words(list((lint_orig or {}).get("findings", [])))}
-        kept = [w for w in final_words if w.lower() in orig_words] if lint_orig is not None else final_words
-        added = [w for w in final_words if w.lower() not in orig_words] if lint_orig is not None else []
+        orig_low = original_text.lower() if original_text else ""
+        in_orig = [w for w in final_words if w.lower() in orig_words or
+                   (orig_low and re.search(r"(?<![\w-])" + re.escape(w.lower()), orig_low))]
+        kept = in_orig if lint_orig is not None else final_words
+        added = [w for w in final_words if w not in in_orig] if lint_orig is not None else []
         if kept:
             out.append("Flagged words kept: " + ", ".join(kept)
                        + " (reread these sentences; ask the writer or give the reason under \"AI-like wording kept\")")
@@ -527,7 +557,8 @@ def dmod_sections(dmod: ModuleType, diff: dict[str, Any]) -> list[str]:
     result = dmod.DiffResult(diff.get("changes", []), risks, reviews, st.get("items", []), st.get("reference_only", False),
                              en.get("items", []), en.get("reference", []), gaps, diff.get("fact_gaps_note", ""),
                              diff.get("material", {}) or {}, diff.get("full_diff", ""), diff.get("doc_type"),
-                             diff.get("reader"), diff.get("stance"), diff.get("mode", "rewrite"))
+                             diff.get("reader"), diff.get("stance"), diff.get("mode", "rewrite"),
+                             fact_gaps_checked=bool(diff.get("fact_gaps_checked")))
     lines: list[str] = dmod.format_sections(result)
     return lines
 
@@ -562,6 +593,19 @@ def cmd_verify(args: argparse.Namespace) -> int:
     ok = bool(record and record.get("final_sha256") == digest and record.get("status") == "executed")
     if record and not ok:
         reason = "hash_mismatch"
+    latest = 0
+    if ok and record is not None and record_path is not None:
+        latest = max((int(m.group(1)) for q in record_path.parent.glob("attempt-*.json")
+                      if (m := re.match(r"attempt-(\d+)\.json$", q.name))), default=0)
+        try:
+            matched_attempt = int(record.get("attempt", 0))
+        except (TypeError, ValueError):
+            matched_attempt = 0
+        if latest > matched_attempt:
+            later = read_json(record_path.parent / f"attempt-{latest}.json") or {}
+            if later.get("final_sha256") != digest:
+                ok = False
+                reason = "superseded"
     if args.json:
         sys.stdout.write(json.dumps({"format": 1, "tool": TOOL, "status": "executed" if ok else "unverified",
                                      "final_sha256": digest, "record": str(record_path) if record_path else None,
@@ -581,6 +625,14 @@ def cmd_verify(args: argparse.Namespace) -> int:
             + f"Recorded: review findings final {rf.get('final')}, changed places {record.get('changed_places')} "
               "(the original's count and the changes are in the run output).\n")
         return 0
+    if reason == "superseded" and record is not None:
+        sys.stdout.write(
+            f"This text matches attempt {record.get('attempt')} of run {record.get('run')}, but attempt {latest} is "
+            "the latest. Submit the final draft of the latest attempt, or run the checks on this text and verify "
+            "again.\n"
+            + f"{STATUS_PREFIX} unverified via=verify final=sha256:{digest[:12]} reason=superseded\n"
+            + f"State folder: {folder}\n")
+        return 1
     sys.stdout.write(
         "No record matches the hash of this final draft. Run the run command on exactly this text, then verify "
         "again without changing it.\n"
@@ -630,7 +682,7 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--session", metavar="ID", help="session ID stored in the record (default: YOMIYASU_EN_SESSION)")
     run.add_argument("--state-dir", metavar="DIR", help=f"state folder (default: YOMIYASU_EN_STATE_DIR, else "
                      f"{tx.STATE_DIR_NAME}/ at the git top or working folder)")
-    run.add_argument("--no-record", action="store_true", help="do not write a record (only when the user asked)")
+    run.add_argument("--no-record", action="store_true", help="do not write a record (only when the user asked, or when no writable folder exists)")
     run.add_argument("--fact-gaps", action="store_true", help="list some fact-gap candidates (not counted; not for "
                      "essay or promo)")
     run.add_argument("--json", action="store_true", help="print the result as JSON")
@@ -658,6 +710,10 @@ def main(argv: Optional[list[str]] = None) -> int:
             return cmd_verify(args)
         return cmd_run(args)
     except BrokenPipeError:
+        return 3
+    except Exception as exc:  # noqa: BLE001 - report any unexpected error with a status line and exit 3
+        sys.stderr.write(f"yomiyasu_en_check.py: internal error: {type(exc).__name__}: {exc}\n")
+        sys.stdout.write(f"{STATUS_PREFIX} partial via={args.command} reason=internal_error\n")
         return 3
 
 

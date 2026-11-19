@@ -93,3 +93,12 @@ def test_list_files_compile() -> None:
         for line in path.read_text(encoding="utf-8").splitlines():
             if line.strip() and not line.startswith("#"):
                 re.compile(tx.phrase_regex(line.split("\t")[0]))
+
+
+def test_review_points_cover_every_risk_kind() -> None:
+    import yomiyasu_en_diff as diff
+    text = (SKILL / "references" / "review-points.md").read_text(encoding="utf-8")
+    kinds = re.findall(r"^  ([a-z_]+)\s{2,}", diff.HELP_EPILOG, re.M)
+    assert "condition" in kinds
+    for kind in kinds:
+        assert re.search(r"^\| " + kind + r" \|", text, re.M), kind

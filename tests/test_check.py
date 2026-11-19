@@ -172,3 +172,84 @@ def test_unchanged_rerun_before_revision_keeps_revision(tmp_path: Path) -> None:
     run(["run", "--source", src, "--final", fin, "--state-dir", st, "--no-words"], tmp_path)
     p = run(["run", "--source", src, "--final", fin, "--state-dir", st, "--no-words"], tmp_path)
     assert "Revise at most once" in p.stdout.splitlines()[0]
+
+
+# ---- set 4 review
+
+def test_new_session_starts_a_new_run(tmp_path: Path) -> None:
+    import os
+    src = write(tmp_path / "o.md", "We leverage a robust pipeline.\n")
+    fin = write(tmp_path / "f.md", "We use a robust pipeline.\n")
+    st = str(tmp_path / "st")
+    env = {**os.environ, "YOMIYASU_EN_SESSION": "chat-1"}
+    args = [sys.executable, str(CHECK), "run", "--source", src, "--final", fin, "--state-dir", st, "--no-words"]
+    subprocess.run(args, cwd=tmp_path, env=env, capture_output=True, check=False)
+    write(tmp_path / "f.md", "We use a pipeline.\n")
+    subprocess.run(args, cwd=tmp_path, env=env, capture_output=True, check=False)
+    write(tmp_path / "f.md", "We run a pipeline.\n")
+    env["YOMIYASU_EN_SESSION"] = "chat-2"
+    p = subprocess.run(args, cwd=tmp_path, env=env, capture_output=True, text=True, encoding="utf-8", check=False)
+    assert p.stdout.splitlines()[0].startswith("Ran the checks (attempt 1)")
+
+
+def test_verify_rejects_superseded_attempt(tmp_path: Path) -> None:
+    src = write(tmp_path / "o.md", "We leverage a robust pipeline.\n")
+    fin = write(tmp_path / "f.md", "We use a robust pipeline.\n")
+    old = write(tmp_path / "old.md", "We use a robust pipeline.\n")
+    st = str(tmp_path / "st")
+    run(["run", "--source", src, "--final", fin, "--state-dir", st, "--no-words"], tmp_path)
+    write(tmp_path / "f.md", "We use a pipeline.\n")
+    run(["run", "--source", src, "--final", fin, "--state-dir", st, "--no-words"], tmp_path)
+    v = run(["verify", "--final", old, "--state-dir", st], tmp_path)
+    assert v.returncode == 1 and "reason=superseded" in v.stdout
+    assert run(["verify", "--final", fin, "--state-dir", st], tmp_path).returncode == 0
+
+
+def test_record_error_has_its_own_first_line(tmp_path: Path) -> None:
+    src = write(tmp_path / "o.md", "Hello there.\n")
+    fin = write(tmp_path / "f.md", "Hello.\n")
+    blocker = write(tmp_path / "blocker", "")
+    p = run(["run", "--source", src, "--final", fin, "--state-dir", blocker, "--no-words"], tmp_path)
+    assert p.returncode == 3
+    assert "--state-dir" in p.stdout.splitlines()[0] and "--no-record" in p.stdout.splitlines()[0]
+    assert "reason=record_error" in p.stdout.splitlines()[1]
+
+
+def test_compose_run_continues_when_adoption_changes(tmp_path: Path) -> None:
+    mat = write(tmp_path / "m.txt", "Backups run nightly at 2:00 and are kept for 30 days.\n")
+    fin = write(tmp_path / "f.md", "Backups run every night at 2:00 and are kept for 30 days.\n")
+    st = str(tmp_path / "st")
+    run(["run", "--material", mat, "--final", fin, "--state-dir", st, "--no-words"], tmp_path)
+    write(tmp_path / "f.md", "Hi team,\n\nQuick update on storage: backups run every night at 2:00 and are kept "
+          "for 30 days.\n\nThanks,\nSam\n")
+    p = run(["run", "--material", mat, "--final", fin, "--state-dir", st, "--no-words"], tmp_path)
+    assert "attempt=2" in p.stdout.splitlines()[1]
+
+
+def test_more_usage_errors(tmp_path: Path) -> None:
+    src = write(tmp_path / "o.md", "Hello there.\n")
+    fin = write(tmp_path / "f.md", "Hello.\n")
+    empty = write(tmp_path / "m.txt", "<<<yomiyasu-en:material notes>>>\n")
+    for args, stdin in (
+        (["run", "--material", empty, "--final", fin], None),
+        (["run", "--source", src, "--final", fin, "--timeout", "inf"], None),
+        (["run", "--source", "-", "--material", "-", "--final", fin], "x\n"),
+        (["run", "--stdin"], "<<<yomiyasu-en:original>>>\n\n<<<yomiyasu-en:final>>>\nHello.\n"),
+    ):
+        p = run([*args, "--state-dir", str(tmp_path / "st"), "--no-words"], tmp_path, stdin)
+        assert p.returncode == 2, (args, p.stdout, p.stderr)
+        assert "not_run reason=usage_error" in p.stdout
+
+
+def test_separator_source_may_contain_angle_bracket(tmp_path: Path) -> None:
+    stdin = ("<<<yomiyasu-en:material output of git diff (retry.py -> retry_v2.py)>>>\nRetry after 0.5 seconds.\n"
+             "<<<yomiyasu-en:final>>>\nRetries now wait 0.5 seconds.\n")
+    p = run(["run", "--stdin", "--state-dir", str(tmp_path / "st"), "--no-words"], tmp_path, stdin)
+    assert p.returncode == 0, p.stdout + p.stderr
+
+
+def test_flagged_word_with_longer_form_in_original_is_not_added(tmp_path: Path) -> None:
+    src = write(tmp_path / "o.md", "We improved the robustness of the retry logic.\n")
+    fin = write(tmp_path / "f.md", "The retry logic is more robust.\n")
+    p = run(["run", "--source", src, "--final", fin, "--state-dir", str(tmp_path / "st"), "--no-words"], tmp_path)
+    assert "Flagged words added by the rewrite" not in p.stdout
