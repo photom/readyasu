@@ -12,11 +12,13 @@ import sys
 sys.dont_write_bytecode = True
 
 import argparse
+import bisect
 import json
 import re
+import unicodedata
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import NoReturn, Optional
+from typing import Iterator, NoReturn, Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -72,24 +74,48 @@ EXEMPT: dict[str, tuple[str, ...]] = {
     "paper": (),
     "script": ("fragment_run", "exclamation", "self_answered_question"),
 }
-# mail also exempts chat_residue findings from closing-courtesies.txt only.
 
-LIST_RULES = (
-    ("chat_residue", "chat-residue", False),
-    ("chat_residue", "closing-courtesies", True),
-    ("stock_phrase", "stock-phrases", False),
-    ("ai_vocabulary", "ai-vocabulary", False),
-    ("wordy_phrase", "wordy-phrases", False),
-    ("metaphor_verb", "metaphor-verbs", False),
-    ("intensifier", "intensifiers", False),
-    ("jargon", "jargon", False),
+# Word lists: (rule, list name, doc types that exempt findings from this list).
+LIST_RULES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
+    ("chat_residue", "chat-residue", ()),
+    ("chat_residue", "closing-courtesies", ("mail",)),
+    ("chat_residue", "chat-interjections", ("essay", "mail", "script")),
+    ("stock_phrase", "stock-phrases", ()),
+    ("ai_vocabulary", "ai-vocabulary", ()),
+    ("wordy_phrase", "wordy-phrases", ()),
+    ("metaphor_verb", "metaphor-verbs", ()),
+    ("intensifier", "intensifiers", ()),
+    ("jargon", "jargon", ()),
 )
+LIST_LABELS = {"closing-courtesies": "courtesies and offers", "chat-interjections": "interjections"}
+# Lists whose matches inside double quotation marks are dialogue, not residue.
+QUOTE_EXEMPT_LISTS = ("chat-interjections",)
+LIST_RULE_NAMES = frozenset(rule for rule, _name, _types in LIST_RULES) | {"project_term"}
+
+# Doc types that exempt part of a rule (the findings from some word lists).
+PARTIAL_EXEMPT: dict[str, tuple[str, ...]] = {
+    doc_type: tuple(sorted({rule for rule, _name, types in LIST_RULES if doc_type in types}))
+    for doc_type in tx.DOC_TYPES if any(doc_type in types for _rule, _name, types in LIST_RULES)
+}
 
 KEPT_WORD_RULES = ("project_term", "ai_vocabulary", "metaphor_verb", "jargon")
 
+
+def _partial_help() -> str:
+    rows = []
+    for doc_type in tx.DOC_TYPES:
+        by_rule: dict[str, list[str]] = {}
+        for rule, name, types in LIST_RULES:
+            if doc_type in types:
+                by_rule.setdefault(rule, []).append(f"{LIST_LABELS[name]} ({name}.txt)")
+        for rule, parts in by_rule.items():
+            rows.append(f"  {doc_type} also exempts {rule} for {' and '.join(parts)} only.")
+    return "\n".join(rows)
+
+
 HELP_EPILOG = """Rules exempted by --doc-type:
-""" + "\n".join(f"  {k:<9} {', '.join(v) if v else 'none'}" for k, v in EXEMPT.items()) + """
-  mail also exempts chat_residue for closing courtesies (closing-courtesies.txt) only.
+""" + "\n".join(f"  {k:<9} {', '.join(v) if v else 'none'}" for k, v in EXEMPT.items()) + "\n" + _partial_help() + """
+  Interjections inside double quotation marks are not reported in any type.
 Exempted findings do not count toward the review findings, --strict or --fail-on.
 
 Exit codes:
@@ -109,7 +135,7 @@ class Finding:
     text: str
     start: int = field(default=0, repr=False)
     end: int = field(default=0, repr=False)
-    courtesy: bool = field(default=False, repr=False)
+    exempt_in: tuple[str, ...] = field(default=(), repr=False)  # doc types that exempt this finding
     block: int = field(default=-1, repr=False)
 
 
@@ -131,26 +157,28 @@ def _line_text(doc: tx.Document, no: int) -> str:
     return ""
 
 
+def _show(text: str) -> str:
+    """Text for a message or the match field: one line, single spaces."""
+    return " ".join(text.split())
+
+
 def _make(doc: tx.Document, rule: str, no: int, col: int, message: str, match: str,
-          start: int = 0, end: int = 0, block: int = -1, courtesy: bool = False) -> Finding:
-    return Finding(no, col, rule, RULES[rule][0], message, match.strip(), _line_text(doc, no),
-                   start, end, courtesy, block)
+          start: int = 0, end: int = 0, block: int = -1, exempt_in: tuple[str, ...] = ()) -> Finding:
+    return Finding(no, col, rule, RULES[rule][0], message, _show(match), _line_text(doc, no),
+                   start, end, exempt_in, block)
 
 
-def _offset_line(starts: list[tuple[int, int]], offset: int) -> int:
-    line = starts[0][1]
-    for pos, no in starts:
-        if pos <= offset:
-            line = no
-    return line
+class _Locator:
+    """Maps an offset in a block's joined text to (line number, 1-based column in the raw line)."""
 
+    def __init__(self, block: tx.Block, starts: list[tuple[int, int]]) -> None:
+        self.positions = [pos for pos, _no in starts]
+        self.numbers = [no for _pos, no in starts]
+        self.bases = [ln.offset + len(ln.content) - len(ln.content.lstrip()) for ln in block.lines]
 
-def _offset_col(starts: list[tuple[int, int]], offset: int) -> int:
-    base = 0
-    for pos, _no in starts:
-        if pos <= offset:
-            base = pos
-    return offset - base + 1
+    def __call__(self, offset: int) -> tuple[int, int]:
+        i = max(0, bisect.bisect_right(self.positions, offset) - 1)
+        return self.numbers[i], offset - self.positions[i] + self.bases[i] + 1
 
 
 _WORD = re.compile(r"[A-Za-z0-9][A-Za-z0-9'’-]*")
@@ -160,12 +188,49 @@ def word_count(text: str) -> int:
     return len(_WORD.findall(text))
 
 
+def _first_key(phrase: str) -> str:
+    """The leading letters of a word-list phrase in lower case; every match of the phrase starts with them."""
+    words = phrase.split()
+    m = re.match(r"[a-z]+", words[0].lower()) if words else None
+    return m.group(0) if m else ""
+
+
+def _scan(pattern: re.Pattern[str], key: str, text: str, low: Optional[str]) -> Iterator[re.Match[str]]:
+    """pattern.finditer(text), trying only the places where the phrase's first letters occur.
+
+    low is text.lower() when it has the same length (else None). Scanning hundreds of case-insensitive
+    phrase patterns over a long text is otherwise the slowest part of lint.
+    """
+    if not key or low is None:
+        yield from pattern.finditer(text)
+        return
+    pos = low.find(key)
+    while pos >= 0:
+        m = pattern.match(text, pos)
+        if m:
+            yield m
+            pos = low.find(key, max(m.end(), pos + 1))
+        else:
+            pos = low.find(key, pos + 1)
+
+
+def _in_quotes(text: str, start: int, end: int) -> bool:
+    """True if text[start:end] sits between double quotation marks in the same block."""
+    before, after = text[:start], text[end:]
+    if before.count('"') % 2 == 1 and '"' in after:
+        return True
+    return before.rfind("“") > before.rfind("”") and "”" in after
+
+
 # ---------------------------------------------------------------- regex rules
 
 _HEDGE_STACK = re.compile(
     r"\b(?:may|might|could|can|would)\s+(?:potentially|possibly|perhaps|conceivably|maybe)\b"
     r"|\b(?:possibly|perhaps|maybe)\s+(?:may|might|could)\b"
-    r"|\bit\s+(?:seems|appears)\s+(?:that\s+)?[^.;!?]{0,40}?\b(?:might|may|could)\s+(?:possibly|potentially|perhaps)?"
+    # "it seems ... may": within one clause, and not ability ("could not").
+    r"|\bit\s+(?:seems|appears)\s+(?:that\s+)?"
+    r"(?:(?!\b(?:but|and|or|so|yet|because|although|though|while|whereas|if|when|unless)\b)[^.;:,!?\n]){0,40}?"
+    r"\b(?:might|may|could(?!\s+not\b))\s+(?:possibly|potentially|perhaps)?"
     r"|\b(?:likely|probably)\s+(?:may|might|could)\b"
     r"|\bmight\s+(?:likely|probably)\b",
     re.IGNORECASE)
@@ -174,12 +239,14 @@ _NEG_BE = (r"(?:['’]s\s+not|\s+is\s+not|\s+was\s+not|\s+are\s+not|\s+were\s+no
            r"\s+isn['’]t|\s+aren['’]t|\s+wasn['’]t|\s+weren['’]t)")
 _NEG_CONTRAST = (
     re.compile(
-        r"\b(?:it|this|that|these|they|which|he|she)" + _NEG_BE + r"\s+"
+        r"\b(?:(?:this|that|these|those|the|our|your|its|their|my)\s+[\w-]+(?:\s+[\w-]+)?|"
+        r"it|this|that|these|they|which|he|she)" + _NEG_BE + r"\s+"
         r"(?:just\s+|only\s+|merely\s+|simply\s+|about\s+)?[^.;:!?\n]{1,80}?[,;—–]\s*"
         r"(?:it|this|that|they|he|she)(?:['’]s|\s+is|\s+was|\s+are|\s+were|['’]re)\b", re.IGNORECASE),
     re.compile(
-        r"(?:^|(?<=[.!?]\s))(?:It|This|That|They|We|I|You|The\s+\w+(?:\s+\w+)?|What\s+\w+\s+\w+)\s+"
-        r"(?:isn['’]t|is\s+not|wasn['’]t|was\s+not|aren['’]t|are\s+not|weren['’]t|doesn['’]t|don['’]t|didn['’]t)\b"
+        r"(?:^|(?<=[.!?]\s))(?:It|This|That|They|We|I|You|The\s+\w+(?:\s+\w+)?|What\s+\w+\s+\w+)"
+        r"(?:\s+(?:isn['’]t|is\s+not|wasn['’]t|was\s+not|aren['’]t|are\s+not|weren['’]t|doesn['’]t|don['’]t|"
+        r"didn['’]t)|['’]s\s+not|['’]re\s+not)\b"
         r"[^.!?\n]{0,80}\.\s+(?:It|This|That|They|We|You)(?:['’]s|\s+is|\s+was|\s+are|\s+were|['’]re|\s+needed|\s+need)\b"),
     re.compile(r"\bnot\s+(?:just|only|merely|simply)\b[^.;!?\n]{1,60}?,?\s*\bbut\s+(?:also\s+)?", re.IGNORECASE),
     re.compile(r"\b(?:doesn['’]t|don['’]t|didn['’]t|does\s+not|do\s+not|isn['’]t|aren['’]t)\s+(?:just|only|merely|simply)\s+"
@@ -224,22 +291,59 @@ _CLOSING = re.compile(
 
 _DASHES = re.compile(r"(?<=\S)\s*—\s*(?=\S)|\s–\s|\s--\s|―")
 _RANGE_DASH = re.compile(r"\d\s*[—–]\s*\d")
+_DASH_ONLY = "—–―-"
+# A time or date at the start of a line, before a dash: "09:12 — Config change rolled out".
+_MONTH = (r"(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sept?(?:ember)?|"
+          r"oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?")
+_WEEKDAY = r"(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tues?|wed|thu(?:rs?)?|fri|sat|sun)\.?"
+_TIME = r"\d{1,2}[:.]\d{2}(?::\d{2})?(?:\s*[ap]\.?m\.?)?|\d{1,2}\s*[ap]\.?m\.?"
+_DATE = (r"\d{4}-\d{1,2}-\d{1,2}(?:T\d{1,2}:\d{2}(?::\d{2})?Z?)?|\d{1,2}/\d{1,2}(?:/\d{2,4})?|"
+         + _MONTH + r"\s+\d{1,2}(?:st|nd|rd|th)?(?:,?\s+\d{4})?|\d{1,2}(?:st|nd|rd|th)?\s+" + _MONTH
+         + r"(?:\s+\d{4})?|" + _MONTH + r"\s+\d{4}|" + _WEEKDAY + r"|(?:19|20)\d{2}|q[1-4](?:\s+\d{4})?|"
+         r"(?:day|week|sprint|phase)\s+\d+|t\s*[+-]\s*\d+\s*(?:min|m|h|d|s)?")
+_ZONE = r"(?:\s*\(?(?:utc|gmt|[a-z]{1,3}[sd]?t)(?:\s*[+-]\s*\d{1,2}(?::?\d{2})?)?\)?)?"
+_STAMP = re.compile(r"^[\s*_\[(]*(?:(?:" + _TIME + "|" + _DATE + r")" + _ZONE + r"[\s,]*)+[*_\])]*\s*$", re.IGNORECASE)
+# A field label after a dash: "Fix the alert — Owner: Marco Ruiz — Due: Dec 5".
+_FIELD_AFTER = re.compile(r"\s*[*_]*[A-Z][\w/&-]*(?:[ \t]+[\w/&-]+){0,2}[*_]*:[*_]*(?:\s|$)")
+# A paragraph that is only an image or display math still follows a colon.
+_FIGURE_LINE = re.compile(r"^(?:\[?!\[[^\]]*\](?:\([^()]*\)|\[[^\]]*\])(?:\]\([^()]*\))?\s*)+$|^\$\$|^\\\[")
+_EMOJI_CANDIDATE = re.compile("[\u2190-\u2BFF\U0001F000-\U0001FAFF]")  # every code point tx.is_emoji accepts
 
 _BOLD_LABEL = re.compile(r"^\s*(?:\*\*|__)([^*_\n]{1,60}?)(?::\s*(?:\*\*|__)|(?:\*\*|__)\s*:)(?:\s|$)")
-_BOLD_SPAN = re.compile(r"(\*\*|__)(?=\S)(.+?)(?<=\S)\1")
+# The text inside cannot contain the delimiter, so an unclosed ** stops at the next one (linear time).
+_BOLD_SPAN = re.compile(r"\*\*(?=\S)(?:[^*\n]|\*(?!\*))+?(?<=\S)\*\*|__(?=\S)(?:[^_\n]|_(?!_))+?(?<=\S)__")
 _STOP_STARTS = {"the", "a", "an"}
+
+
+def _after_timestamp(text: str, pos: int) -> bool:
+    """True if the text from the start of the line to pos is only a time or date."""
+    start = text.rfind("\n", max(0, pos - 41), pos) + 1
+    if start == 0 and pos > 40:
+        return False
+    return bool(_STAMP.match(text, start, pos))
+
+
+def _empty_cell(text: str, start: int, end: int) -> bool:
+    """True if the dash at text[start:end] is the whole table cell ("| — |")."""
+    left = text.rfind("|", 0, start) + 1
+    right = text.find("|", end)
+    cell = text[left:right if right >= 0 else len(text)]
+    return not cell.strip().strip(_DASH_ONLY)
 
 
 # ---------------------------------------------------------------- bold rendering
 
 
 def _is_punct(ch: str) -> bool:
-    import unicodedata
     return bool(ch) and unicodedata.category(ch).startswith(("P", "S"))
 
 
-def bold_problems(text: str) -> list[tuple[int, str, str]]:
-    """Find ** runs that CommonMark will not pair. Returns (offset, snippet, reason)."""
+def bold_problems(text: str) -> list[tuple[int, str, str, bool]]:
+    """Find ** runs that CommonMark will not pair. Returns (offset, snippet, reason, lone).
+
+    An unpaired ** between two letters or digits (2**3) is shown as text, as intended, and is skipped.
+    lone is True when the run is the only other ** in the text (**kwargs, or a forgotten closing **).
+    """
     runs: list[tuple[int, bool, bool]] = []
     for m in re.finditer(r"(?<![*\\])\*\*(?!\*)", text):
         i = m.start()
@@ -260,17 +364,26 @@ def bold_problems(text: str) -> list[tuple[int, str, str]]:
         else:
             unmatched.append(i)
     unmatched.extend(stack)
-    order = [i for i, _l, _r in runs]
+
+    def intraword(i: int) -> bool:
+        return i > 0 and i + 2 < len(text) and text[i - 1].isalnum() and text[i + 2].isalnum()
+
+    index_of = {i: k for k, (i, _l, _r) in enumerate(runs)}
+    others = sum(1 for i, _l, _r in runs if not intraword(i))
+    closers = [m.start() for m in re.finditer(r"[^\s\w]\*\*\w", text)]
     reported: set[int] = set()
-    problems: list[tuple[int, str, str]] = []
+    problems: list[tuple[int, str, str, bool]] = []
     for i in sorted(unmatched):
-        index = order.index(i)
-        if index > 0 and order[index - 1] in reported:
+        k = index_of[i]
+        if k > 0 and runs[k - 1][0] in reported:
             continue  # one finding per broken pair
+        if intraword(i):
+            continue  # 2**3, a**b: CommonMark shows the asterisks, which is what was meant
         reported.add(i)
         snippet = text[max(0, i - 15): i + 17].strip()
         prev = text[i - 1] if i > 0 else " "
         nxt = text[i + 2] if i + 2 < len(text) else " "
+        lone = others == 1
         if nxt.isspace() and not prev.isspace():
             reason = "a space before the closing ** (write **text** without inner spaces)"
         elif prev.isspace() and nxt.isspace():
@@ -281,15 +394,26 @@ def bold_problems(text: str) -> list[tuple[int, str, str]]:
             reason = "a letter right before the opening ** and punctuation after it (add a space before **)"
         elif nxt.isspace():
             reason = "a space after the opening **"
-        elif re.search(r"[^\s\w]\*\*\w", text[i + 2:]):
+        elif bisect.bisect_left(closers, i + 2) < len(closers):
             reason = "the closing ** has punctuation before it and a letter right after it (add a space after the closing **)"
+        elif lone:
+            reason = ("a lone ** shows as two asterisks (add the closing ** for bold, or put code such as "
+                      "**kwargs in backticks)")
         else:
             reason = "no matching **"
-        problems.append((i, snippet, reason))
+        problems.append((i, snippet, reason, lone))
     return problems
 
 
 # ---------------------------------------------------------------- lint
+
+
+def _title_block(doc: tx.Document) -> int:
+    """Index of the document title (the first level-1 heading), or -1."""
+    for bi, block in enumerate(doc.blocks):
+        if block.kind == "heading" and block.lines[0].level == 1:
+            return bi
+    return -1
 
 
 def lint(text: str, doc_type: Optional[str] = None, reader: Optional[str] = None,
@@ -297,7 +421,13 @@ def lint(text: str, doc_type: Optional[str] = None, reader: Optional[str] = None
     words = words or tx.Words()
     doc = tx.parse(text)
     found: list[Finding] = []
-    lists = [(rule, tx.load_list(name), courtesy) for rule, name, courtesy in LIST_RULES]
+    lists = [(rule, name, [(entry, _first_key(entry.phrase)) for entry in tx.load_list(name)], types)
+             for rule, name, types in LIST_RULES]
+    flags = []
+    for name, replacement, pattern in words.flags:
+        is_phrase = pattern.pattern == tx.phrase_regex(name)  # flag.txt entry, not a flag-patterns.txt regex
+        flags.append((name, replacement, pattern, is_phrase, _first_key(name) if is_phrase else ""))
+    title = _title_block(doc)
 
     for bi, block in enumerate(doc.blocks):
         if block.kind == "quote":
@@ -305,73 +435,91 @@ def lint(text: str, doc_type: Optional[str] = None, reader: Optional[str] = None
         masked, starts = block.joined(True)
         if not masked.strip():
             continue
-        plain, _ = block.joined(False)
+        plain, _ = block.joined(False)  # same offsets as masked; used for what messages show
         bold_view = tx.mask(plain, "x")
+        locate = _Locator(block, starts)
+        low: Optional[str] = masked.lower()
+        if low is not None and len(low) != len(masked):
+            low = None
 
-        def add(rule: str, start: int, end: int, message: str, courtesy: bool = False,
-                _starts: list[tuple[int, int]] = starts, _masked: str = masked, _bi: int = bi) -> None:
-            found.append(_make(doc, rule, _offset_line(_starts, start), _offset_col(_starts, start), message,
-                               _masked[start:end], start, end, _bi, courtesy))
+        def add(rule: str, start: int, end: int, message: str, exempt_in: tuple[str, ...] = (),
+                severity: str = "", _plain: str = plain, _locate: _Locator = locate, _bi: int = bi) -> None:
+            no, col = _locate(start)
+            f = _make(doc, rule, no, col, message, _plain[start:end], start, end, _bi, exempt_in)
+            if severity:
+                f.severity = severity
+            found.append(f)
 
         # word lists
-        for rule, entries, courtesy in lists:
-            for entry in entries:
-                for m in entry.pattern.finditer(masked):
-                    if words.allowed(m.group(0)):
+        for rule, name, entries, types in lists:
+            for entry, key in entries:
+                for m in _scan(entry.pattern, key, masked, low):
+                    shown = plain[m.start():m.end()]
+                    if words.allowed(shown):
+                        continue
+                    if name in QUOTE_EXEMPT_LISTS and _in_quotes(plain, m.start(), m.end()):
                         continue
                     note = entry.note or RULES[rule][1]
-                    add(rule, m.start(), m.end(), _list_message(rule, m.group(0), note), courtesy)
-        for name, replacement, pattern in words.flags:
-            for m in pattern.finditer(masked):
-                if not m.group(0).strip() or words.allowed(m.group(0)):
+                    add(rule, m.start(), m.end(), _list_message(rule, shown, note), types)
+        for name, replacement, pattern, is_phrase, key in flags:
+            for m in _scan(pattern, key, masked, low):
+                shown = plain[m.start():m.end()]
+                if not shown.strip() or words.allowed(shown):
                     continue
                 arrow = f" → {replacement}" if replacement else ""
-                label = name if name != m.group(0) else m.group(0)
+                label = f'"{_show(shown)}"' if is_phrase else f'"{_show(shown)}" ({name})'
                 add("project_term", m.start(), m.end(),
-                    f'Project word "{label}"{arrow}. Rewrite the sentence, not just the word.')
+                    f"Project word {label}{arrow}. Rewrite the sentence, not just the word.")
 
         for m in _HEDGE_STACK.finditer(masked):
             add("hedge_stack", m.start(), m.end(),
-                f'Stacked hedge "{m.group(0).strip()}". Use one hedge of the same strength; do not remove the hedge.')
-        for m in _DASHES.finditer(masked):
-            around = masked[max(0, m.start() - 2): m.end() + 2]
-            if _RANGE_DASH.search(around):
-                continue
-            add("em_dash", m.start(), m.end(),
-                "Dash used to splice or insert a clause. Use a comma, colon, parentheses or a period that keeps "
-                "the same scope (keep ranges, quotations and fiction dialogue).")
+                f'Stacked hedge "{_show(plain[m.start():m.end()])}". Use one hedge of the same strength; do not '
+                "remove the hedge.")
+        if bi != title:  # the document title is not changed
+            for m in _DASHES.finditer(masked):
+                around = masked[max(0, m.start() - 2): m.end() + 2]
+                if _RANGE_DASH.search(around):
+                    continue
+                if block.kind == "table" and _empty_cell(masked, m.start(), m.end()):
+                    continue
+                if _after_timestamp(masked, m.start()) or _FIELD_AFTER.match(masked, m.end()):
+                    continue  # timeline entries and "— Owner: ..." fields
+                add("em_dash", m.start(), m.end(),
+                    "Dash used to splice or insert a clause. Use a comma, colon, parentheses or a period that keeps "
+                    "the same scope (keep ranges, quotations and fiction dialogue).")
         if block.kind != "heading":
             for pattern in _NEG_CONTRAST:
                 for m in pattern.finditer(masked):
+                    shown = _show(plain[m.start():m.end()])
                     add("negative_contrast", m.start(), m.end(),
-                        f'Negative contrast "{tx.display_width_cut(m.group(0), 70)}". Remove the denied part only if '
+                        f'Negative contrast "{tx.display_width_cut(shown, 70)}". Remove the denied part only if '
                         "the claim stays the same; keep it when it corrects a likely misreading.")
         for m in _PERSONIFICATION.finditer(masked):
             add("personification", m.start(), m.end(),
-                f'"{m.group(0)}" gives a tool or idea a will or feelings. Say what it does, unless the function is '
-                "obvious or the subject is an identifier in a developer document.")
+                f'"{_show(plain[m.start():m.end()])}" gives a tool or idea a will or feelings. Say what it does, '
+                "unless the function is obvious or the subject is an identifier in a developer document.")
         for pattern in _COUNT:
             for m in pattern.finditer(masked):
                 add("count_announcement", m.start(), m.end(),
-                    f'Count announcement "{m.group(0)}". Check that the count matches the items; keep the count and '
-                    "items as they are and ask if they differ.")
+                    f'Count announcement "{_show(plain[m.start():m.end()])}". Check that the count matches the '
+                    "items; keep the count and items as they are and ask if they differ.")
 
         # emoji
-        for m in re.finditer(r"\S", masked):
+        for m in _EMOJI_CANDIDATE.finditer(masked):
             if tx.is_emoji(m.group(0)):
                 add("emoji", m.start(), m.end(),
                     f"Emoji ({m.group(0)}). Remove it if it is decoration; keep it if it carries meaning.")
 
-        # bold rendering
-        for offset, snippet, reason in bold_problems(bold_view):
+        # bold rendering (the view keeps code and links as letters so that **`code`** pairs)
+        for offset, _snippet, reason, lone in bold_problems(bold_view):
+            snippet = _show(plain[max(0, offset - 15): offset + 17])
             add("bold_unrendered", offset, offset + 2,
-                f'This bold markup will not render ("{snippet}"): {reason}.')
+                f'This bold markup will not render ("{snippet}"): {reason}.', severity="info" if lone else "")
 
         if block.kind == "heading":
-            content = masked.strip()
-            if content.endswith((":", "：")):
-                add("heading_colon", len(masked.rstrip()) - 1, len(masked.rstrip()),
-                    "Heading ends with a colon. Remove the colon.")
+            body = masked.rstrip().rstrip("*_ \t")  # "## **Benefits:**"
+            if body.endswith((":", "：")):
+                add("heading_colon", len(body) - 1, len(body), "Heading ends with a colon. Remove the colon.")
             continue
 
         # sentences in this block
@@ -389,9 +537,10 @@ def lint(text: str, doc_type: Optional[str] = None, reader: Optional[str] = None
                 nxt = masked[spans[idx + 1][0]:spans[idx + 1][1]].strip()
                 if sent.endswith("?") and word_count(sent) <= 6 and _SELF_Q.match(sent) and not nxt.endswith("?"):
                     add("self_answered_question", s, e,
-                        f'Self-answered question "{sent}". Fold it into a statement unless the document type keeps it.')
+                        f'Self-answered question "{_show(plain[s:e]).strip("*_")}". Fold it into a statement unless '
+                        "the document type keeps it.")
             if block.kind in ("para", "callout"):
-                _fragment_runs(doc, masked, spans, starts, bi, found)
+                _fragment_runs(doc, masked, plain, spans, locate, bi, found)
 
     _block_rules(doc, found)
     found = _dedupe(found)
@@ -401,7 +550,7 @@ def lint(text: str, doc_type: Optional[str] = None, reader: Optional[str] = None
     kept: list[Finding] = []
     exempted: list[Finding] = []
     for f in found:
-        if f.rule in exempt or (doc_type == "mail" and f.rule == "chat_residue" and f.courtesy):
+        if f.rule in exempt or (doc_type is not None and doc_type in f.exempt_in):
             exempted.append(f)
         else:
             kept.append(f)
@@ -409,7 +558,7 @@ def lint(text: str, doc_type: Optional[str] = None, reader: Optional[str] = None
 
 
 def _list_message(rule: str, match: str, note: str) -> str:
-    m = match.strip()
+    m = _show(match)
     if rule == "ai_vocabulary":
         return f'AI-frequent word "{m}": {note}. Keep it if it is the field\'s term or no plain word says the same.'
     if rule == "stock_phrase":
@@ -425,16 +574,17 @@ def _list_message(rule: str, match: str, note: str) -> str:
     return f'Jargon "{m}": {note}.'
 
 
-def _fragment_runs(doc: tx.Document, masked: str, spans: list[tuple[int, int]],
-                   starts: list[tuple[int, int]], bi: int, found: list[Finding]) -> None:
+def _fragment_runs(doc: tx.Document, masked: str, plain: str, spans: list[tuple[int, int]],
+                   locate: _Locator, bi: int, found: list[Finding]) -> None:
     run: list[tuple[int, int]] = []
 
     def flush() -> None:
         if len(run) >= 3:
             s = run[0][0]
-            snippet = " ".join(masked[a:b].strip() for a, b in run[:4])
-            found.append(_make(doc, "fragment_run", _offset_line(starts, s), _offset_col(starts, s),
-                               f'{len(run)} very short sentences in a row ("{tx.display_width_cut(snippet, 60)}"). '
+            snippet = " ".join(plain[a:b].strip() for a, b in run[:4])
+            no, col = locate(s)
+            found.append(_make(doc, "fragment_run", no, col,
+                               f'{len(run)} very short sentences in a row ("{tx.display_width_cut(_show(snippet), 60)}"). '
                                "Write subject and verb when the original gives them; keep promo, slides and fiction.",
                                snippet, s, run[-1][1], bi))
     for s, e in spans:
@@ -458,7 +608,7 @@ def _block_rules(doc: tx.Document, found: list[Finding]) -> None:
                 block = blocks[bi]
                 line = block.lines[0]
                 label = _BOLD_LABEL.match(line.masked)
-                match = label.group(0) if label else ""
+                match = line.content[label.start():label.end()] if label else ""
                 found.append(_make(doc, "bold_label_list", line.no, line.offset + 1,
                                    f"Item starts with a bold label and colon ({len(group)} in a row). Keep labels "
                                    "for values; fold labels that only summarize into the sentence; remove the bold.",
@@ -479,13 +629,15 @@ def _block_rules(doc: tx.Document, found: list[Finding]) -> None:
         if block.kind not in ("para", "list"):
             continue
         masked, _starts = block.joined(True)
-        body = _BOLD_LABEL.sub("", masked, count=1)
-        spans = list(_BOLD_SPAN.finditer(body))
+        label = _BOLD_LABEL.match(masked)
+        skip = label.end() if label else 0
+        spans = list(_BOLD_SPAN.finditer(masked, skip))
         if len(spans) >= 3:
             line = block.lines[0]
+            plain, _ = block.joined(False)
             found.append(_make(doc, "heavy_bold", line.no, line.offset + 1,
                                f"{len(spans)} bold phrases in one paragraph. Keep bold only for what readers must not "
-                               "miss (a warning, a value to type).", spans[0].group(0), 0, 0, bi))
+                               "miss (a warning, a value to type).", plain[spans[0].start():spans[0].end()], 0, 0, bi))
 
     # closing summary headings (not the first heading)
     headings = [(bi, b) for bi, b in enumerate(blocks) if b.kind == "heading"]
@@ -518,7 +670,10 @@ def _block_rules(doc: tx.Document, found: list[Finding]) -> None:
         if line.kind == "blank":
             continue
         next_kind[line.no] = following
-        following = "list" if line.kind == "list" else line.kind
+        if line.kind == "para" and _FIGURE_LINE.match(line.raw.strip()):
+            following = "figure"  # an image or display math is what the colon introduces
+        else:
+            following = line.kind
     for bi, block in enumerate(blocks):
         if block.kind != "para":
             continue
@@ -537,7 +692,9 @@ def _block_rules(doc: tx.Document, found: list[Finding]) -> None:
     def flush_starts() -> None:
         if len(current) >= 3:
             first = current[0]
-            found.append(_make(doc, "sentence_start_repeat", first.line, 1,
+            block = blocks[first.block_index]
+            no, col = _Locator(block, block.joined(True)[1])(first.start)
+            found.append(_make(doc, "sentence_start_repeat", no, col,
                                f'{len(current)} sentences in a row start with "{prev_word}". Vary only where it '
                                "reads as a pattern; keep parallel steps and lists.", prev_word, 0, 0, first.block_index))
     for sent in doc.sentences:
@@ -557,34 +714,42 @@ def _block_rules(doc: tx.Document, found: list[Finding]) -> None:
 
 
 def _dedupe(found: list[Finding]) -> list[Finding]:
-    """Drop exact duplicates and info list findings contained in a warn finding or a longer one of the same rule."""
-    seen: set[tuple[str, int, int, int]] = set()
-    unique: list[Finding] = []
-    for f in found:
-        key = (f.rule, f.block, f.start, f.end) if f.end else (f.rule, f.line, f.col, -1)
-        if key in seen:
+    """One finding per span.
+
+    Drops exact duplicates, the shorter of two overlapping findings of the same rule, and a word-list finding
+    that overlaps a stronger or longer word-list finding ("crucial" inside "plays a crucial role", "a deep dive"
+    and "deep dive into"). Findings of different regex rules are all kept, even when their spans overlap.
+    Runs in O(n log n) for the usual short spans.
+    """
+    drop = [False] * len(found)
+    seen: set[tuple[str, int, int]] = set()
+    groups: dict[tuple[int, str], list[int]] = {}
+    for i, f in enumerate(found):
+        if not f.end or f.block < 0:
+            key = (f.rule, f.line, f.col)
+            drop[i] = key in seen
+            seen.add(key)
             continue
-        seen.add(key)
-        unique.append(f)
-    by_block: dict[int, list[Finding]] = {}
-    for f in unique:
-        if f.end and f.block >= 0:
-            by_block.setdefault(f.block, []).append(f)
-    result: list[Finding] = []
-    for f in unique:
-        if f.end and f.block >= 0:
-            covered = False
-            for g in by_block.get(f.block, []):
-                if g is f:
-                    continue
-                if g.start <= f.start and f.end <= g.end and (g.end - g.start) > (f.end - f.start):
-                    if g.rule == f.rule or (SEVERITY_ORDER[g.severity] < SEVERITY_ORDER[f.severity]):
-                        covered = True
-                        break
-            if covered:
-                continue
-        result.append(f)
-    return result
+        family = "list" if f.rule in LIST_RULE_NAMES else f.rule
+        groups.setdefault((f.block, family), []).append(i)
+
+    def rank(i: int, by_list: bool) -> tuple[int, ...]:
+        f = found[i]
+        if by_list:  # stronger first, the project's own word first, then the longer phrase
+            return (SEVERITY_ORDER[f.severity], 0 if f.rule == "project_term" else 1, f.start - f.end, i)
+        return (f.start - f.end, i)
+
+    for (_block, family), indexes in groups.items():
+        by_list = family == "list"
+        indexes.sort(key=lambda i: (found[i].start, -found[i].end))
+        active: list[int] = []
+        for i in indexes:
+            start = found[i].start
+            active = [j for j in active if found[j].end > start]
+            for j in active:
+                drop[i if rank(i, by_list) > rank(j, by_list) else j] = True
+            active.append(i)
+    return [f for i, f in enumerate(found) if not drop[i]]
 
 
 # ---------------------------------------------------------------- output
@@ -599,8 +764,10 @@ def counts(findings: list[Finding]) -> dict[str, int]:
 
 def kept_words(findings: list[Finding]) -> list[str]:
     seen: list[str] = []
+    keys: set[str] = set()
     for f in findings:
-        if f.rule in KEPT_WORD_RULES and f.match and f.match.lower() not in (s.lower() for s in seen):
+        if f.rule in KEPT_WORD_RULES and f.match and f.match.lower() not in keys:
+            keys.add(f.match.lower())
             seen.append(f.match)
     return seen
 
@@ -621,7 +788,7 @@ def to_json(result: LintResult) -> dict[str, object]:
         "words": {"folder": str(result.words.folder) if result.words.folder else None,
                   "count": result.words.count, "sha256": result.words.digest or None},
         "findings": [
-            {k: v for k, v in asdict(f).items() if k not in ("start", "end", "courtesy", "block")}
+            {k: v for k, v in asdict(f).items() if k not in ("start", "end", "exempt_in", "block")}
             for f in result.findings
         ],
     }

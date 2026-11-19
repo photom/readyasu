@@ -6,7 +6,12 @@ unleash*	delete the frame
 harness the	"use"; keep a test harness
 harnessing the	"using"
 harnesses the	"uses"
-weav*	"combines"
+weave	"combines"
+weaves	"combines"
+weaved	"combines"
+weaving	"combines"
+wove	"combines"
+woven	"combines"
 fuels	say what it makes possible
 fueled	say what it made possible
 fuelled	say what it made possible

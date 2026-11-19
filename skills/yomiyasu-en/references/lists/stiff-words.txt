@@ -1,7 +1,10 @@
 # Words that make a rewrite stiffer than the original. Used by the diff stiffness check.
 utiliz*
 utilis*
-facilitat*
+facilitate
+facilitates
+facilitated
+facilitating
 commenc*
 endeavo*
 aforementioned

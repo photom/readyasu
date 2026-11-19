@@ -1,0 +1,7 @@
+# Chat interjections: residue when they answer a request, normal in dialogue and mail.
+# Not reported for --doc-type script, essay or mail, or inside quotation marks.
+great question	delete if it answers a request; keep in dialogue
+certainly!	delete if it answers a request; keep in dialogue
+absolutely!	delete if it answers a request; keep in dialogue
+sure!	delete if it answers a request; keep in dialogue
+of course!	delete if it answers a request; keep in dialogue

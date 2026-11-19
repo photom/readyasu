@@ -118,3 +118,141 @@ def test_indented_fence_inside_top_level_fence() -> None:
 def test_word_list_line_limit(tmp_path) -> None:  # noqa: ANN001
     (tmp_path / "allow.txt").write_text("w\n" * tx.MAX_WORD_LINES, encoding="utf-8")
     assert len(tx.load_words(str(tmp_path), False).allow) == tx.MAX_WORD_LINES
+
+
+# ---------------------------------------------------------------- set 4 lint review
+
+
+def kinds(text: str) -> list[str]:
+    return [ln.kind for ln in tx.parse(text).lines]
+
+
+def test_url_does_not_swallow_closing_bold() -> None:
+    for text in ("Open **http://localhost:3000** now.", "**www.example.com**"):
+        masked = tx.mask(text)
+        assert masked.count("**") == 2, masked
+    assert "example" not in tx.mask("See https://example.com/a_b_.")
+
+
+def test_fence_inside_block_quote_is_code() -> None:
+    text = '> [!TIP]\n> ```bash\n> git checkout -- src/utilize.py\n> python -c "print(2**3)"\n> ```\n> After it.\n'
+    doc = tx.parse(text)
+    assert kinds(text) == ["quote", "fence", "code", "code", "fence", "quote"]
+    assert all(ln.quoted for ln in doc.lines[1:5])
+    assert [b.kind for b in doc.blocks] == ["callout", "callout"]
+    assert not any("utilize" in s.text for s in doc.sentences)
+
+
+def test_fence_in_quote_ends_with_the_quote() -> None:
+    assert kinds("> ```\n> code\n\nOutside para.\n") == ["fence", "code", "blank", "para"]
+
+
+def test_indented_code_inside_list_item() -> None:
+    text = "- Restore the file:\n\n      git checkout -- src/utilize.py\n\n  More about the item.\n"
+    assert kinds(text) == ["list", "blank", "code", "blank", "para"]
+    assert kinds("1. Step\n\n       code\n") == ["list", "blank", "code"]
+    assert kinds("- item\n\n    continued paragraph\n") == ["list", "blank", "para"]
+
+
+def test_callout_continues_across_blank_quote_lines() -> None:
+    doc = tx.parse("> [!NOTE]\n> Plain first paragraph.\n>\n> In today's world we leverage synergy.\n")
+    assert [b.kind for b in doc.blocks] == ["callout", "callout"]
+    doc = tx.parse("> She said hello.\n>\n> She left.\n\n> [!NOTE]\n> Text.\n")
+    assert [b.kind for b in doc.blocks] == ["quote", "quote", "callout"]
+
+
+def test_callout_with_emoji_or_italic_label() -> None:
+    for text in ("> 💡 **Tip:** Use the cache.\n", "> *Note:* We delve here.\n", "> ⚠️ _Warning:_ Stop.\n"):
+        assert [b.kind for b in tx.parse(text).blocks] == ["callout"], text
+    assert [b.kind for b in tx.parse("> Note that she left.\n").blocks] == ["quote"]
+
+
+def test_inline_code_across_line_break_is_masked() -> None:
+    doc = tx.parse("run `git checkout --\nsrc/leverage_utils.py` and rebuild.\n")
+    assert "--" not in doc.lines[0].masked and "leverage" not in doc.lines[1].masked
+    assert doc.lines[1].masked.endswith("and rebuild.")
+    assert "leverage" not in doc.sentences[0].masked
+
+
+def test_phrase_regex_curly_apostrophe_entry() -> None:
+    import re
+    import warnings
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        pattern = re.compile(tx.phrase_regex("Let’s circle up"), re.I)
+    assert pattern.search("let's circle up") and pattern.search("Let’s circle up")
+
+
+def test_lazy_continuation_lines() -> None:
+    text = "> In today's world, this tool lets\nteams delve into data.\n\nAfter.\n"
+    assert kinds(text) == ["quote", "quote", "blank", "para"]
+    assert [b.kind for b in tx.parse(text).blocks] == ["quote", "para"]
+    text = "- This item wraps\nlazily onto a second line and\na third line:\n\nNext.\n"
+    doc = tx.parse(text)
+    assert [b.kind for b in doc.blocks] == ["list", "para"]
+    assert len(doc.blocks[0].lines) == 3
+
+
+def test_inline_html_and_mid_line_comments() -> None:
+    assert kinds("<strong>Warning:</strong> Text here <em>x</em>\n") == ["para"]
+    assert kinds("<div align=\"center\">\n\n<img src=\"x.png\">\n\n<br>\n") == ["html", "blank", "html", "blank", "html"]
+    text = "Text here <!-- TODO leverage\nthis is delve comment -->\nAfter.\n"
+    doc = tx.parse(text)
+    assert kinds(text) == ["para", "html", "para"]
+    assert "leverage" not in doc.lines[0].masked
+    assert "TODO" not in tx.mask("A <!-- TODO --> B")
+
+
+def test_allowed_ignores_apostrophe_style_and_line_breaks() -> None:
+    words = tx.Words(allow=["it's worth noting that", "in order to"])
+    assert words.allowed("It’s worth noting that")
+    assert words.allowed("in order\nto")
+    assert not words.allowed("in order")
+
+
+def test_split_common_words_initials_and_non_ascii() -> None:
+    assert spans("The answer was no. The team needs another week.") == [
+        "The answer was no.", "The team needs another week."]
+    assert spans("Set the fan to max. Then restart it.") == ["Set the fan to max.", "Then restart it."]
+    assert spans("Plan B. It was cheaper.") == ["Plan B.", "It was cheaper."]
+    assert spans("We met in Oslo. Émile joined later.") == ["We met in Oslo.", "Émile joined later."]
+    assert spans("See No. 5 and Fig. 3 here. Then Dec. 5 came.") == ["See No. 5 and Fig. 3 here.", "Then Dec. 5 came."]
+    assert spans("John F. Kennedy spoke. J. R. R. Tolkien wrote.") == ["John F. Kennedy spoke.", "J. R. R. Tolkien wrote."]
+    assert spans("The U.S. Army agreed. It costs approx. 5 dollars.") == [
+        "The U.S. Army agreed.", "It costs approx. 5 dollars."]
+
+
+def test_toml_front_matter_and_heading_hash() -> None:
+    doc = tx.parse("+++\ntitle = \"delve\"\n+++\nBody.\n")
+    assert [s.text for s in doc.sentences] == ["Body."]
+    doc = tx.parse("## Using C#\n## Title ##\n#  Spaced  #\n")
+    assert [ln.content for ln in doc.lines] == ["Using C#", "Title", "Spaced"]
+    assert [ln.level for ln in doc.lines] == [2, 2, 1]
+    assert doc.lines[2].offset == 3
+
+
+def test_setext_heading_level() -> None:
+    doc = tx.parse("Title\n=====\n\nSub\n---\n")
+    assert [(ln.kind, ln.level) for ln in doc.lines if ln.kind == "heading"] == [("heading", 1), ("heading", 2)]
+
+
+def test_sentence_start_offsets() -> None:
+    doc = tx.parse("One two. Three four.\n")
+    assert [s.start for s in doc.sentences] == [0, 9]
+
+
+def test_text_helpers_are_linear() -> None:
+    import time
+    cases = [
+        "|" + " " * 40000 + "x",
+        "a | b\n--" + " " * 40000 + "x",
+        "a@b " + "a." * 20000,
+        "http://x " + "a." * 20000,
+        "www." * 10000,
+        "A. " * 13000,
+    ]
+    for text in cases:
+        start = time.monotonic()
+        tx.parse(text)
+        tx.split_sentences(text)
+        assert time.monotonic() - start < 2, text[:20]

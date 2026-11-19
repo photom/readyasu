@@ -11,6 +11,7 @@ import sys
 
 sys.dont_write_bytecode = True
 
+import bisect
 import hashlib
 import re
 import unicodedata
@@ -85,16 +86,20 @@ def sha256_text(text: str) -> str:
 
 # ---------------------------------------------------------------- masking
 
-_INLINE_CODE = re.compile(r"(`+)(?!`)(.+?)(?<!`)\1(?!`)")
-_URL = re.compile(r"(?:https?://|ftp://|www\.)[^\s<>()\[\]]+[^\s<>()\[\].,;:!?'\"]")
+_INLINE_CODE = re.compile(r"(`+)(?!`)(.+?)(?<!`)\1(?!`)", re.DOTALL)
+# GitHub autolinks do not end with punctuation or emphasis markers (*, _, ~).
+_URL = re.compile(r"(?<![A-Za-z0-9_.-])(?:https?://|ftp://|www\.)[^\s<>()\[\]]+[^\s<>()\[\].,;:!?'\"*_~]")
 _AUTOLINK = re.compile(r"<(?:https?://|mailto:)[^>\s]+>")
 _LINK_DEST = re.compile(r"\]\((?:[^()\s]|\([^()\s]*\))*(?:\s+\"[^\"]*\")?\)")
+# Code spans and HTML comments: whichever starts first wins, so `<!--` in code is code.
+_CODE_OR_COMMENT = re.compile(_INLINE_CODE.pattern + r"|<!--.*?(?:-->|\Z)", re.DOTALL)
 _HTML_TAG = re.compile(r"</?[A-Za-z][A-Za-z0-9-]*(?:\s[^<>]*)?/?>")
-_EMAIL = re.compile(r"\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b")
+# The lookbehind keeps the scan linear on long dotted tokens.
+_EMAIL = re.compile(r"(?<![\w.+-])[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b")
 
 
 def protected_spans(text: str) -> list[tuple[int, int, str]]:
-    """Spans that must not change: inline code, URLs, autolinks, link targets, e-mail."""
+    """Spans that must not change: inline code, URLs, autolinks, link targets, e-mail, HTML tags and comments."""
     spans: list[tuple[int, int, str]] = []
     taken = [False] * (len(text) + 1)
 
@@ -104,13 +109,14 @@ def protected_spans(text: str) -> list[tuple[int, int, str]]:
                 continue
             for i in range(m.start(), m.end()):
                 taken[i] = True
-            spans.append((m.start(), m.end(), kind))
+            spans.append((m.start(), m.end(), "html" if m.group(0).startswith("<!--") else kind))
 
-    add(_INLINE_CODE, "code")
+    add(_CODE_OR_COMMENT if "<!--" in text else _INLINE_CODE, "code")
     add(_AUTOLINK, "url")
     add(_LINK_DEST, "url")
     add(_URL, "url")
-    add(_EMAIL, "url")
+    if "@" in text:
+        add(_EMAIL, "url")
     add(_HTML_TAG, "html")
     spans.sort()
     return spans
@@ -132,14 +138,29 @@ def mask(text: str, fill: str = " ") -> str:
 
 _FENCE = re.compile(r"^( {0,3})(`{3,}|~{3,})(.*)$")
 _LIST_FENCE = re.compile(r"^([ \t]{0,12})(`{3,}|~{3,})(.*)$")
-_CALLOUT = re.compile(r"^\s*(?:\[![A-Za-z]+\]|(?:\*\*|__)?(?:note|warning|tip|important|caution|info|danger|attention)"
-                      r"\b[^\n]{0,3}?(?::|(?:\*\*|__)))", re.IGNORECASE)
-_HEADING = re.compile(r"^ {0,3}(#{1,6})(?:[ \t]+(.*?))?[ \t]*#*[ \t]*$")
+_EMOJI_CLASS = "\U0001F000-\U0001FAFF\u2600-\u27BF\u2B00-\u2BFF\u231A\u231B\u23E9-\u23FA"
+# A callout starts with [!TYPE] or a label (**Note:**, *Tip:*, Warning:), optionally after an emoji.
+_CALLOUT = re.compile(
+    r"^\s*(?:[" + _EMOJI_CLASS + "]\uFE0F?\\s*)?"
+    r"(?:\[![A-Za-z]+\]|(?:\*\*|__|\*|_)?(?:note|warning|tip|important|caution|info|danger|attention)"
+    r"\b[^\n]{0,3}?(?::|\*\*|__|\*|_))", re.IGNORECASE)
+_HEADING = re.compile(r"^ {0,3}(#{1,6})(?:[ \t]+(.*))?$")
 _LIST = re.compile(r"^(\s*)([-*+]|\d{1,9}[.)])(?:[ \t]+(?:\[[ xX]\][ \t]+)?|$)")
 _QUOTE = re.compile(r"^ {0,3}>")
+_QUOTE_PREFIX = re.compile(r"^\s*(?:>\s?)+")
 _RULE = re.compile(r"^ {0,3}(?:(?:\*[ \t]*){3,}|(?:-[ \t]*){3,}|(?:_[ \t]*){3,})$")
 _SETEXT = re.compile(r"^ {0,3}(=+|-+)[ \t]*$")
-_TABLE_SEP = re.compile(r"^\s*\|?\s*:?-{2,}:?\s*(?:\|\s*:?-{2,}:?\s*)*\|?\s*$")
+# No two optional whitespace runs touch, so long runs of spaces do not backtrack.
+_TABLE_SEP = re.compile(r"^[ \t]*(?:\|[ \t]*)?:?-{2,}:?[ \t]*(?:\|[ \t]*:?-{2,}:?[ \t]*)*(?:\|[ \t]*)?$")
+# CommonMark HTML blocks: block-level tags start a block anywhere; any other tag only when it is
+# alone on the line and does not continue a paragraph.
+_HTML_BLOCK = re.compile(
+    r"^ {0,3}</?(?:address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|"
+    r"dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h[1-6]|head|header|hr|html|"
+    r"iframe|legend|li|link|main|menu|menuitem|nav|noframes|ol|optgroup|option|p|param|pre|script|search|section|"
+    r"style|summary|table|tbody|td|textarea|tfoot|th|thead|title|tr|track|ul)(?=[\s/>]|$)", re.IGNORECASE)
+_HTML_ALONE = re.compile(r"^ {0,3}(?:<[A-Za-z][A-Za-z0-9-]*(?:\s[^<>]*)?/?>|</[A-Za-z][A-Za-z0-9-]*\s*>)\s*$")
+_CLOSED_COMMENT = re.compile(r"<!--.*?-->")
 
 
 @dataclass
@@ -151,6 +172,8 @@ class Line:
     offset: int = 0  # index in raw where content starts
     masked: str = ""
     continuation: bool = False  # para line that continues a list item
+    level: int = 0  # heading level, 1 to 6
+    quoted: bool = False  # code or fence line inside a block quote
 
 
 @dataclass
@@ -185,6 +208,45 @@ class Sentence:
     line: int
     kind: str  # block kind
     block_index: int
+    start: int = 0  # offset in the block's joined text
+
+
+def _content_indent(raw: str, lm: re.Match[str]) -> int:
+    """Column where a list item's content starts (CommonMark: marker plus 1 to 4 spaces)."""
+    marker_end = lm.end(2)
+    rest = raw[marker_end:]
+    spaces = len(rest) - len(rest.lstrip(" \t"))
+    width = len(raw[:marker_end].expandtabs(4))
+    if not rest.strip() or not 1 <= spaces <= 4:
+        return width + 1
+    return width + spaces
+
+
+def _heading_parts(raw: str, hm: re.Match[str]) -> tuple[str, int]:
+    """Heading text without the optional closing #s (which need a space before them), and its offset."""
+    if hm.group(2) is None:
+        return "", len(raw)
+    body = hm.group(2).rstrip()
+    i = len(body)
+    while i > 0 and body[i - 1] == "#":
+        i -= 1
+    if i < len(body) and (i == 0 or body[i - 1] in " \t"):
+        body = body[:i].rstrip()
+    return body, (hm.start(2) if body else len(raw))
+
+
+def _opens_comment(text: str) -> bool:
+    """True if text starts an HTML comment that does not close on the same line (outside inline code)."""
+    if "<!--" not in text:
+        return False
+    probe = _INLINE_CODE.sub(lambda m: " " * len(m.group(0)), text)
+    return "<!--" in _CLOSED_COMMENT.sub(" ", probe)
+
+
+def _closes_fence(text: str, fence: str, indent: int) -> bool:
+    m = _LIST_FENCE.match(text)
+    return bool(m and m.group(2)[0] == fence[0] and len(m.group(2)) >= len(fence)
+                and not m.group(3).strip() and len(m.group(1).expandtabs(4)) <= indent + 3)
 
 
 def classify(text: str) -> list[Line]:
@@ -196,34 +258,63 @@ def classify(text: str) -> list[Line]:
     in_fence: Optional[str] = None
     fence_indent = 0
     in_html_comment = False
-    in_front = False
+    front_end: tuple[str, ...] = ()
     in_list = False
+    item_indent = 0
+    quote_fence: Optional[str] = None
+    quote_fence_indent = 0
+    quote_para = False  # the previous line is paragraph text inside a block quote
     prev_kind = "blank"
     for index, raw in enumerate(raw_lines):
         no = index + 1
         stripped = raw.strip()
-        if index == 0 and stripped == "---":
-            in_front = True
+        if index == 0 and stripped in ("---", "+++"):
+            front_end = ("---", "...") if stripped == "---" else ("+++",)
             lines.append(Line(no, raw, "front"))
             continue
-        if in_front:
+        if front_end:
             lines.append(Line(no, raw, "front"))
-            if stripped in ("---", "..."):
-                in_front = False
+            if stripped in front_end:
+                front_end = ()
             continue
         if in_fence is not None:
             lines.append(Line(no, raw, "code"))
-            m = _LIST_FENCE.match(raw)
-            if m and m.group(2)[0] == in_fence[0] and len(m.group(2)) >= len(in_fence) \
-                    and not m.group(3).strip() and len(m.group(1).expandtabs(4)) <= fence_indent + 3:
+            if _closes_fence(raw, in_fence, fence_indent):
                 lines[-1].kind = "fence"
                 in_fence = None
             continue
+        if not in_html_comment and lines and lines[-1].kind in ("para", "list", "heading", "table") \
+                and _opens_comment(lines[-1].content):
+            in_html_comment = True  # a comment that starts mid-line hides the following lines
         if in_html_comment:
             lines.append(Line(no, raw, "html"))
             if "-->" in raw:
                 in_html_comment = False
+            quote_para = False
             continue
+        if _QUOTE.match(raw):
+            content = _QUOTE_PREFIX.sub("", raw, count=1)
+            prev_kind = "quote"
+            if quote_fence is not None:
+                closing = _closes_fence(content, quote_fence, quote_fence_indent)
+                lines.append(Line(no, raw, "fence" if closing else "code", quoted=True))
+                if closing:
+                    quote_fence = None
+                quote_para = False
+                continue
+            m = _LIST_FENCE.match(content)
+            if m and not ("`" in m.group(3) and m.group(2)[0] == "`"):
+                quote_fence = m.group(2)
+                quote_fence_indent = len(m.group(1).expandtabs(4))
+                lines.append(Line(no, raw, "fence", quoted=True))
+                quote_para = False
+                continue
+            lines.append(Line(no, raw, "quote", content, len(raw) - len(content)))
+            quote_para = bool(content.strip()) and not _HEADING.match(content) and not _RULE.match(content)
+            continue
+        quote_fence = None  # a fence inside a block quote ends with the quote
+        lazy_quote = quote_para and prev_kind == "quote"
+        quote_para = False
         m = _FENCE.match(raw) or (_LIST_FENCE.match(raw) if in_list else None)
         if m and not ("`" in m.group(3) and m.group(2)[0] == "`"):
             in_fence = m.group(2)
@@ -240,13 +331,16 @@ def classify(text: str) -> list[Line]:
             lines.append(Line(no, raw, "blank"))
             prev_kind = "blank"
             continue
-        if raw.startswith(("    ", "\t")) and prev_kind in ("blank", "code") and not in_list:
-            lines.append(Line(no, raw, "code"))
-            prev_kind = "code"
-            continue
+        if raw.startswith(("    ", "\t")) and prev_kind in ("blank", "code"):
+            indent = len(raw[:len(raw) - len(raw.lstrip())].expandtabs(4))
+            if not in_list or indent >= item_indent + 4:
+                lines.append(Line(no, raw, "code"))
+                prev_kind = "code"
+                continue
         sm = _SETEXT.match(raw)
         if sm and prev_kind == "para" and lines and not lines[-1].continuation:
             lines[-1].kind = "heading"
+            lines[-1].level = 1 if sm.group(1)[0] == "=" else 2
             lines.append(Line(no, raw, "rule"))
             prev_kind = "rule"
             continue
@@ -257,26 +351,20 @@ def classify(text: str) -> list[Line]:
             continue
         hm = _HEADING.match(raw)
         if hm:
-            content = hm.group(2) or ""
-            offset = raw.find(content) if content else len(raw)
-            lines.append(Line(no, raw, "heading", content, offset))
+            content, offset = _heading_parts(raw, hm)
+            lines.append(Line(no, raw, "heading", content, offset, level=len(hm.group(1))))
             prev_kind = "heading"
             in_list = False
             continue
-        if _QUOTE.match(raw):
-            content = re.sub(r"^\s*(>\s?)+", "", raw)
-            lines.append(Line(no, raw, "quote", content, len(raw) - len(content)))
-            prev_kind = "quote"
-            continue
         if stripped.startswith("|") or (prev_kind == "table" and "|" in stripped) or \
-                (_TABLE_SEP.match(raw) and prev_kind == "para" and "|" in raw):
-            if _TABLE_SEP.match(raw) and prev_kind == "para" and lines:
+                (prev_kind == "para" and "|" in raw and _TABLE_SEP.match(raw)):
+            if prev_kind == "para" and lines and _TABLE_SEP.match(raw):
                 lines[-1].kind = "table"
-            kind = "table"
-            lines.append(Line(no, raw, kind, raw.strip()))
+            lines.append(Line(no, raw, "table", raw.strip()))
             prev_kind = "table"
             continue
-        if stripped.startswith("<") and _HTML_TAG.match(stripped) and stripped.endswith(">"):
+        if _HTML_BLOCK.match(raw) or (prev_kind not in ("para", "list") and not lazy_quote
+                                      and _HTML_ALONE.match(raw)):
             lines.append(Line(no, raw, "html"))
             prev_kind = "html"
             continue
@@ -286,8 +374,15 @@ def classify(text: str) -> list[Line]:
             lines.append(Line(no, raw, "list", content, lm.end()))
             prev_kind = "list"
             in_list = True
+            item_indent = _content_indent(raw, lm)
             continue
-        cont = in_list and prev_kind in ("list", "para") and (raw.startswith((" ", "\t")) or prev_kind == "list")
+        if lazy_quote:
+            # CommonMark lazy continuation: an unprefixed line continues the quoted paragraph.
+            lines.append(Line(no, raw, "quote", stripped, len(raw) - len(raw.lstrip())))
+            prev_kind = "quote"
+            quote_para = True
+            continue
+        cont = in_list and prev_kind in ("list", "para")  # lazy or indented continuation of a list item
         line = Line(no, raw, "para", raw.lstrip(), len(raw) - len(raw.lstrip()))
         line.continuation = cont
         lines.append(line)
@@ -302,11 +397,30 @@ def classify(text: str) -> list[Line]:
     return lines
 
 
+def _mask_block(block: Block) -> None:
+    """Mask the block's joined text so that inline code spanning a line break is covered."""
+    if len(block.lines) < 2:
+        return
+    plain, starts = block.joined(False)
+    masked = mask(plain)
+    for (pos, _no), line in zip(starts, block.lines):
+        content = line.content
+        left = len(content) - len(content.lstrip())
+        right = len(content.rstrip())
+        line.masked = content[:left] + masked[pos:pos + right - left] + content[right:]
+
+
 def blocks(lines: list[Line]) -> list[Block]:
     """Group lines into paragraph, heading, list-item, table-row, quote and callout blocks."""
     result: list[Block] = []
     current: Optional[Block] = None
+    container: Optional[str] = None  # "quote" or "callout" for the block quote being read
     for line in lines:
+        if line.kind != "quote" and not line.quoted:
+            container = None
+        if line.quoted:
+            current = None
+            continue
         if line.kind == "para":
             if current is not None and current.kind in ("para", "list") and (
                     current.kind == "para" or line.continuation):
@@ -320,13 +434,17 @@ def blocks(lines: list[Line]) -> list[Block]:
             result.append(current)
             continue
         if line.kind == "quote":
-            if current is not None and current.kind in ("quote", "callout") and line.content.strip():
-                current.lines.append(line)
-                continue
             if not line.content.strip():
                 current = None
                 continue
-            current = Block("callout" if _CALLOUT.match(line.content) else "quote", [line])
+            if current is not None and current.kind in ("quote", "callout"):
+                current.lines.append(line)
+                continue
+            if container != "callout":
+                # A callout label starts a callout that runs to the end of the block quote,
+                # across blank ">" lines and fenced code.
+                container = "callout" if _CALLOUT.match(line.content) else "quote"
+            current = Block(container, [line])
             result.append(current)
             continue
         if line.kind == "heading":
@@ -335,17 +453,65 @@ def blocks(lines: list[Line]) -> list[Block]:
             if not _TABLE_SEP.match(line.raw):
                 result.append(Block("table", [line]))
         current = None
+    for block in result:
+        _mask_block(block)
     return result
 
 
 _ABBREVIATIONS = {
     "e.g", "i.e", "etc", "vs", "mr", "mrs", "ms", "dr", "prof", "inc", "ltd", "co", "jr", "sr",
-    "st", "no", "fig", "eq", "approx", "cf", "al", "dept", "est", "u.s", "u.k", "a.m", "p.m",
-    "jan", "feb", "mar", "apr", "jun", "jul", "aug", "sep", "sept", "oct", "nov", "dec", "vol",
-    "pp", "ch", "sec", "min", "max", "ref", "e.g.,", "corp",
+    "st", "approx", "cf", "al", "dept", "u.s", "u.k", "a.m", "p.m", "e.g.,", "corp",
+}
+# Abbreviations that are also common words or that come before a number ("No. 5", "Fig. 3",
+# "Dec. 5"): not a sentence end only when a digit follows.
+_NUMBER_ABBREVIATIONS = {
+    "no", "nos", "fig", "figs", "eq", "vol", "pp", "p", "ch", "sec", "ref", "min", "max", "est", "ca", "op",
+    "jan", "feb", "mar", "apr", "jun", "jul", "aug", "sep", "sept", "oct", "nov", "dec",
+}
+# Capitalized words that usually start a sentence, so "Plan B. It was cheaper." splits after "B.".
+_SENTENCE_STARTERS = {
+    "a", "an", "the", "it", "its", "this", "that", "these", "those", "there", "then", "they", "we", "he", "she",
+    "i", "you", "our", "my", "his", "her", "their", "your", "in", "on", "at", "for", "but", "and", "so", "or",
+    "if", "when", "after", "before", "now", "next", "also", "however", "as", "to", "with", "by", "from", "what",
+    "why", "how", "who", "where", "which", "all", "some", "no", "yes", "one", "each", "both", "once", "while",
+    "since", "because", "although", "finally", "first", "today", "here", "not", "only", "even", "still", "yet",
+    "thus", "instead", "meanwhile", "later", "let", "please", "do", "is", "are", "was", "were", "see", "use",
 }
 _BOUNDARY = re.compile(r"([.!?]+|\.\.\.|…)([\"'”’)\]*_]*)(\s+|$)")
-_NEXT_START = re.compile(r"[\s]*[\"'“‘(\[*_]*[A-Z0-9#`]")
+_OPENERS = re.compile(r"\s*[\"'“‘(\[*_]*")
+_NEXT_WORD = re.compile(r"[\"'“‘(\[*_]*([^\W\d_][\w'’-]*)(\.?)")
+_NONSPACE = re.compile(r"\S")
+
+
+def _starts_sentence(text: str, pos: int) -> bool:
+    """True if the text at pos (after spaces and opening quotes) starts with a capital, digit, # or `."""
+    i = _OPENERS.match(text, pos)
+    j = i.end() if i else pos
+    if j >= len(text):
+        return False
+    ch = text[j]
+    return ch.isupper() or ch.isdigit() or ch in "#`"
+
+
+def _word_before(text: str, pos: int, start: int) -> str:
+    """The ASCII word (dots allowed, as in "e.g") that ends at pos."""
+    i = pos
+    while i > start and ((text[i - 1].isascii() and text[i - 1].isalpha()) or text[i - 1] == "."):
+        i -= 1
+    while i < pos and text[i] == ".":
+        i += 1
+    return text[i:pos]
+
+
+def _is_initial(text: str, pos: int) -> bool:
+    """After "X.", True if the next word looks like the rest of a name ("John F. Kennedy", "J. R. Smith")."""
+    m = _NEXT_WORD.match(text, pos)
+    if not m:
+        return False
+    word = m.group(1)
+    if len(word) == 1 and m.group(2):
+        return True
+    return word[0].isupper() and word.lower() not in _SENTENCE_STARTERS
 
 
 def split_sentences(text: str) -> list[tuple[int, int]]:
@@ -355,29 +521,28 @@ def split_sentences(text: str) -> list[tuple[int, int]]:
     for m in _BOUNDARY.finditer(text):
         end = m.end(2)
         punct = m.group(1)
-        before = text[start:m.start()]
-        if not before.strip():
+        if not _NONSPACE.search(text, start, m.start()):
             continue
-        if m.end() < len(text):
-            if not _NEXT_START.match(text, m.end()):
-                if "\n" not in m.group(3):
-                    continue
-        if punct == ".":
-            word = re.search(r"([A-Za-z][A-Za-z.]*)$", before)
+        at_end = m.end() >= len(text)
+        if not at_end and not _starts_sentence(text, m.end()) and "\n" not in m.group(3):
+            continue
+        if punct == "." and not at_end:
+            word = _word_before(text, m.start(), start)
+            following = text[m.end():m.end() + 1]
             if word:
-                w = word.group(1).lower()
-                if w in _ABBREVIATIONS or (len(w) == 1 and w.isalpha() and word.group(1).isupper()):
-                    if m.end() < len(text):
-                        continue
-            if re.search(r"\d$", before) and m.end() < len(text) and text[m.end():m.end() + 1].isdigit():
+                low = word.lower()
+                if low in _ABBREVIATIONS or (low in _NUMBER_ABBREVIATIONS and following.isdigit()):
+                    continue
+                if len(word) == 1 and word.isupper() and _is_initial(text, m.end()):
+                    continue
+            if m.start() > 0 and text[m.start() - 1].isdigit() and following.isdigit():
                 continue
-        if punct in ("...", "…") and m.end() < len(text):
-            nxt = text[m.end():m.end() + 1]
-            if not nxt.isupper():
+        if punct in ("...", "…") and not at_end:
+            if not text[m.end():m.end() + 1].isupper():
                 continue
         spans.append((start, end))
         start = m.end()
-    if text[start:].strip():
+    if _NONSPACE.search(text, start):
         spans.append((start, len(text)))
     result: list[tuple[int, int]] = []
     for s, e in spans:
@@ -408,21 +573,22 @@ def parse(text: str) -> Document:
     for bi, block in enumerate(blks):
         masked, starts = block.joined(True)
         plain, _ = block.joined(False)
+        positions = [pos for pos, _no in starts]
         if block.kind in ("heading", "table"):
             spans = [(0, len(masked))] if masked.strip() else []
         else:
             spans = split_sentences(masked)
         for s, e in spans:
-            line_no = starts[0][1]
-            for pos, no in starts:
-                if pos <= s:
-                    line_no = no
+            line_no = starts[max(0, bisect.bisect_right(positions, s) - 1)][1]
             sents.append(Sentence(plain[s:e].replace("\n", " "), masked[s:e].replace("\n", " "),
-                                  line_no, block.kind, bi))
+                                  line_no, block.kind, bi, s))
     return Document(text, lines, blks, sents)
 
 
 # ---------------------------------------------------------------- word lists
+
+
+_APOSTROPHE = re.compile(r"\\?['’]")
 
 
 def phrase_regex(phrase: str) -> str:
@@ -432,7 +598,7 @@ def phrase_regex(phrase: str) -> str:
     for word in words:
         star = word.endswith("*")
         core = word[:-1] if star else word
-        piece = re.escape(core).replace("’", "['’]").replace("'", "['’]").replace("\\'", "['’]")
+        piece = _APOSTROPHE.sub("['’]", re.escape(core))  # one pass, so ’ and ' both work
         if star:
             piece += r"[\w’'-]*"
         parts.append(piece)
@@ -481,9 +647,22 @@ class Words:
     digest: str = ""
     count: int = 0
 
+    _allow_keys: frozenset[str] = field(default=frozenset(), repr=False, compare=False)
+    _allow_size: int = field(default=-1, repr=False, compare=False)
+
     def allowed(self, text: str) -> bool:
-        low = text.strip().lower()
-        return any(low == a.lower() for a in self.allow)
+        """True if text equals an allow.txt entry, ignoring case, apostrophe style and line breaks."""
+        if not self.allow:
+            return False
+        if self._allow_size != len(self.allow):
+            self._allow_keys = frozenset(normalize_phrase(a) for a in self.allow)
+            self._allow_size = len(self.allow)
+        return normalize_phrase(text) in self._allow_keys
+
+
+def normalize_phrase(text: str) -> str:
+    """Lower case, ’ as ', and single spaces: the form used to compare phrases."""
+    return " ".join(text.replace("’", "'").replace("‘", "'").lower().split())
 
 
 def git_top(start: Path) -> Optional[Path]:

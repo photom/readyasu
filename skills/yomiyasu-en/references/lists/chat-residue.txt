@@ -1,24 +1,16 @@
-# Assistant chat left in a document.
-great question	delete
-certainly!	delete
-absolutely!	delete
-sure!	delete
-of course!	delete
+# Assistant chat left in a document. Reported in every document type.
+# Offers and courtesies that are normal in mail are in closing-courtesies.txt;
+# interjections that are normal in dialogue are in chat-interjections.txt.
 i hope this helps	delete
 hope this helps	delete
 as an ai	delete
 as a language model	delete
 here's a revised version	delete
 here is a revised version	delete
-here's the revised	delete
-here is the revised	delete
+here's the revised version	delete
+here is the revised version	delete
+here's the revised text	delete
+here is the revised text	delete
 here's a polished	delete
 here is a polished	delete
-here's a draft	delete
-here is a draft	delete
-i'd be happy to help	delete
-i'm happy to help	delete
-happy to help!	delete
-let me know if you'd like	delete
-would you like me to	delete
 i hope this email finds you well	keep only if the writer writes this way

@@ -120,12 +120,12 @@ When the user corrects the type or reader after your answer, treat it as a new r
 | minutes | bold_label_list, excess_list, fragment_run |
 | manual | excess_list |
 | slides | bold_label_list, excess_list, fragment_run, self_answered_question, count_announcement, closing_summary |
-| essay | fragment_run, exclamation |
+| essay | fragment_run, exclamation, chat_residue (interjections only) |
 | formal | none |
 | promo | emoji, exclamation, fragment_run, self_answered_question |
-| mail | emoji, exclamation, chat_residue (closing courtesies only) |
+| mail | emoji, exclamation, chat_residue (courtesies and interjections only) |
 | paper | none |
-| script | fragment_run, exclamation, self_answered_question |
+| script | fragment_run, exclamation, self_answered_question, chat_residue (interjections only) |
 
 No type exempts metaphor_verb: metaphorical verbs on ordinary events are reviewed in every type, and each doc-type file says which uses to keep.
 

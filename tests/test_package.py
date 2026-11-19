@@ -40,7 +40,7 @@ def test_doc_type_files_match_lint_exemptions() -> None:
         assert m, doc_type
         listed = [] if m.group(1).strip() == "none" else [
             r.split(" ")[0] for r in (x.strip() for x in m.group(1).split(", "))]
-        expected = list(lint.EXEMPT[doc_type]) + (["chat_residue"] if doc_type == "mail" else [])
+        expected = list(lint.EXEMPT[doc_type]) + list(lint.PARTIAL_EXEMPT.get(doc_type, ()))
         assert sorted(listed) == sorted(expected), doc_type
 
 
@@ -52,13 +52,13 @@ def test_audience_table_matches_lint_exemptions() -> None:
         assert m, doc_type
         listed = [] if m.group(1).strip() == "none" else [
             r.split(" ")[0] for r in (x.strip() for x in m.group(1).split(", "))]
-        expected = list(lint.EXEMPT[doc_type]) + (["chat_residue"] if doc_type == "mail" else [])
+        expected = list(lint.EXEMPT[doc_type]) + list(lint.PARTIAL_EXEMPT.get(doc_type, ()))
         assert sorted(listed) == sorted(expected), doc_type
 
 
 def test_lists_readme_matches_lint() -> None:
     text = (SKILL / "references" / "lists" / "README.md").read_text(encoding="utf-8")
-    for rule, name, _courtesy in lint.LIST_RULES:
+    for rule, name, _types in lint.LIST_RULES:
         assert re.search(r"\| " + re.escape(name) + r"\.txt \| " + rule, text), name
         assert (tx.LISTS_DIR / f"{name}.txt").is_file()
     for name in ("fact-gaps", "stiff-words", "feelings", "roles"):

@@ -9,11 +9,12 @@
 ## Known gaps in lint
 
 - Word lists match surface forms. A listed word used in its literal or technical sense ("unlock the door", "robust statistics", "elevate the platform by 2 meters") is still reported; use `.yomiyasu-en-words/allow.txt` or keep the word and give the reason.
-- Words mentioned as examples inside quotation marks (a style guide that says to avoid "delve") are reported like any other use.
+- Words mentioned as examples inside quotation marks (a style guide that says to avoid "delve") are reported like any other use. Only interjections such as "Sure!" are treated as dialogue inside double quotation marks (or with `--doc-type` essay, script or mail); dialogue in single quotation marks is reported.
 - Rhythm-level AI patterns (every paragraph the same length, a "rule of three" in every sentence, a summary sentence at the end of every paragraph) are not detected.
 - Negative contrast, personification and self-answered questions are detected only in common forms.
-- Sentence splitting uses punctuation and a short list of abbreviations; unusual abbreviations can split a sentence in two.
-- Markdown parsing covers headings (ATX and setext), lists, block quotes, tables, fenced and indented code, HTML comments and front matter. Deeply nested structures and raw HTML blocks may be classified roughly.
+- Sentence splitting uses punctuation and a short list of abbreviations; unusual abbreviations can split a sentence in two. Words that are also abbreviations before a number (no, max, fig, Dec) end a sentence unless a digit follows, and a single capital letter is treated as an initial only before a capitalized word that does not usually start a sentence ("John F. Kennedy", but "Plan B. It was cheaper."), so "Plan B. Kennedy approved it." stays one sentence.
+- The em_dash rule skips timeline entries and fields by pattern: a time or date at the start of a line or item ("09:12", "Dec 5", "2025-12-03", "Day 2") and a capitalized label of up to three words with a colon after the dash ("— Owner: Marco"). Other separators are still reported.
+- Markdown parsing covers headings (ATX and setext), lists, block quotes (with lazy continuation lines and fenced code inside), tables, fenced and indented code, HTML comments and YAML or TOML front matter. Deeply nested structures and raw HTML blocks may be classified roughly: a line that starts with a block-level tag (`<div>`, `<p>`, `<details>`) or holds a single tag is skipped, but text on the lines between `<div>` and `</div>` is checked.
 
 ## Known gaps in diff
 

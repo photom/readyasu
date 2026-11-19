@@ -13,11 +13,12 @@ python3 yomiyasu_en_lint.py [--json] [--strict] [--fail-on warn|error] [--doc-ty
 
 Lists English expressions and Markdown formatting worth reviewing in one document.
 
-- Checks paragraphs, list items, headings, table rows and callouts (`> **Note:**`, `> [!WARNING]`). Ignores code (fenced, indented and inline), URLs, e-mail addresses, HTML, front matter and block quotations.
+- Checks paragraphs, list items, headings, table rows and callouts (`> **Note:**`, `> [!WARNING]`, `> 💡 **Tip:**`, `> *Note:*`; a callout runs from its label to the end of the block quote, across blank `>` lines). Ignores code (fenced, indented and inline, including fenced code inside block quotes, indented code inside list items and inline code that wraps to the next line), URLs, e-mail addresses, HTML blocks and comments, front matter (YAML `---` or TOML `+++`) and block quotations, including unprefixed lines that continue a quoted paragraph.
+- One finding per place: when word-list matches overlap, the more severe one (then a project word, then the longer phrase) is kept. Findings of different pattern rules on the same words are all kept.
 - Severities: `error` (bold that will not render), `warn` and `info`. The rules are listed in review-points.md section 3. The word lists behind several rules are in `references/lists/` (see its README).
 - `--doc-type` exempts rules that are normal for the type; exempted findings are counted separately and do not count toward `--strict` or `--fail-on`. `--help` prints the table.
 - `--reader` is recorded only.
-- `--json` prints `format`, `tool`, `version`, `doc_type`, `reader`, `review_findings`, `counts`, `no_rule_findings`, `exempted`, `exempted_rules`, `words` and `findings` (each with `line`, `col`, `rule`, `severity`, `message`, `match`, `text`).
+- `--json` prints `format`, `tool`, `version`, `doc_type`, `reader`, `review_findings`, `counts`, `no_rule_findings`, `exempted`, `exempted_rules`, `words` and `findings` (each with `line`, `col`, `rule`, `severity`, `message`, `match`, `text`). `col` is the 1-based character column in the original line; `match` and `text` show the original text, not the masked form.
 - Exit codes: 0 finished and no `--fail-on` condition matched; 1 a condition matched; 2 usage or input error.
 
 ## yomiyasu_en_diff.py
@@ -120,8 +121,8 @@ Put a folder named `.yomiyasu-en-words/` at the top of the git repository (the w
 
 | File | Format | Effect |
 |---|---|---|
-| `allow.txt` | One word or phrase per line | Findings whose matched text equals an entry (case-insensitive) are not reported, for list-based rules and project words |
-| `flag.txt` | `word` or `word<TAB>replacement` per line | Reported as `project_term`; the replacement (up to 80 characters) is shown after "→". Lines indented with a TAB are ignored. Matching follows the word-list rules (case-insensitive, `*` suffix wildcard) |
-| `flag-patterns.txt` | `name<TAB>regular expression` per line | Reported as `project_term` under the name. Python regular expression syntax; case-sensitive unless the pattern says `(?i)` |
+| `allow.txt` | One word or phrase per line | Findings whose matched text equals an entry are not reported, for list-based rules and project words. The comparison ignores case, treats ' and ’ alike and treats any run of spaces or line breaks as one space |
+| `flag.txt` | `word` or `word<TAB>replacement` per line | Reported as `project_term` with the text it matched; the replacement (up to 80 characters) is shown after "→". Lines indented with a TAB are ignored. Matching follows the word-list rules (case-insensitive, `*` suffix wildcard, ' and ’ alike) |
+| `flag-patterns.txt` | `name<TAB>regular expression` per line | Reported as `project_term` with the matched text and the name. Python regular expression syntax; case-sensitive unless the pattern says `(?i)` |
 
 Lines starting with `#` and blank lines are ignored. Each file may have up to 10,000 lines. A third TAB column in `flag.txt`, a longer replacement, a line in `flag-patterns.txt` without exactly one TAB, an invalid regular expression, or a file that is not UTF-8 stops lint, diff and check with exit 2 and names the file and line.

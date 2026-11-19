@@ -1,7 +1,7 @@
 # Dialogue and screenplays (script)
 
 See also: domains/essay.md
-Lint rules exempted: fragment_run, exclamation, self_answered_question
+Lint rules exempted: fragment_run, exclamation, self_answered_question, chat_residue (interjections only)
 
 ## 1. Normal forms (do not change)
 
