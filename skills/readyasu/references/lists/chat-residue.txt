@@ -3,6 +3,8 @@
 # closing-courtesies.txt; interjections that are normal in dialogue are in chat-interjections.txt.
 # The "as an AI" entries need the first-person clause after them, so "As an AI researcher, I ..." and
 # "We use GPT-2 as a language model for rescoring" are not reported.
+# An assistant's preamble before a drafted text ("Certainly! Here's a reply you can send to Jordan:") is found by a
+# pattern in readyasu_lint.py, not by this list, and is reported in mail too.
 as an ai language model, i	delete
 as an ai language model i	delete
 as an ai language model, my	delete
