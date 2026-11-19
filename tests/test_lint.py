@@ -247,8 +247,10 @@ def test_one_finding_per_span(text: str, match: str) -> None:
     assert [f.match for f in findings(text)] == [match]
 
 
-def test_dash_in_a_cell_with_text_is_still_checked() -> None:
-    assert "em_dash" in rules("| Step | Note |\n|---|---|\n| Batch | slow — retry |\n")
+def test_dash_in_a_cell_with_a_sentence_is_still_checked() -> None:
+    assert "em_dash" in rules("| Step | Note |\n|---|---|\n| Batch | It was slow — we retried. |\n")
+    # A cell with no sentence end is a label and a value (loop 1).
+    assert "em_dash" not in rules("| Step | Note |\n|---|---|\n| Batch | slow — retry |\n")
 
 
 def test_project_flag_with_curly_apostrophe(tmp_path) -> None:  # noqa: ANN001
@@ -2107,9 +2109,11 @@ def test_reply_subject_lines_are_not_changed(subject: str) -> None:
     assert "em_dash" not in rules(text)
 
 
-def test_subject_in_a_pasted_header_is_not_changed_and_a_new_subject_is_checked() -> None:
+def test_subject_in_a_pasted_header_and_a_new_subject_are_not_changed() -> None:
     assert "em_dash" not in rules("From: Ana Ruiz\nSent: Monday\nSubject: Outage — action needed\n\nHi Jo,\n", "mail")
-    assert "em_dash" in rules("Subject: Partnership opportunity — Brightwave x Tallyhop\n\nHi Jo,\n", "mail")
+    # A new subject is the mail's title too (loop 1); the body is still checked.
+    assert "em_dash" not in rules("Subject: Partnership opportunity — Brightwave x Tallyhop\n\nHi Jo,\n", "mail")
+    assert "em_dash" in rules("Subject: Partnership\n\nHi Jo,\n\nWe met in May — it went well.\n", "mail")
 
 
 # ---------------------------------------------------------------- set 13
@@ -2327,3 +2331,118 @@ def test_synthetic_examples_pair_weekdays_with_the_right_dates() -> None:
             assert datetime.date(int(y), months[mo], int(d)).weekday() == days[day], (path.name, day, mo, d, y)
             checked += 1
     assert checked >= 3
+
+
+# ---------------------------------------------------------------- loop 1 (fixed evaluation set)
+
+
+@pytest.mark.parametrize(("text", "doc_type"), [
+    ("Subject: Office move — keys on Friday\n\nHi all,\n\nThe keys are ready.\n", "mail"),
+    ("**Subject:** Leaving — my last day is May 2\n\nHi Sam,\n", None),
+    ("To: Lee\nSubject: Complaint – late deliveries, order 4471\n\nDear Lee,\n", "mail"),
+])
+def test_loop1_subject_line_is_the_mails_title(text: str, doc_type: str | None) -> None:
+    assert "em_dash" not in rules(text, doc_type)
+
+
+def test_loop1_dash_in_a_mail_body_is_still_reported() -> None:
+    text = "Subject: Office move — keys on Friday\n\nHi all,\n\nWe move on Friday — bring a box.\n"
+    assert [(f.rule, f.line) for f in findings(text, "mail")] == [("em_dash", 5)]
+
+
+@pytest.mark.parametrize("text", [
+    "Harbor Rowing Club — Annual General Meeting\nHeld at the boathouse, 6pm, Tuesday 4 March\n\nPresent: all.\n",
+    "Network outage report — west office\nPrepared by: Ines Moll, IT\nDate: Monday, 3 March 2025\n\nBody.\n",
+    "THE LONG WAY HOME\nRadio play — draft 2\n\nINT. BUS - NIGHT\n",
+    "VALLEY TENANTS NEWSLETTER\nSpring 2026 — Issue 12\n\nDear neighbours,\n",
+])
+def test_loop1_title_block_that_opens_the_document(text: str) -> None:
+    assert "em_dash" not in rules(text)
+
+
+@pytest.mark.parametrize("text", [
+    "Harbor Rowing Club — Annual General Meeting\n\nPresent: all.\n",  # a title alone on its line
+    "We rebuilt the cache — it is faster\nand cheaper than before.\n",  # wrapped prose
+    "Launch notes — the short version\nIt changes everything.\n",  # the second line is a sentence
+    "Intro\n\nHarbor Rowing Club — Annual General Meeting\nHeld at the boathouse\n",  # not the first block
+    "a\nrowing club — meeting\n",  # no capital at the start
+])
+def test_loop1_dash_outside_a_title_block_is_still_reported(text: str) -> None:
+    assert "em_dash" in rules(text)
+
+
+def test_loop1_dash_in_a_table_cell_without_a_sentence() -> None:
+    text = "| Light | Meaning |\n|---|---|\n| Red, blinking | No signal — see Troubleshooting |\n"
+    assert "em_dash" not in rules(text)
+    text = "| Light | Meaning |\n|---|---|\n| Red | The link dropped — restart the router. |\n"
+    assert "em_dash" in rules(text)
+
+
+def test_loop1_owner_that_opens_an_action_item() -> None:
+    text = "Actions:\n\n- Tomasz — send the signed invoice\n- @lee — rotate the API keys by Friday\n" \
+           "- [ ] Mira and Joe — book the venue\n"
+    assert "em_dash" not in rules(text)
+
+
+@pytest.mark.parametrize("text", [
+    "- **Speed** — it is fast\n",  # a bold label
+    "- Speed — It is fast. Really fast.\n",  # a sentence after the dash
+    "- Yes — we ship Friday\n",  # a common word, not an owner
+    "- Tomasz — Send the invoice\n",  # no action in lower case
+    "We met Tomasz — he sent the invoice.\n",  # not a list item
+])
+def test_loop1_dash_after_a_word_that_is_not_an_owner_is_reported(text: str) -> None:
+    assert "em_dash" in rules(text)
+
+
+@pytest.mark.parametrize("text", [
+    "Open days:\nSpring Fair – Sat 14 Mar, 10am–4pm in the hall\nSummer Fete – 2pm (field), weather permitting\n",
+    "Book Club – Thursday 7pm at the library. Bring the book.\n",
+    "Weekday lunch — 12:30, canteen\n",
+])
+def test_loop1_schedule_entry(text: str) -> None:
+    assert "em_dash" not in rules(text)
+
+
+@pytest.mark.parametrize("text", [
+    "The result — 2024, our best year.\n",  # starts like a sentence
+    "We shipped — 3pm, finally.\n",
+    "Book Club – we read three books this spring.\n",  # no date or time after the dash
+    "Our long-awaited spring book club picnic – Thursday, as usual.\n",  # the label is too long
+])
+def test_loop1_dash_that_is_not_a_schedule_entry_is_reported(text: str) -> None:
+    assert "em_dash" in rules(text)
+
+
+@pytest.mark.parametrize(("text", "doc_type"), [
+    ("“Wait, that's not—” Mara stopped.\n", "essay"),
+    ("\"If you could just—\" He shook his head.\n", None),
+    ("'I only meant—' she began.\n", None),  # straight single quotes: the closing one is not a curly mark
+    ("MARSH: I was there but I wasn't — we weren't on the picket line, you see.\n", None),
+    ("**Q:** And then?\n\n**OWEN:** It's — it's hard to say.\n", "script"),
+    ("She said, \"I can't — I won't go back.\"\n", None),
+])
+def test_loop1_speech_that_breaks_off(text: str, doc_type: str | None) -> None:
+    if text.startswith("'"):
+        assert "em_dash" in rules(text, doc_type)
+    else:
+        assert "em_dash" not in rules(text, doc_type)
+
+
+@pytest.mark.parametrize(("text", "doc_type"), [
+    ("We tried, but it didn't — it couldn't.\n", None),  # not speech
+    ("HOST: Gym memberships, streaming services — these small charges add up fast.\n", "script"),
+    ("**DR. KIM:** Brands release new lines every few weeks — sometimes every few days — so we buy more.\n", "script"),
+    ("\"Our office is more than a place — it is how we connect,\" said the CEO.\n", None),
+])
+def test_loop1_clause_dash_in_speech_or_a_quotation_is_reported(text: str, doc_type: str | None) -> None:
+    assert "em_dash" in rules(text, doc_type)
+
+
+@pytest.mark.parametrize(("text", "doc_type"), [
+    ("Subject: Your order — and our apologies\n\nHi Jo,\n", "mail"),
+    ("Product launch — but first, a thank-you\nSpring 2026\n\nBody.\n", None),
+    ("| Item | Note |\n|---|---|\n| Cache | faster — and cheaper |\n", None),
+])
+def test_loop1_dash_before_a_conjunction_in_a_title_or_cell_is_reported(text: str, doc_type: str | None) -> None:
+    assert "em_dash" in rules(text, doc_type)

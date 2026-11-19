@@ -935,6 +935,21 @@ _OWNER = r"(?:@[\w.-]+|[A-Z][\w'’-]+(?:[ \t]+[A-Z][\w'’-]+)?)"
 _OWNER_TAIL = re.compile(r"[ \t]*[*_(\[]*" + _OWNER + r"(?:[ \t]*(?:,|&|\+|/|and)[ \t]*" + _OWNER + r")*"
                          r"[*_)\]]*[.;]?[ \t]*$")
 _SENTENCE_MARK = re.compile(r"[.!?](?:\s|$)")
+# An owner that opens a list item before a dash ("- Ana — draft the notice"). Checked in _owner_first.
+_OWNER_FIRST = re.compile(r"[ \t]*(?P<owner>" + _OWNER + r"(?:[ \t]*(?:,|&|\+|/|and)[ \t]*" + _OWNER + r")*)[ \t]*")
+# A schedule entry: a label of up to five words, then after the dash a date or time and a comma, a parenthesis, "in",
+# "at", "on" or the line end. Checked in _schedule_entry.
+_SCHEDULE_LABEL = re.compile(r"[ \t*_]*(?P<first>[A-Z][\w'’&-]*)(?:[ \t]+[\w'’&-]+){0,4}[ \t*_]*")
+_SCHEDULE_WHEN = re.compile(r"[ \t]*(?:" + _STAMP_RUN + r")(?=[ \t]*(?:[,;(]|$|(?:in|at|on)\b))",
+                            re.IGNORECASE | re.MULTILINE)
+# Speech that breaks off and restarts: a pronoun and an auxiliary before the dash, a pronoun after it ("I wasn't —
+# we weren't"). Checked in _broken_speech.
+_PRONOUN = r"(?:I|we|you|he|she|it|they)"
+_RESTART_BEFORE = re.compile(
+    r"\b" + _PRONOUN + r"(?:\s+|['’])(?:am|is|are|was|were|do|does|did|have|has|had|can|could|will|would|should|"
+    r"shall|may|might|must|m|re|s|ve|d|ll)(?:n['’]t|\s+not)?\s*$|\b" + _PRONOUN + r"\s+(?:can|won|shan)['’]t\s*$",
+    re.IGNORECASE)
+_RESTART_AFTER = re.compile(r"\s*" + _PRONOUN + r"\b", re.IGNORECASE)
 # A man page's NAME line: "logsift — filter and summarize structured log files", "grep, egrep — print lines".
 _NAME_LINE = re.compile(r"[*_\s]*[\w.+:-]+(?:[*_]*\s*,\s*[*_]*[\w.+:-]+)*[*_\s]*")
 # A field label after a dash: "Fix the alert — Owner: Marco Ruiz — Due: Dec 5".
@@ -1131,7 +1146,8 @@ class _DashLine(NamedTuple):
     label_end: int  # where an all-capitals label at the line start ends, or -1
     scene: bool  # the line is a screenplay scene heading
     last_stop: int  # where the last sentence end on the line starts (_SENTENCE_END), or -1
-    reply_subject: bool  # a Subject: line of a reply or forward, or in a pasted message's header
+    subject: bool  # a mail's Subject: line, which is the mail's title
+    speaker: bool  # a turn of a script, interview or transcript ("A: ...", "**DR. LEE:** ...")
 
 
 def _label_dash(masked: str, line: int, start: int, end: int, last_stop: int) -> bool:
@@ -1169,26 +1185,29 @@ def _trailing_tag(masked: str, kind: str, line: int, line_end: int, start: int, 
     return bool(_DUE_TAIL.match(masked, end, line_end))
 
 
-# A mail's subject line. A reply or forward ("Re:", "Fwd:", "AW:") keeps the subject it answers, and so does a
-# message pasted with its header; a new subject is checked like a title.
-_SUBJECT_LINE = re.compile(r"[ \t]*[*_]*subject[*_]*[ \t]*:[*_]*[ \t]*(?P<reply>(?:re|fwd?|aw|wg|sv|tr)[ \t]*:)?",
-                           re.IGNORECASE)
+# A mail's subject line. It is the mail's title, so its dashes are separators ("Subject: Resignation — last day
+# December 5"), like the dashes of the document title; a reply or forward keeps the subject it answers anyway.
+_SUBJECT_LINE = re.compile(r"[ \t]*[*_]*subject[*_]*[ \t]*:", re.IGNORECASE)
+# A conjunction after a dash adds a clause instead of separating a title from a subtitle or a label from a value:
+# "Subject: An update on your order — and our apologies" is still checked.
+_ADDED_CLAUSE = re.compile(r"[ \t]*[*_\"“‘]*(?:and|but|or|yet|so|plus)\b", re.IGNORECASE)
+# The speaker's label that opens a turn of a script, an interview or a transcript: "A: ...", "DELGADO-FINCH: ...",
+# "**DR. LEE:** ...", "Farah Siddiqui: ...".
+_SPEAKER_TURN = re.compile(r"[ \t]*[*_]*" + _SPEAKER.pattern + r"[*_]*[ \t]*:[*_]*[ \t]")
 
 
-def _dash_line(masked: str, plain: str, line: int, kind: str) -> _DashLine:
-    """The _DashLine of the line that starts at offset line, in a block of this kind."""
+def _dash_line(masked: str, plain: str, line: int) -> _DashLine:
+    """The _DashLine of the line that starts at offset line."""
     end = masked.find("\n", line)
     end = len(masked) if end < 0 else end
     caps = _CAPS_LABEL.match(plain, line)
     stop = -1
     for m in _SENTENCE_END.finditer(masked, line, end):
         stop = m.start()
-    subject = _SUBJECT_LINE.match(plain, line)
     term_end, placeholders_end = _term_ends(masked, plain, line)
     return _DashLine(end, term_end, placeholders_end, caps.end() if caps else -1,
-                     bool(_SCENE_HEADING.match(plain, line)), stop,
-                     bool(subject and (subject.group("reply")
-                                       or (kind == "para" and _MESSAGE_HEADER.search(plain)))))
+                     bool(_SCENE_HEADING.match(plain, line)), stop, bool(_SUBJECT_LINE.match(plain, line)),
+                     bool(_SPEAKER_TURN.match(plain, line)))
 
 
 # A news or press dateline that opens a paragraph: a place in capitals, then optionally a state or country, a date
@@ -1276,12 +1295,80 @@ def _attribution(text: str, pos: int) -> bool:
     return j > 0 and text[j - 1] in ".!?\"”’)*_" and bool(_ATTRIBUTION.match(text, pos))
 
 
-def _empty_cell(text: str, start: int, end: int) -> bool:
-    """True if the dash at text[start:end] is the whole table cell ("| — |")."""
+def _cell(text: str, start: int, end: int) -> str:
+    """The table cell of a table row's text that holds text[start:end]."""
     left = text.rfind("|", 0, start) + 1
     right = text.find("|", end)
-    cell = text[left:right if right >= 0 else len(text)]
-    return not cell.strip().strip(_DASH_ONLY)
+    return text[left:right if right >= 0 else len(text)]
+
+
+def _empty_cell(text: str, start: int, end: int) -> bool:
+    """True if the dash at text[start:end] is the whole table cell ("| — |")."""
+    return not _cell(text, start, end).strip().strip(_DASH_ONLY)
+
+
+def _fragment_cell(text: str, start: int, end: int) -> bool:
+    """True if the table cell that holds the dash at text[start:end] has no sentence end: a label and a value, not a
+    sentence ("| Lost connection — see Troubleshooting |"). A cell with a sentence is still checked ("| We rebuilt
+    the cache — it is 3x faster. |")."""
+    return not _SENTENCE_END.search(_cell(text, start, end))
+
+
+def _title_lines(block: tx.Block) -> bool:
+    """True if the block is a title block that opens the document: a paragraph of two or more short lines, the first
+    starting with a capital, none ending with a sentence or clause mark and none after the first going on in lower case
+    ("Riverside Allotment Association — Committee Meeting" then "Held at the Scout Hut, 7:30pm"; "LEFTOVERS" then
+    "Short film — draft 3"). Its dashes separate a title from its subtitle, like those of the level-1 title. A title
+    alone on its line is still checked, since nothing tells it from an opening line of prose."""
+    if block.kind != "para" or len(block.lines) < 2:
+        return False
+    for i, ln in enumerate(block.lines):
+        text = ln.masked.strip().rstrip("*_\"”’)]").rstrip()
+        first = text.lstrip("*_\"“‘([")[:1]
+        if not text or len(text) > 80 or text.endswith((".", "!", "?", ":", ";", ",")) \
+                or (first.islower() if i else not first.isupper()):
+            return False
+    return True
+
+
+def _owner_first(masked: str, line: int, start: int, end: int, line_end: int, last_stop: int) -> bool:
+    """True if the dash at masked[start:end] follows only an owner at the start of a list item and an action in lower
+    case follows it with no sentence end ("- Ana — draft the deprecation notice by Nov 19", "- @priya — turn off
+    debug logging"). A common capitalized word is no owner ("- Yes — we ship Friday", _NOT_PLACES), and an owner
+    in bold or code is a label, still checked ("- **Speed** — it is fast")."""
+    m = _OWNER_FIRST.fullmatch(masked, line, start)
+    if m is None or last_stop >= end or not masked[end:line_end].lstrip()[:1].islower():
+        return False
+    return not any(word.upper() in _NOT_PLACES for word in m.group("owner").split() if word[0].isupper())
+
+
+def _schedule_entry(masked: str, line: int, start: int, end: int) -> bool:
+    """True if the dash at masked[start:end] follows a short label that starts its line and a date or time follows
+    it, then a comma, a parenthesis, "in", "at", "on" or the line end: an entry of a schedule ("Christmas Eve – 6pm
+    (family Mass), midnight", "Christmas Fayre – Sat 12 Dec, 10am–2pm in the hall. Cakes and a raffle."). A label
+    that starts like a sentence ("The result — 2024, our best year", _NOT_PLACES) is still checked."""
+    if start - line > 40:
+        return False
+    m = _SCHEDULE_LABEL.fullmatch(masked, line, start)
+    if m is None or m.group("first").upper() in _NOT_PLACES:
+        return False
+    return bool(_SCHEDULE_WHEN.match(masked, end))
+
+
+def _broken_speech(masked: str, start: int, end: int, speaker: bool, quotes: _Quotes) -> bool:
+    """True if the dash at masked[start:end] breaks off speech: right before a closing quotation mark ("“I can pay
+    you—”"), or, in a speaker's turn or a quotation, after a pronoun and an auxiliary that a pronoun restarts ("I
+    wasn't — we weren't in Delano"). Dashes in fiction dialogue and quotations are kept; a clause dash in a speaker's
+    turn is still checked, since a scripted line is the writer's own prose ("HOST: It adds up fast — so cancel
+    them.")."""
+    after = masked[end:end + 1]
+    if after and after in "”’":
+        return True
+    quoted = quotes.inside(start, end)
+    if after == '"' and quoted:
+        return True
+    return (speaker or quoted) and bool(_RESTART_BEFORE.search(masked, max(0, start - 40), start)) \
+        and bool(_RESTART_AFTER.match(masked, end))
 
 
 # ---------------------------------------------------------------- bold rendering
@@ -1526,7 +1613,7 @@ def lint(text: str, doc_type: Optional[str] = None, reader: Optional[str] = None
             prev = doc.blocks[bi - 1] if bi else None
             name_line = block.kind == "para" and prev is not None and prev.kind == "heading" \
                 and prev.lines[0].masked.strip(" *_").upper() == "NAME"
-            _expression_rules(flat, masked, plain, bold_view, block, add, name_line)
+            _expression_rules(flat, masked, plain, bold_view, block, add, name_line, bi == 0 and _title_lines(block))
             _preambles(doc, block, flat, masked, plain, bi == first_prose, after_greeting, add)
             if allow and len(found) > listed:
                 _drop_allowed(found, listed, _allowed_spans(allow, seen, low) if allowed is None else allowed)
@@ -1617,12 +1704,13 @@ def _after_subordinator(text: str, start: int) -> bool:
 
 
 def _expression_rules(flat: str, masked: str, plain: str, letters: str, block: tx.Block, add: _Add,
-                      name_line: bool = False) -> None:
+                      name_line: bool = False, title_lines: bool = False) -> None:
     """Pattern rules on one block (not the title): hedges, dashes, negative contrast, personification, counts and
     the looser "in today's ..." opener.
 
     flat is masked with emphasis underscores and line breaks as spaces, letters is plain with code, URLs and tags
-    as letters; all have the offsets of plain. name_line is True for the paragraph under a man page's NAME heading.
+    as letters; all have the offsets of plain. name_line is True for the paragraph under a man page's NAME heading,
+    title_lines for a title block that opens the document (_title_lines).
     """
     for m in _HEDGE_STACK.finditer(flat):
         if _MODAL_ADVERB.match(m.group(0)) and _rhetorical_hedge(flat, m.start()):
@@ -1633,6 +1721,7 @@ def _expression_rules(flat: str, masked: str, plain: str, letters: str, block: t
     # letters, not masked, so that a dash after inline code is found like any other.
     newlines = [m.start() for m in re.finditer("\n", masked)]
     lines: dict[int, _DashLine] = {}  # by the offset where the line starts
+    quotes = _Quotes(masked)
     for m in _DASHES.finditer(letters):
         around = masked[max(0, m.start() - 2): m.end() + 2]
         if _RANGE_DASH.search(around):
@@ -1645,9 +1734,10 @@ def _expression_rules(flat: str, masked: str, plain: str, letters: str, block: t
         line = _line_start(newlines, ds)
         info = lines.get(line)
         if info is None:
-            info = lines[line] = _dash_line(masked, plain, line, block.kind)
-        if info.reply_subject:
-            continue  # "Subject: Re: Partnership opportunity — Brightwave x Tallyhop": a reply keeps its subject
+            info = lines[line] = _dash_line(masked, plain, line)
+        if (info.subject or title_lines or (block.kind == "table" and _fragment_cell(masked, ds, de))) \
+                and not _ADDED_CLAUSE.match(masked, de):
+            continue  # "Subject: Resignation — last day December 5", "Short film — draft 3": a title and a subtitle
         label_end = ds if info.scene else info.label_end  # a scene heading is a label that ends at each dash
         if _after_timestamp(masked, ds) or _FIELD_AFTER.match(masked, m.end()) or _attribution(masked, ds) \
                 or _range_dash(masked, ds, de) \
@@ -1656,10 +1746,14 @@ def _expression_rules(flat: str, masked: str, plain: str, letters: str, block: t
                 or _label_dash(masked, line, ds, de, info.last_stop) \
                 or _dash_bullet(masked, ds, de) or _trailing_tag(masked, block.kind, line, info.end, ds, de) \
                 or (name_line and line == 0 and _NAME_LINE.fullmatch(masked, 0, ds)) \
-                or (block.kind == "para" and line == 0 and _dateline(masked, ds, de)):
+                or (block.kind == "para" and line == 0 and _dateline(masked, ds, de)) \
+                or (block.kind == "list" and line == 0
+                    and _owner_first(masked, line, ds, de, info.end, info.last_stop)) \
+                or _schedule_entry(masked, line, ds, de) \
+                or _broken_speech(masked, ds, de, info.speaker, quotes):
             continue  # timelines, "— Owner: ..." fields, "— Jeff Atwood", "Monday – Friday", "`-v` — verbose",
             # "Decisions:" then "– Budget approved", "— Fri 8 Mar", "logsift — filter log files" under NAME,
-            # "HARBOR CITY — Andrés ..."
+            # "HARBOR CITY — Andrés ...", "- Ana — draft the notice", "Christmas Eve – 6pm", "I can pay you—”"
         add("em_dash", ds, de,
             f'Dash in "{_context(plain, ds, de)}" used to splice or insert a clause. Use a comma, colon, parentheses '
             "or a period that keeps the same scope (keep ranges, quotations, code, and fiction narration and dialogue).")
