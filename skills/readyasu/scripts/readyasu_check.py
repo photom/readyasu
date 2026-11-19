@@ -382,7 +382,8 @@ def cmd_run(args: argparse.Namespace) -> int:
             attempt = (max(existing) + 1) if existing else 1
             # the latest record of this run (not the index) says how many revisions it already had
             last = read_json(run_dir / f"attempt-{max(existing)}.json") or {} if existing else {}
-            same_as_previous = attempt > 1 and last.get("final_sha256") == final_hash
+            last_final = last.get("final_sha256") or (previous.get("last_final") if previous.get("run") == run_id else None)
+            same_as_previous = attempt > 1 and last_final == final_hash
             try:
                 revisions = int(last.get("revisions", 0) or 0)
             except (TypeError, ValueError):
@@ -410,8 +411,9 @@ def cmd_run(args: argparse.Namespace) -> int:
             write_json(record_path, record)
             if diff is not None:
                 record_path.with_suffix(".diff.txt").write_text(str(diff.get("full_diff", "")) + "\n", encoding="utf-8")
-            write_json(by_source, {"run": run_id, "attempts": attempt, "revisions": revisions, "last_final": final_hash,
-                                   "cwd": cwd, "session": session, "updated_ts": now_utc().timestamp()})
+            if other_run is None:  # a run from another folder does not replace that folder's run in the index
+                write_json(by_source, {"run": run_id, "attempts": attempt, "revisions": revisions, "last_final": final_hash,
+                                       "cwd": cwd, "session": session, "updated_ts": now_utc().timestamp()})
             write_json(folder / "index" / "by-final" / f"{final_hash}.json",
                        {"run": run_id, "attempt": attempt, "record": str(record_path.relative_to(folder))})
             write_json(folder / "state.json", {"last_run": run_id, "last_attempt": attempt,
@@ -441,6 +443,7 @@ def cmd_run(args: argparse.Namespace) -> int:
                  "command again with --state-dir set to a folder you can write to, or with --no-record if there is no "
                  "such folder; then follow the first line of that output.")
     else:
+        args.mode = mode
         first = first_line(status, attempt, revisions, same_as_previous, args, problems, folder, meaning_risk)
         sourced = sum(1 for r in (diff or {}).get("meaning_risks", [])
                       if r.get("counted") and "elsewhere in the original or material" in str(r.get("message", "")))
@@ -450,7 +453,7 @@ def cmd_run(args: argparse.Namespace) -> int:
                 if f"{meaning_risk} counted meaning risk" in first else first
         if other_run:
             first += (f" (A run of the same original from another folder exists: {other_run[0]} in {other_run[1]}. If this "
-                      f"is a revision of it, run the command from that folder or add --run-id {other_run[0]}.)")
+                      f"is a revision of it, run the same command again with --run-id {other_run[0]}.)")
     kept_added = split_kept_added(lint_final, lint_orig, original, material_text)
     if args.json:
         out = {"format": 1, "tool": TOOL, "version": __version__, "status": status, "first_line": first,
@@ -479,13 +482,14 @@ def first_line(status: str, attempt: int, revisions: int, same_as_previous: bool
         return ("Some checks did not finish: " + "; ".join(problems) + ". Report them under \"Checks not run\" "
                 "with the reason check_error.")
     sd = f' --state-dir "{folder}"' if args.state_dir else ""
-    verify = (f"pass the same final draft on standard input to verify --final -{sd}" if args.stdin
+    verify = (f"pass the same final draft on standard input to verify --final -{sd}" if args.stdin or args.final == "-"
               else f'run verify --final "{args.final}"{sd}')
     if status == "unrecorded":
         return ("Ran the checks (not recorded, as requested). verify cannot match an unrecorded run; report the final "
                 "match as a check that was not run (no record was kept).")
     if attempt == 1 or revisions == 0:
-        risks = (f" {tx.plural(meaning_risk, 'counted meaning risk')}: compare each with the original and restore "
+        base = "the material" if getattr(args, "mode", "rewrite") == "compose" else "the original"
+        risks = (f" {tx.plural(meaning_risk, 'counted meaning risk')}: compare each with {base} and restore "
                  "unintended changes in your revision." if meaning_risk else "")
         return (f"Ran the checks (attempt {attempt}).{risks} Check the findings below against the original and material. Revise at "
                 "most once: if you revise, run the same command again; if not, right before submitting and without "

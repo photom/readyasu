@@ -345,3 +345,16 @@ def test_first_line_mentions_a_run_from_another_folder(tmp_path: Path) -> None:
     write(tmp_path / "f.md", "We use a pipeline.\n")
     p = run(["run", "--source", src, "--final", fin, "--state-dir", st, "--no-words"], other)
     assert "from another folder exists" in p.stdout.splitlines()[0]
+
+
+def test_other_folder_run_keeps_the_index(tmp_path: Path) -> None:
+    src = write(tmp_path / "o.md", "We leverage a robust pipeline.\n")
+    fin = write(tmp_path / "f.md", "We use a robust pipeline.\n")
+    st = str(tmp_path / "st")
+    run(["run", "--source", src, "--final", fin, "--state-dir", st, "--no-words"], tmp_path)
+    other = tmp_path / "other"
+    other.mkdir()
+    run(["run", "--source", src, "--final", fin, "--state-dir", st, "--no-words"], other)
+    write(tmp_path / "f.md", "We use a pipeline.\n")
+    p = run(["run", "--source", src, "--final", fin, "--state-dir", st, "--no-words"], tmp_path)
+    assert "attempt 2" in p.stdout.splitlines()[0]

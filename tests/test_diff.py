@@ -860,3 +860,59 @@ def test_reference_fact_gap() -> None:
 
 def test_word_diff_keeps_decimals_together() -> None:
     assert "1+}.{+8" not in diff.word_diff("Sync is faster on large records.", "Sync takes 1.8 seconds on large records.")
+
+
+@pytest.mark.parametrize(("orig", "rev", "kind"), [
+    ("The basic plan costs $10 per month. The pro plan costs $25 per month.\n",
+     "The basic plan costs $25 per month. The pro plan costs $10 per month.\n", "number"),
+    ("Alice is off on Monday. Bob is off on Friday.\n", "Alice is off on Friday. Bob is off on Monday.\n", "number"),
+    ("> **Warning:** Back up `/var/lib/acme/data` first.\n", "> **Warning:** Back up `/var/lib/acme` first.\n", "code"),
+    ("Two or more reviewers must approve.\n", "Two reviewers must approve.\n", "approximation"),
+    ("Requires Node.js 18 or later.\n", "Requires Node.js 18.\n", "approximation"),
+    ("We changed the pool size from 50 to 5.\n", "We changed the pool size from 5 to 50.\n", "number"),
+    ("Enterprise customers get priority support.\n", "Every customer gets priority support.\n", "scope"),
+    ("Rotate the keys every other day.\n", "Rotate the keys daily.\n", "number"),
+    ("We were told the servers are old.\n", "The servers are old.\n", "hearsay"),
+    ("Submit no later than 5 pm.\n", "Submit later than 5 pm.\n", "negation"),
+])
+def test_set10_diff_review_counted(orig: str, rev: str, kind: str) -> None:
+    assert kind in kinds(orig, rev)
+
+
+@pytest.mark.parametrize(("orig", "rev"), [
+    ("You must not share your password.\n", "Do not share your password.\n"),
+    ("You'll need to restart the app after updating.\n", "Restart the app after updating.\n"),
+    ("You must first install Node 18.\n", "First install Node 18.\n"),
+    ("To apply the change, you must restart the server.\n", "To apply the change, restart the server.\n"),
+    ("For this reason, we chose Postgres.\n", "Therefore, we chose Postgres.\n"),
+    ("At least one reviewer must approve.\n", "One or more reviewers must approve.\n"),
+    ("- [ ] Dana Kim: Look into the flaky tests\n", "- [ ] Dana Kim: Investigate the flaky tests\n"),
+    ("Details are at https://example.com/docs.\n", "Details are in [the docs](https://example.com/docs).\n"),
+    ("Payroll runs every 2 weeks.\n", "Payroll runs biweekly.\n"),
+    ("The meeting lasts an hour.\n", "The meeting lasts one hour.\n"),
+    ("Rate limits apply per API key.\n", "Rate limits apply to each API key.\n"),
+    ("Latency fell by 40%. This 40% drop came from the new cache.\n", "Latency fell by 40%, thanks to the new cache.\n"),
+    ("Send the draft to Legal by Fri.\n", "Send the draft to Legal by Friday.\n"),
+    ("It's no secret that the build is slow.\n", "The build is slow.\n"),
+    ("Submit it no later than Friday.\n", "Submit it by Friday.\n"),
+    ("Before you begin, install Docker.\n", "Install Docker first.\n"),
+])
+def test_set10_diff_review_harmless(orig: str, rev: str) -> None:
+    assert kinds(orig, rev) == []
+
+
+def test_repeated_value_moved_does_not_crash() -> None:
+    diff.compare("The trial lasts 14 days, and refunds are possible within 14 days. Contact support to cancel.\n",
+                 "The trial lasts two weeks, and refunds are possible during the trial. Contact support within 14 days "
+                 "to cancel.\n")
+
+
+def test_guarantees_is_a_booster() -> None:
+    assert "booster" in kinds("The checksum detects corruption.\n",
+                              "The checksum guarantees that corruption is detected.\n", "manual")
+
+
+def test_owner_swap_counts_once_with_full_names() -> None:
+    o = "- [ ] Lena Ortiz: Draft the plan\n- [ ] Marco Feld: Share the notes\n"
+    r = "- [ ] Marco Feld: Draft the plan\n- [ ] Lena Ortiz: Share the notes\n"
+    assert kinds(o, r) == ["name_order", "name_order"]
