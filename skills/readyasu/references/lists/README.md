@@ -10,6 +10,7 @@ The lint and diff scripts read these files. One phrase per line; an optional TAB
 - When matches overlap, lint reports one of them: the more severe one, then a project word, then the longer phrase ("plays a crucial role" rather than "crucial" inside it). A match exempted by `--doc-type` does not hide an overlapping match that is reported.
 - The document title (the first level-1 heading) is not checked against these lists.
 - A few single entries are exempt in some doc types, set in `ENTRY_EXEMPT` in `readyasu_lint.py`: "thank you for your attention" (closing-courtesies.txt) in slides and script, and "key takeaways" (ai-vocabulary.txt) in slides. `--help` lists them.
+- In slides, matches of chat-residue.txt, closing-courtesies.txt and chat-interjections.txt in the notes to the requester before the first slide or after the last one are not reported, nor are other list matches inside them ("Absolutely" in "Absolutely! Here's a revised version of your deck:"); see review-points.md section 3.
 
 | File | Rule | Severity |
 |---|---|---|

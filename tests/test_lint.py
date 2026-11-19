@@ -1908,3 +1908,203 @@ def test_trial_look_alikes_set11(text: str) -> None:
 def test_comprehensive_overview_message_asks_for_the_coverage() -> None:
     [f] = [f for f in findings("The report offers a comprehensive overview of costs.\n") if f.rule == "stock_phrase"]
     assert "say what it covers, only from the original or material; otherwise keep and ask" in f.message
+
+
+# ---------------------------------------------------------------- set 12
+
+
+@pytest.mark.parametrize("header", [
+    "On Mon, Mar 2, 2025 at 4:10 PM Mark Lee <mark@example.com> wrote:",
+    "-----Original Message-----\nFrom: Mark Lee <mark@example.com>\nSent: Monday, March 2, 2025 4:10 PM\nSubject: Deck",
+])
+def test_offer_under_a_message_header_in_the_same_block_is_not_after_the_sign_off(header: str) -> None:
+    text = (f"Hi Mark,\n\nAttached is the revised deck.\n\nBest,\nAna\n\n{header}\nHi Ana, could you send me the deck? "
+            "Let me know if you'd like me to adjust the tone of the intro first.\nThanks,\nMark\n")
+    assert residue(text, "mail") == []
+    # An assistant's offer after the sign-off of the drafted mail is still reported, also before a header in its block.
+    offer = "Would you like me to make the tone more casual?"
+    assert residue(f"Hi Mark,\n\nThe deck is attached.\n\nBest,\nAna\n\n{offer}\n", "mail") == ["Would you like me to"]
+    assert residue(f"Hi Mark,\n\nThe deck is attached.\n\nBest,\nAna\n\n{offer}\n{header}\nHi Ana.\n", "mail") \
+        == ["Would you like me to"]
+
+
+def test_negated_title_line_does_not_hide_the_contrast_below() -> None:
+    body = "We didn't adopt a framework. We adopted a habit.\n"
+    assert contrasts(f"**It's not about the tools**\n{body}") == ["We didn't adopt a framework. We adopted"]
+    assert contrasts(f"**Speed matters**\n{body}") == ["We didn't adopt a framework. We adopted"]
+
+
+_DECK = ("Absolutely! Here's a revised version of your deck:\n\n---\n\n# Q3 results\n\n- Revenue up 12%\n\n---\n\n"
+         "## Next steps\n\n- Hire two engineers\n\nLet me know if you'd like me to add speaker notes.\n\n---\n\n"
+         "Let me know if you'd like me to add speaker notes. I can also make a shorter version.\n")
+
+
+def test_notes_to_the_requester_around_slides_are_exempt_in_slides() -> None:
+    result = lint.lint(_DECK, "slides")
+    # Only the offer inside a slide (line 15) is reported; the notes before and after the slides are exempted.
+    assert [(f.line, f.match) for f in result.findings if f.rule == "chat_residue"] \
+        == [(15, "Let me know if you'd like")]
+    assert [f.rule for f in result.findings if f.line in (1, 19)] == []
+    assert sum(f.rule == "chat_residue" for f in result.exempted) >= 3
+    # Other doc types still report them.
+    assert {f.line for f in findings(_DECK) if f.rule == "chat_residue"} == {1, 15, 19}
+
+
+@pytest.mark.parametrize("text", [
+    "Sure! Here's an outline for your talk:\n\n**Slide 1: Title**\n\n- Why we moved\n",  # "Slide 1" lines, no headings
+    "Of course! Here are the slides.\n\n## Why now\n\n- Costs rose\n",
+])
+def test_notes_before_slides_without_rules_are_exempt_in_slides(text: str) -> None:
+    assert residue(text, "slides") == []
+    assert residue(text) != []
+
+
+def test_a_slide_after_the_last_rule_with_a_heading_is_not_a_note() -> None:
+    text = "# Deck\n\n- One\n\n---\n\n## Thanks\n\nFeel free to reach out with questions.\n"
+    assert residue(text, "slides") == ["Feel free to reach out"]
+
+
+def test_interjection_preamble_paragraph_before_a_greeting_is_reported_in_mail() -> None:
+    text = ("Sure! Here's a draft email you can send to your landlord. I kept it polite but firm.\n\nDear Mr. Lee,\n\n"
+            "The heater has been broken since Monday.\n\nBest,\nAna\n")
+    assert residue(text, "mail") == ["Sure! Here's a draft email you can send"]
+    # The writer's own mail after a greeting is not an assistant's preamble.
+    text = ("Hi Jo,\n\nSure! Here's a draft email you can send to the vendor. I kept it short.\n\nDear Mr. Lee,\n\n"
+            "The order is late.\n")
+    assert residue(text, "mail") == []
+
+
+def test_scene_heading_without_the_period() -> None:
+    assert "em_dash" not in rules("INT KITCHEN — NIGHT\n\nMaya cooks.\n", "script")
+    assert "em_dash" in rules("INT Kitchen — Night\n\nMaya cooks.\n", "script")
+
+
+def test_long_scene_heading_line_is_linear() -> None:
+    import time
+    for text in ("INT. K" + " — x" * 64000 + "\n", "ALPHA" + " — x" * 64000 + "\n", "Alpha 2" + " — x" * 64000 + "\n"):
+        start = time.monotonic()
+        lint.lint(text)
+        assert time.monotonic() - start < 6, text[:8]
+
+
+def test_sentence_start_repeat_ends_where_the_speaker_changes() -> None:
+    text = ("**Interviewer:** So how did you start?\n\n**Dana Ortiz:** So my neighbor ran the market.\n\n"
+            "**Interviewer:** So you were the accountant first?\n\n**Dana Ortiz:** Yeah, for two years.\n")
+    assert "sentence_start_repeat" not in rules(text)
+    assert "sentence_start_repeat" not in rules(text, "script")
+    # Within one turn the run is still counted.
+    turn = "**Dana Ortiz:** I think it was the money. I didn't know the margins. I learned fast.\n"
+    assert "sentence_start_repeat" in rules(text + "\n" + turn)
+    # Across character names that do not repeat, the run is exempt in script only.
+    cast = "**MAYA:** So you came.\n\n**DEV:** So what?\n\n**OWEN:** So we go.\n"
+    assert "sentence_start_repeat" in rules(cast)
+    assert "sentence_start_repeat" not in rules(cast, "script")
+
+
+def test_on_wrote_header_is_not_a_decorative_colon() -> None:
+    text = ("Hi Mark,\n\nThe deck is attached.\n\nBest,\nAna\n\n"
+            "On Mon, Mar 2, 2025 at 4:10 PM Mark Lee <mark@example.com> wrote:\n\nHi Ana, could you send the deck?\n")
+    assert "decorative_colon" not in rules(text)
+    assert "decorative_colon" in rules("On reflection, here is what I think:\n\nWe should wait.\n")
+
+
+def test_servers_and_classes_are_often_people() -> None:
+    text = ("Our server happily split the check for us, and the server knows the wine list by heart.\n\n"
+            "The class doesn't care about grammar, honestly. The class wants to talk about the movie.\n")
+    assert "personification" not in rules(text)
+    got = [f.match for f in findings("The web server happily accepts any header. The base class knows nothing.\n")
+           if f.rule == "personification"]
+    assert got == ["The web server happily", "The base class knows"]
+
+
+@pytest.mark.parametrize("text", [
+    "HARBOR CITY — Andrés Villalobos scored in the 87th minute.\n",
+    "SAN FRANCISCO, March 3, 2025 — Acme today announced a new product.\n",
+    "WASHINGTON (AP) — The Senate voted on Tuesday.\n",
+    "PORTLAND, Ore. — Rain fell all week.\n",
+    "LONDON, March 3 (Reuters) — Shares rose.\n",
+    "AUSTIN, Texas, Jan. 5, 2026 /PRNewswire/ -- Acme today announced a partnership.\n",
+    "**SAN FRANCISCO, CA** — NexaHealth today announced a new app.\n",
+])
+def test_news_datelines_are_not_spliced_clauses(text: str) -> None:
+    assert "em_dash" not in rules(text)
+
+
+@pytest.mark.parametrize("text", [
+    "UPDATE — The fix is live for all customers.\n",  # a label, not a place
+    "BIG NEWS — We launched today.\n",
+    "HARBOR CITY — the mayor said no.\n",  # no capitalized word after the dash
+    "We met in HARBOR CITY — Andrés scored.\n",  # not at the start of the paragraph
+    "- HARBOR CITY — Andrés scored.\n",  # a list item
+])
+def test_dateline_look_alikes_are_still_reported(text: str) -> None:
+    assert "em_dash" in rules(text)
+
+
+@pytest.mark.parametrize("text", [
+    "I didn't really get it at twenty-six. I get it now.\n",
+    "I didn't like it at first. I like it now.\n",
+    "We didn't use it back then. We use it every day.\n",
+    "This wasn't a priority a year ago. It's a priority today.\n",
+])
+def test_a_change_over_time_is_not_a_negative_contrast(text: str) -> None:
+    assert contrasts(text) == []
+
+
+def test_contrasts_with_a_time_word_elsewhere_are_still_reported() -> None:
+    assert contrasts("We don't sell software. We sell outcomes, and we have done so for years now and then.\n") \
+        == ["We don't sell software. We sell"]
+    assert contrasts("That's not a complaint. That's just how it works when the thing you share is a thing you don't "
+                     "do anymore.\n") == ["That's not a complaint. That's"]
+
+
+def test_fast_paced_has_a_word_level_note() -> None:
+    [f] = [f for f in findings("We are hiring line cooks for our fast-paced kitchen.\n") if f.rule == "ai_vocabulary"]
+    assert "say what makes it fast" in f.message
+    assert rules("In today's fast-paced world, teams ship.\n") == ["stock_phrase"]
+
+
+def test_a_number_and_a_word_before_a_dash_are_not_a_range() -> None:
+    text = ("We fixed 3 bugs — Janet will verify them.\n\nRun it 3 times — Sunil saw the flake twice.\n\n"
+            "We fixed 3 bugs — Monica will verify them.\n\n- [ ] Manual check of the 429 path — Marta will verify this.\n"
+            "\nWe fixed 3 bugs — 2 remain.\n")
+    assert rules(text).count("em_dash") == 5
+
+
+@pytest.mark.parametrize("text", [
+    "Open 3 pm — 5 pm daily.\n", "Season: Mar — Jun.\n", "Weight 10 kg — 12 kg.\n", "Monday – Friday.\n",
+    "Jan. – Mar. data.\n", "100 ms – 200 ms.\n", "2 cups – 3 cups flour.\n", "10 GB – 20 GB disks.\n",
+    "5M – 10M users.\n", "90°F – 100°F.\n",
+])
+def test_ranges_with_units_months_and_weekdays_are_still_exempt(text: str) -> None:
+    assert "em_dash" not in rules(text)
+
+
+@pytest.mark.parametrize("tail", [
+    "due Fri 20 Nov", "by Friday, 20 November.", "due: Fri 20 Nov", "due Friday", "due EOD", "ETA: Fri 20 Nov",
+    "deadline Fri 20 Nov", "by end of day Friday", "by 5 pm on Friday", "by Friday noon", "by the 20th",
+    "by mid-November", "until 20 Nov",
+])
+def test_due_date_that_ends_an_action_item_is_not_a_spliced_clause(tail: str) -> None:
+    assert "em_dash" not in rules(f"- [ ] Mei to draft a proposal — {tail}\n", "minutes")
+
+
+@pytest.mark.parametrize("tail", ["due to the outage", "by the way we fixed it", "due Friday we think"])
+def test_due_look_alikes_are_still_reported(tail: str) -> None:
+    assert "em_dash" in rules(f"- [ ] Mei to draft a proposal — {tail}\n", "minutes")
+
+
+@pytest.mark.parametrize("subject", [
+    "Subject: Re: Partnership opportunity — Brightwave x Tallyhop",
+    "**Subject:** FW: Outage — action needed",
+    "Subject: RE: Q3 vendor invoices — Halvorsen still unpaid?",
+])
+def test_reply_subject_lines_are_not_changed(subject: str) -> None:
+    text = f"{subject}\n\nHi Jo,\n\nThanks for the note.\n"
+    assert "em_dash" not in rules(text, "mail")
+    assert "em_dash" not in rules(text)
+
+
+def test_subject_in_a_pasted_header_is_not_changed_and_a_new_subject_is_checked() -> None:
+    assert "em_dash" not in rules("From: Ana Ruiz\nSent: Monday\nSubject: Outage — action needed\n\nHi Jo,\n", "mail")
+    assert "em_dash" in rules("Subject: Partnership opportunity — Brightwave x Tallyhop\n\nHi Jo,\n", "mail")
