@@ -1,7 +1,8 @@
 # Fact-gap candidates (the "Fact gaps" section of check run --fact-gaps; read by fact_gaps() in readyasu_diff.py).
 # Finds sentences of the final draft that may give only a metaphor or a degree word and no content or value. The list is partial.
 # Format: one "kind<TAB>regular expression" per line. Kinds:
-#   reference  refers to a value it does not give (before the deadline, as discussed)
+#   reference  refers to a value, owner or time it does not give (before the deadline, as discussed,
+#              the appropriate team lead, in a timely manner)
 #   figure  a metaphor hides the content (lays the groundwork, paves the way, breathes new life into)
 #   effect  only an effect, not what changed (improves reliability, reduces friction)
 #   degree  only a degree word, not how much (significantly, dramatically)
@@ -11,7 +12,7 @@
 # questions, headings, table rows, code and quotations are never reported (rules inside readyasu_diff.py).
 # The section is not shown for --doc-type essay or promo. Matching ignores case.
 # If this file is missing or has an error, the built-in copy of this list is used and the section says so.
-reference	\b(?:before|by|until|after)\s+the\s+(?:deadline|agreed\s+date|cutoff|due\s+date)\b|\bas\s+(?:discussed|agreed)\b|\bthe\s+(?:date|deadline|time|amount)\s+we\s+(?:discussed|agreed\s+on|agreed)\b
+reference	\b(?:before|by|until|after)\s+the\s+(?:deadline|agreed\s+date|cutoff|due\s+date)\b|\bas\s+(?:discussed|agreed)\b|\bthe\s+(?:date|deadline|time|amount)\s+we\s+(?:discussed|agreed\s+on|agreed)\b|\bthe\s+(?:appropriate|relevant|responsible|designated)\s+(?:team\s+lead|team|person|owner|lead|manager|contact|party|department|channel|group|stakeholders?|approver)\b|\b(?:in\s+a\s+timely\s+manner|in\s+due\s+course|at\s+the\s+appropriate\s+time)\b
 figure	\b(?:lay(?:s|ing)?|laid) the (?:foundation|groundwork)\b|\b(?:a|the) first step\b|\ba (?:big|major|giant|huge) (?:step|leap)\b|\bpav(?:e|es|ed|ing) the way\b|\bopen(?:s|ed|ing)? (?:the|new) doors?\b|\bhold(?:s|ing)? the key\b|\bsecret weapon\b|\bnorth star\b|\bbridg(?:e|es|ed|ing) the gap\b|\bbreath(?:e|es|ed|ing) (?:new )?life into\b|\bquietly (?:break|breaks|broke|broken|breaking)\b|\bto the next level\b|\bnew heights\b|\bunlock(?:s|ed|ing)? (?:new |the full )?(?:potential|possibilities|value)\b
 effect	\b(?:improv|enhanc|boost|increas|strengthen)\w* (?:the |our |your |its )?(?:overall )?(?:reliability|stability|quality|performance|usability|productivity|efficiency|maintainability|readability|developer experience|user experience|experience|satisfaction|security|safety|robustness)\b|\b(?:minimi[sz]|reduc|lower|mitigat)\w* (?:the |any )?(?:confusion|impact|risk|burden|effort|downtime|friction|variance|disruption)\b|\bseamless(?:ly)?\b|\b(?:more flexible|better|optimal) (?:options|operations|experience|handling|workflow)\b
 degree	\b(?:significantly|dramatically|drastically|substantially|vastly|greatly|massively|considerably|exponentially|tremendously|markedly)\b|\bby (?:a lot|leaps and bounds|an order of magnitude)\b|\b(?:huge|massive|dramatic|significant|substantial) (?:improvement|gain|boost|reduction|increase|drop|impact|difference)s?\b

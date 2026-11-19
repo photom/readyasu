@@ -181,6 +181,18 @@ def run_tool(cmd: list[str], timeout: float) -> tuple[Optional[dict[str, Any]], 
         return None, "unreadable output"
 
 
+def _word_prefix(word: str) -> str:
+    """The part of a flagged word shared by its inflections ("empower" for empowers, empowered, empowering)."""
+    w = word.lower()
+    return w if len(w) <= 4 else w[:max(4, len(w) - 3)]
+
+
+def _same_word(a: str, b: str) -> bool:
+    a, b = a.lower(), b.lower()
+    n = len(os.path.commonprefix([a, b]))
+    return n >= max(4, min(len(a), len(b)) - 3) or a == b
+
+
 def kept_words(findings: list[dict[str, Any]]) -> list[str]:
     seen: list[str] = []
     for f in findings:
@@ -394,11 +406,10 @@ def cmd_run(args: argparse.Namespace) -> int:
             last = read_json(run_dir / f"attempt-{max(existing)}.json") or {} if existing else {}
             last_final = last.get("final_sha256") or (previous.get("last_final") if previous.get("run") == run_id else None)
             same_as_previous = attempt > 1 and last_final == final_hash
-            fallback = previous.get("revisions", 0) if previous.get("run") == run_id else 0
-            try:
-                revisions = int((last.get("revisions") if last else fallback) or 0)
-            except (TypeError, ValueError):
-                revisions = 0
+            # a record without a usable count falls back to the index, then to one revision per later attempt
+            fallback = previous.get("revisions") if previous.get("run") == run_id else None
+            counts = [x for x in (last.get("revisions"), fallback) if isinstance(x, int) and not isinstance(x, bool) and x >= 0]
+            revisions = counts[0] if counts else max(0, attempt - 2)
             if attempt > 1 and not same_as_previous:
                 revisions += 1
             record_path = run_dir / f"attempt-{attempt}.json"
@@ -495,19 +506,22 @@ def first_line(status: str, attempt: int, revisions: int, same_as_previous: bool
     sd = f' --state-dir "{folder}"' if args.state_dir else ""
     verify = (f"pass the same final draft on standard input to verify --final -{sd}" if args.stdin or args.final == "-"
               else f'run verify --final "{args.final}"{sd}')
+    base = "the material" if getattr(args, "mode", "rewrite") == "compose" else "the original"
+    risks = (f" {tx.plural(meaning_risk, 'counted meaning risk')}: compare each with {base} and restore "
+             "unintended changes in your revision." if meaning_risk else "")
     if status == "unrecorded":
-        return ("Ran the checks (not recorded, as requested). verify cannot match an unrecorded run; report the final "
-                "match as a check that was not run (no record was kept).")
+        return (f"Ran the checks (not recorded, as requested).{risks} Check the findings below against the original "
+                "and material. Revise at most once (attempts are not counted without a record): if you revise, run the "
+                "same command again. verify cannot match an unrecorded run; report the final match as a check that was "
+                "not run (no record was kept).")
     if attempt == 1 or revisions == 0:
-        base = "the material" if getattr(args, "mode", "rewrite") == "compose" else "the original"
-        risks = (f" {tx.plural(meaning_risk, 'counted meaning risk')}: compare each with {base} and restore "
-                 "unintended changes in your revision." if meaning_risk else "")
         return (f"Ran the checks (attempt {attempt}).{risks} Check the findings below against the original and material. Revise at "
                 "most once: if you revise, run the same command again; if not, right before submitting and without "
                 f"changing the body, {verify} once.")
     if same_as_previous:
         return (f"Ran the checks again on an unchanged final draft (attempt {attempt}, revisions so far: {revisions}). "
-                f"Do not change the body. Right before submitting, {verify} once.")
+                f"Do not change the body. Right before submitting, {verify} once. (If this was the first run for a new "
+                "request about this text, run it again with --new-run instead.)")
     if revisions <= 1:
         return (f"Ran the checks (attempt {attempt}). That was your one revision: do not change the body again. Right "
                 f"before submitting, {verify} once. (If this was the first run for a new request about this text, run it "
@@ -529,12 +543,13 @@ def split_kept_added(lint_final: Optional[dict[str, Any]], lint_orig: Optional[d
         if not material_text.strip():
             return final_words, []
         mat_low = material_text.lower()
-        in_mat = [w for w in final_words if re.search(r"(?<![\w-])" + re.escape(w.lower()), mat_low)]
+        in_mat = [w for w in final_words if re.search(r"(?<![\w-])" + re.escape(_word_prefix(w)), mat_low)]
         return in_mat, [w for w in final_words if w not in in_mat]
     orig_words = {w.lower() for w in kept_words(list(lint_orig.get("findings", [])))}
     orig_low = original_text.lower() if original_text else ""
-    in_orig = [w for w in final_words if w.lower() in orig_words or
-               (orig_low and re.search(r"(?<![\w-])" + re.escape(w.lower()), orig_low))]
+    # another inflection of a word in the original is kept, not added ("empower" -> "empowers")
+    in_orig = [w for w in final_words if any(_same_word(w, o) for o in orig_words) or
+               (orig_low and re.search(r"(?<![\w-])" + re.escape(_word_prefix(w)), orig_low))]
     return in_orig, [w for w in final_words if w not in in_orig]
 
 
@@ -551,8 +566,9 @@ def format_run(first: str, status_line: str, mode: str, checks: list[str], recor
                      f"{tx.plural(int(diff.get('meaning_risk_count', 0)), 'meaning risk')} counted")
     if "material" in checks and diff is not None:
         mat = diff.get("material", {}) or {}
-        parts.append(f"material match {tx.plural(len(mat.get('numbers_not_in_material', [])), 'number')} and "
-                     f"{tx.plural(len(mat.get('names_not_in_material', [])), 'name')} not in the material")
+        parts.append(f"material match {tx.plural(len(mat.get('numbers_not_in_material', [])), 'number')}, "
+                     f"{tx.plural(len(mat.get('names_not_in_material', [])), 'name')} and "
+                     f"{len(mat.get('units_dates_not_in_material', []))} units, months or weekdays not in the material")
     out.append("Checks run: " + ("; ".join(parts) if parts else "none"))
     if adopted:
         out.append(f"Compose mode found that the material {adopted} is close to the final draft, so it was used as "
@@ -563,7 +579,9 @@ def format_run(first: str, status_line: str, mode: str, checks: list[str], recor
     if diff is not None and mode == "rewrite":
         out.append(f"Stiffness check: {diff.get('stiffness', {}).get('line', 'none')}")
         out.append(f"Energy check: {diff.get('energy', {}).get('line', 'none')}")
-    if orig_count is not None:
+    if lint_final is None:
+        out.append("Review findings: not counted (lint on the final draft did not finish; report it under \"Checks not run\")")
+    elif orig_count is not None:
         out.append(f"Review findings: original {orig_count} → final {final_count} {NOT_A_SCORE}")
     else:
         out.append(f"Review findings: final {final_count} {NOT_A_SCORE}")
@@ -649,6 +667,8 @@ def cmd_verify(args: argparse.Namespace) -> int:
         if record_path is not None:
             record = read_json(record_path)
             reason = "record_unreadable" if record is None else reason
+    if record is not None and not (isinstance(record.get("checks"), list) and all(isinstance(c, str) for c in record["checks"])):
+        record, reason = None, "record_unreadable"  # a record that parses but lacks its fields
     ok = bool(record and record.get("final_sha256") == digest and record.get("status") == "executed")
     if record and not ok:
         reason = "hash_mismatch"
@@ -692,9 +712,17 @@ def cmd_verify(args: argparse.Namespace) -> int:
             + f"{STATUS_PREFIX} unverified via=verify final=sha256:{digest[:12]} reason=superseded\n"
             + f"State folder: {folder}\n")
         return 1
+    if re.search(r"(?m)^<<<readyasu:(?:original|material|final)\b", final):
+        advice = ("This text holds the <<<readyasu:...>>> separator lines of run --stdin. Pass only the final draft "
+                  "(the text after the <<<readyasu:final>>> line) to verify --final -.\n")
+    elif reason == "record_unreadable":
+        advice = ("The record for this final draft could not be read. Run the run command on exactly this text, then "
+                  "verify again without changing it.\n")
+    else:
+        advice = ("No record matches the hash of this final draft. Run the run command on exactly this text, then verify "
+                  "again without changing it.\n")
     sys.stdout.write(
-        "No record matches the hash of this final draft. Run the run command on exactly this text, then verify "
-        "again without changing it.\n"
+        advice
         + f"{STATUS_PREFIX} unverified via=verify final=sha256:{digest[:12]} reason={reason}\n"
         + f"State folder: {folder}\n")
     return 1
@@ -743,7 +771,7 @@ def build_parser() -> argparse.ArgumentParser:
                      f"{tx.STATE_DIR_NAME}/ at the git top or working folder)")
     run.add_argument("--no-record", action="store_true", help="do not write a record (only when the user asked, or when no writable folder exists)")
     run.add_argument("--fact-gaps", action="store_true", help="list some fact-gap candidates (not counted; not for "
-                     "essay or promo)")
+                     "essay, script or promo)")
     run.add_argument("--json", action="store_true", help="print the result as JSON")
     run.add_argument("--words", metavar="DIR", help=f"project word-list folder (default: {tx.WORDS_DIR_NAME}/)")
     run.add_argument("--no-words", action="store_true", help="do not look for or read a project word list")

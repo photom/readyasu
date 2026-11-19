@@ -385,3 +385,93 @@ def test_first_line_with_several_sourced_numbers(tmp_path: Path) -> None:
             tmp_path)
     first = p.stdout.splitlines()[0]
     assert "counted meaning risks (of which 2 involve numbers" in first
+
+
+# ---- set 12 review
+
+def test_flagged_word_inflection_is_kept(tmp_path: Path) -> None:
+    src = write(tmp_path / "o.md", "These dashboards empower teams to move faster.\n")
+    fin = write(tmp_path / "f.md", "The dashboard empowers each team to move faster.\n")
+    p = run(["run", "--source", src, "--final", fin, "--state-dir", str(tmp_path / "st"), "--no-words"], tmp_path)
+    assert any(ln.startswith("Flagged words kept: empowers") for ln in p.stdout.splitlines())
+    assert not any(ln.startswith("Flagged words added") for ln in p.stdout.splitlines())
+
+
+def test_no_record_first_line_keeps_risk_guidance(tmp_path: Path) -> None:
+    src = write(tmp_path / "o.md", "The job may fail.\n")
+    fin = write(tmp_path / "f.md", "The job fails.\n")
+    p = run(["run", "--source", src, "--final", fin, "--no-record", "--no-words"], tmp_path)
+    first = p.stdout.splitlines()[0]
+    assert "1 counted meaning risk" in first and "Revise at most once" in first and "verify cannot match" in first
+
+
+def test_unchanged_rerun_after_revision_hints_new_run(tmp_path: Path) -> None:
+    src = write(tmp_path / "o.md", "A.\n")
+    fin = write(tmp_path / "f.md", "B.\n")
+    st = str(tmp_path / "st")
+    run(["run", "--source", src, "--final", fin, "--state-dir", st, "--no-words"], tmp_path)
+    write(tmp_path / "f.md", "C.\n")
+    run(["run", "--source", src, "--final", fin, "--state-dir", st, "--no-words"], tmp_path)
+    p = run(["run", "--source", src, "--final", fin, "--state-dir", st, "--no-words"], tmp_path)
+    first = p.stdout.splitlines()[0]
+    assert "unchanged final draft" in first and "--new-run" in first
+
+
+def test_timed_out_lint_has_no_review_count(tmp_path: Path) -> None:
+    src = write(tmp_path / "o.md", "A.\n")
+    fin = write(tmp_path / "f.md", "B.\n")
+    p = run(["run", "--source", src, "--final", fin, "--state-dir", str(tmp_path / "st"), "--no-words",
+             "--timeout", "0.000001"], tmp_path)
+    assert p.returncode == 3
+    assert any(ln.startswith("Review findings: not counted") for ln in p.stdout.splitlines())
+
+
+def test_record_without_revisions_keeps_count(tmp_path: Path) -> None:
+    src = write(tmp_path / "o.md", "A.\n")
+    fin = write(tmp_path / "f.md", "B.\n")
+    st = tmp_path / "st"
+    run(["run", "--source", src, "--final", fin, "--state-dir", str(st), "--no-words"], tmp_path)
+    write(tmp_path / "f.md", "C.\n")
+    run(["run", "--source", src, "--final", fin, "--state-dir", str(st), "--no-words"], tmp_path)
+    for rec in (st / "runs").glob("*/attempt-2.json"):
+        data = json.loads(rec.read_text(encoding="utf-8"))
+        del data["revisions"]
+        rec.write_text(json.dumps(data), encoding="utf-8")
+    for idx in (st / "index" / "by-source").glob("*.json"):
+        data = json.loads(idx.read_text(encoding="utf-8"))
+        del data["revisions"]
+        idx.write_text(json.dumps(data), encoding="utf-8")
+    write(tmp_path / "f.md", "D.\n")
+    p = run(["run", "--source", src, "--final", fin, "--state-dir", str(st), "--no-words"], tmp_path)
+    assert "exceeds the one-revision rule" in p.stdout.splitlines()[0]
+
+
+def test_verify_record_with_null_checks_is_unreadable(tmp_path: Path) -> None:
+    src = write(tmp_path / "o.md", "A.\n")
+    fin = write(tmp_path / "f.md", "B.\n")
+    st = tmp_path / "st"
+    run(["run", "--source", src, "--final", fin, "--state-dir", str(st), "--no-words"], tmp_path)
+    for rec in (st / "runs").glob("*/attempt-1.json"):
+        data = json.loads(rec.read_text(encoding="utf-8"))
+        data["checks"] = None
+        rec.write_text(json.dumps(data), encoding="utf-8")
+    v = run(["verify", "--final", fin, "--state-dir", str(st)], tmp_path)
+    assert v.returncode == 1 and "reason=record_unreadable" in v.stdout
+
+
+def test_verify_with_separator_lines_says_pass_only_final(tmp_path: Path) -> None:
+    text = "<<<readyasu:original>>>\nA.\n<<<readyasu:final>>>\nB.\n"
+    st = str(tmp_path / "st")
+    run(["run", "--stdin", "--state-dir", st, "--no-words"], tmp_path, stdin=text)
+    v = run(["verify", "--final", "-", "--state-dir", st], tmp_path, stdin=text)
+    assert v.returncode == 1 and "Pass only the final draft" in v.stdout.splitlines()[0]
+    ok = run(["verify", "--final", "-", "--state-dir", st], tmp_path, stdin="B.\n")
+    assert ok.returncode == 0
+
+
+def test_material_summary_counts_unit_mismatches(tmp_path: Path) -> None:
+    mat = write(tmp_path / "m.txt", "The window is 30 minutes.\n")
+    fin = write(tmp_path / "f.md", "The window is 30 seconds.\n")
+    p = run(["run", "--material", mat, "--final", fin, "--state-dir", str(tmp_path / "st"), "--no-words"], tmp_path)
+    checks = next(ln for ln in p.stdout.splitlines() if ln.startswith("Checks run:"))
+    assert "1 units, months or weekdays not in the material" in checks

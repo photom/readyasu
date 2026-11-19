@@ -995,3 +995,96 @@ def test_set11_diff_review_counted(orig: str, rev: str, kind: str) -> None:
 
 def test_typically_gone_is_reviewed() -> None:
     assert "quantifier_gone" in review_kinds("Builds typically take 5 minutes.\n", "Builds take 5 minutes.\n")
+
+
+@pytest.mark.parametrize(("orig", "rev", "kind"), [
+    ("The bottleneck was not the database. It was the network.\n", "The bottleneck was the database, not the network.\n",
+     "negation"),
+    ("Speed is not the goal. Predictability is.\n", "Speed, not predictability, is the goal.\n", "negation"),
+    ("The delay was caused by the supplier, not by our team.\n", "The delay was caused by our team, not by the supplier.\n",
+     "negation"),
+    ("Write to the replica, not to the primary.\n", "Write to the primary, not to the replica.\n", "negation"),
+    ("The limit is 200 requests, not 20.\n", "The limit is 20 requests, not 200.\n", "negation"),
+    ("Attendees: Dana, Lee, Priya\n\n- Action: Dana to send the invoice by Friday.\n",
+     "Attendees: Dana, Lee, Priya\n\n- Action: Priya to send the invoice by Friday.\n", "name"),
+    ("Tinyq requires Python 3.10 or later.\n", "Tinyq requires Python 3.1 or later.\n", "number"),
+    ("Approval from the CFO is required.\n", "Approval from the CEO is required.\n", "name"),
+    ("Send it to QA before Friday.\n", "Send it to UAT before Friday.\n", "name"),
+    ("We rarely see this error in production.\n", "We see this error in production.\n", "negation"),
+    ("Experts believe the vulnerability was exploited.\n", "The vulnerability was exploited.\n", "hearsay"),
+    ("Analysts estimate the market at $4B.\n", "The market is $4B.\n", "hearsay"),
+    ("Run the backup before the upgrade.\n", "Run the backup after the upgrade.\n", "condition"),
+    ("The warranty covers all parts except the battery.\n", "The warranty covers all parts.\n", "condition"),
+    ("Restart all workers after changing the setting.\n", "Restart the affected workers after changing the setting.\n",
+     "scope"),
+    ("All employees must complete the training.\n", "New employees must complete the training.\n", "scope"),
+    ("Every request is logged.\n", "Failed requests are logged.\n", "scope"),
+    ("Reports are due every other Friday.\n", "Reports are due every Friday.\n", "number"),
+    ("Backups run nightly. Reports are sent nightly.\n", "Backups run nightly. Reports are sent.\n", "number"),
+])
+def test_set12_diff_review_counted(orig: str, rev: str, kind: str) -> None:
+    assert kind in kinds(orig, rev)
+
+
+@pytest.mark.parametrize(("orig", "rev"), [
+    ("Speed is not the goal. Predictability is.\n", "Predictability, not speed, is the goal.\n"),
+    ("The bottleneck was not the database. It was the network.\n", "The bottleneck was the network, not the database.\n"),
+    ("- Action: Update to the latest version.\n", "- Action: update to the latest version.\n"),
+    ("The fee is $2.50 per seat.\n", "The fee is $2.5 per seat.\n"),
+    ("Our SLA covers the API.\n", "Our service-level agreement covers the API.\n"),
+    ("The CEO will present the ARR numbers.\n", "The CEO will present the annual recurring revenue.\n"),
+    ("You're going to need to clear the cache after the upgrade.\n", "Clear the cache after the upgrade.\n"),
+    ("However, the cache was very cold at startup.\n", "However, the cache was cold at startup.\n"),
+    ("Also, just a quick reminder: the office is closed on Monday.\n", "Also, a reminder: the office is closed on Monday.\n"),
+    ("Standups happen each Monday at 9:30.\n", "Standups happen every Monday at 9:30.\n"),
+    ("Reports are due every other Friday.\n", "Reports are due every second Friday.\n"),
+    ("We meet weekly, every Tuesday.\n", "We meet every Tuesday.\n"),
+    ("Attendees may bring one guest.\n", "Attendees are allowed to bring one guest.\n"),
+    ("In this guide, we'll walk you through everything you need to know to get started.\n",
+     "This guide shows how to install and run the tool.\n"),
+    ("All employees must complete the training.\n", "Employees must complete the training.\n"),
+    ("Restart all workers.\n", "Restart every worker.\n"),
+    ("We rarely see this error.\n", "This error is rare.\n"),
+    ("Other than that, the release is on track.\n", "Otherwise, the release is on track.\n"),
+])
+def test_set12_diff_review_harmless(orig: str, rev: str) -> None:
+    assert kinds(orig, rev) == []
+
+
+def test_deleted_clause_keeps_frequency_found_elsewhere() -> None:
+    orig = ("This PR fixes the flaky failures in our nightly job.\n\n"
+            "Closes #482. Thanks for reviewing, I hope this helps make our nightly runs more reliable!\n")
+    rev = "This PR fixes the flaky failures in our nightly job.\n\nCloses #482. Thanks for reviewing.\n"
+    result = diff.compare(orig, rev, "pr")
+    assert result.counted == 0
+    assert any(r.kind == "number" and not r.counted and "still appears" in r.message for r in result.risks)
+
+
+def test_code_risk_names_its_line() -> None:
+    orig = "- Set `retries` to `5` in staging.\n- Set `timeout` to `5` in production.\n"
+    rev = "- Set `retries` to `5` in staging.\n- Set `timeout` to `3` in production.\n"
+    risk = next(r for r in diff.compare(orig, rev).risks if r.kind == "code")
+    assert (risk.orig_line, risk.rev_line) == (2, 2) and "production" in risk.original
+
+
+def test_closing_section_removed_with_heading_colon_fix() -> None:
+    orig = "# Tool\n\n## Usage:\n\nRun it.\n\n## Conclusion\n\nThat is all.\n"
+    rev = "# Tool\n\n## Usage\n\nRun it.\n"
+    messages = [v.message for v in diff.compare(orig, rev, "manual").reviews if v.kind == "heading"]
+    assert messages and messages[0].startswith("Closing section removed")
+
+
+def test_material_skips_diff_hunk_headers() -> None:
+    material = "--- a/job.py\n+++ b/job.py\n@@ -12,6 +12,14 @@ import os\n-TIMEOUT = 8\n+TIMEOUT = 480\n"
+    result = diff.material_check(diff.tx.parse("Locks expire after 6 hours.\n"), material, "")
+    assert [m["value"] for m in result["numbers_not_in_material"]] == ["6"]
+
+
+def test_fact_gaps_list_vague_owner_in_conditional() -> None:
+    gaps, _note = diff.fact_gaps(diff.tx.parse("Escalate to the appropriate team lead if the issue is not resolved.\n"))
+    assert [g.kind for g in gaps] == ["reference"]
+
+
+def test_removed_role_acronym_is_listed() -> None:
+    reviews = diff.compare("Approval from the CFO is required.\n", "Approval is required.\n").reviews
+    assert any(v.kind == "words_gone" and "CFO" in v.message for v in reviews)

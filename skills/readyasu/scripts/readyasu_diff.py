@@ -120,6 +120,8 @@ HEARSAY = _rx(r"\b(?:reportedly|allegedly|rumou?red)\b|\baccording\s+to\b|\b(?:i
               r"|\b(?:says|said|told\s+(?:us|me|them|him|her|the\s+team))\b"
               r"|\b(?:people|colleagues|users|customers|experts|critics|others|they|sources|analysts|reports|some|many)\s+(?:say|report|suggest)\b"
               r"|\b(?:we|i)\s+(?:were|was)\s+told\b"
+              r"|\b(?:experts|analysts|researchers|scientists|engineers|economists|investigators|officials|observers|critics|"
+              r"others|some|many|they|people|sources)\s+(?:believe|think|estimate|suspect|argue|predict|fear|speculate)\b"
               r"|\b(?:claims?|claimed|noted|mentioned|stated)\s+(?=(?:the|a|an|it|we|they|this|that|our|its|there)\b)"
               r"|\b(?:docs|documents|reports|studies|sources|notes|guidelines|records)\s+(?:say|state)\b|\bstates\s+that\b"
               r"|\btells?\s+us\b|\bper\s+(?:the|our|their|its)\s+(?!(?:conversation|call|discussion|meeting|agreement|email|chat)\b)(?!(?:hour|minute|second|day|week|month|year|user|request|instance|"
@@ -136,7 +138,9 @@ APPROX_AFTER = _rx(r"^(?:\s*(?:\+|-ish|ish\b)|\s*(?:[a-z]+\s+)?(?:or\s+so|or\s+m
 CHOICE = _rx(r"\b(?:either|or|one\s+of|any\s+one\s+of|whichever)\b")
 ALL_SCOPE = _rx(r"\b(?:both|all|every|each)\b")
 LIMITER = _rx(r"(?<!\bnot\s)(?<!n['’]t\s)(?:\b(?:only|solely|exclusively|merely)\b"
-              r"|\bjust\s+(?=(?:a|an|the|for|when|if|in|on|one|two|\d)))")
+              r"|\bjust\s+(?=(?:a|an|the|for|when|if|in|on|one|two|\d))"
+              r"(?!an?\s+(?:quick|brief|short|friendly|small|gentle|little)\s+(?:reminder|note|heads[- ]up|update|check[- ]in|"
+              r"question|follow[- ]up|thought|ping)\b)(?!(?:a|an)\s+(?:reminder|heads[- ]up|note)\b))")
 PARTIAL_DET = _rx(r"\b(?:some|several|many|few)\b|\bpart\s+of\b"
                   r"|(?<!\bthe\s)(?<!\bat\s)\bmost\s+(?!of\s+all\b)(?=of\b|people\b|data\b|code\b|work\b|software\b|[a-z]+s\b)(?![a-z]+ly\b)"
                   r"|(?<!\bbe\s)(?<!\bam\s)(?<!['’]m\s)(?<!\bis\s)(?<!\bare\s)(?<!\bwas\s)(?<!\bfeel\s)(?<!\bnot\s)"
@@ -144,6 +148,9 @@ PARTIAL_DET = _rx(r"\b(?:some|several|many|few)\b|\bpart\s+of\b"
 MOST_ANY = _rx(r"(?<!\bthe\s)(?<!\bat\s)\bmost\s+(?![a-z]+ly\b|of\s+all\b|important\b|notabl)(?=[a-z])")
 PARTIAL_ADV = _rx(r"\b(?:often|usually|mostly|partly|partially|typically|generally|normally|ordinarily)\b"
                   r"|\bin\s+(?:some\s+cases|general)\b|\bas\s+a\s+rule\b|\bfor\s+the\s+most\s+part\b")
+RARE = _rx(r"\b(?:rarely|seldom|infrequently|scarcely|hardly\s+ever|barely\s+ever)\b")
+STILL_RARE = _rx(r"\b(?:rarely|seldom|infrequent(?:ly)?|scarcely|hardly|barely|rare|uncommon|unusual|few|occasional(?:ly)?|"
+                 r"once\s+in\s+a\s+while|not\s+often|almost\s+never)\b")
 STILL_PARTIAL = _rx(r"\b(?:some|several|many|most|few|certain|often|usually|mostly|partly|partially|typically|generally|"
                     r"normally|commonly|frequently|numerous|majority|specific|rarely|seldom|various|occasionally|"
                     r"sometimes|particular|select(?:ed)?|portion|minority|handful|lots?)\b|\bin\s+(?:some|many|most)\s+cases\b"
@@ -171,11 +178,17 @@ FUTURE = _rx(r"\bwill\b|\bgoing\s+to\b")
 LETS = _rx(r"\blet['’]s\b")
 CLOSING_RESOLUTION = _rx(r"\bwe(?:['’]ll|\s+will)\s+continue\b|\bwe(?:['’]re|\s+are)\s+committed\b|\bgoing\s+forward\b")
 VAGUE_QUANTITY = _rx(r"\b(?:some|several|a\s+few|many|various|a\s+number\s+of|certain)\b")
-CONTRAST_DENIED = _rx(r"\bnot\s+(?:just\s+|only\s+|merely\s+|simply\s+)?(?:an?\s+|the\s+|about\s+)?([a-z][\w-]{2,})"
+# "not by the supplier", "not to the primary", "not 20": a preposition and a possessive may come before the denied word
+CONTRAST_DENIED = _rx(r"\bnot\s+(?:just\s+|only\s+|merely\s+|simply\s+)?"
+                      r"(?:(?:by|in|on|at|for|from|with|into|via|through|during|over|under)\s+"
+                      r"|to\s+(?=(?:the|an?|our|their|your|its|his|her|my)\s))?"
+                      r"(?:an?\s+|the\s+|about\s+|our\s+|their\s+|your\s+|its\s+|his\s+|her\s+|my\s+)?"
+                      r"([a-z][\w-]{2,}|\d[\d.,:]*\d|\d)"
                       r"|\b(?:instead\s+of|rather\s+than)\s+(?:an?\s+|the\s+)?([a-z][\w-]{2,})")
 CONDITION = _rx(r"\b(?:if|unless|until|till|whenever|when|while|after|before|as\s+soon\s+as|provided(?:\s+that)?"
                 r"|as\s+long\s+as|in\s+case|except\s+(?:when|if)|at\s+launch|at\s+first|initially|for\s+now"
-                r"|for\s+the\s+time\s+being|temporarily|currently|at\s+present|right\s+now|at\s+the\s+moment|except\s+(?:where|as|for|when|that|to\s+the\s+extent))\b"
+                r"|for\s+the\s+time\s+being|temporarily|currently|at\s+present|right\s+now|at\s+the\s+moment|except|excluding"
+                r"|other\s+than(?!\s+that\b))\b"
                 r"|\bat\s+(?:its|our|their|his|her|the\s+\w+['’]s)\s+(?:sole\s+|own\s+|reasonable\s+)?discretion\b"
                 r"|\bsubject\s+to\b|\bwith\s+(?:(?:the|their|your|prior|written|explicit|express|advance)\s+){0,3}"
                 r"(?:\w+\s+)?(?:approval|consent|permission|authori[sz]ation)\b|\bwhere\s+(?:applicable|permitted|required|possible)\b"
@@ -183,6 +196,8 @@ CONDITION = _rx(r"\b(?:if|unless|until|till|whenever|when|while|after|before|as\
                 r"|\bby\s+default\b|\bupon\s+(?:request|approval)\b"
                 r"|\bwithin\s+[\w.]+\s+(?:\w+\s+)?(?:second|minute|hour|day|week|month|year)s?\s+of\b"
                 r"|(?<!\bat\s)\bonce\b(?!\s+(?:a|an|per|every|more|again|or|and)\b)")
+OPPOSITE_CONDITION = {"before": ("after",), "after": ("before", "until", "till"), "until": ("after",), "till": ("after",),
+                      "unless": ("if", "when", "whenever"), "if": ("unless",), "when": ("unless",), "whenever": ("unless",)}
 NOT_CONDITION = _rx(r"\b(?:a|for\s+a|after\s+a|in\s+a|quite\s+a|little)\s+while\b|\bbefore(?=\s*(?:[.!?,;)]|$))"
                     r"|\b(?:check|see|ask(?:s|ed)?|know|wonder(?:ing)?|determine|verify|tell|find\s+out|sure|unsure|decide|"
                     r"confirm)\s+if\b|\bas\s+if\b|\bwhen\s+(?=(?:is|are|was|were|do|does|did|will|would|can|could|should)\s+"
@@ -195,7 +210,8 @@ STOCK_MARKERS = _rx(r"\bit\s+should\s+be\s+noted\s+that\b|\bit\s+(?:is|['’]s)\
                     r"|\bafter\s+all\b|\bbefore\s+we\s+(?:begin|dive\s+in|start)\b"
                     r"|\b(?:don['’]t|do\s+not)\s+hesitate\s+to\b|\blook\s+no\s+further\b|\bwithout\s+further\s+ado\b"
                     r"|\bit\s+goes\s+without\s+saying\b|\bit['’]s\s+no\s+secret\s+that\b|\bthere['’]s\s+no\s+denying\s+(?:that\s+)?"
-                    r"|\bmake\s+no\s+mistake\b|\bbefore\s+you\s+(?:begin|start|get\s+started)\b")
+                    r"|\bmake\s+no\s+mistake\b|\bbefore\s+you\s+(?:begin|start|get\s+started)\b"
+                    r"|\b(?:everything|all|what)\s+you\s+need\s+to\s+know\b|\bneed[- ]to[- ]know\s+basis\b")
 # Negated obligations are not obligations ("you don't have to", "not required").
 NEG_OBLIGATION = _rx(r"(?:\b\w+n['’]t|\b(?:do|does|did|is|are|was|were|will|would|should)\s+not|\bnot|\bno|\bnever|\bneedn['’]t)"
                      r"\s+(?:have\s+to|has\s+to|need\s+to|needs?|required|requires?|mandatory)\b")
@@ -283,6 +299,18 @@ Let Lets OK Okay Section Sections Clause Clauses Article Chapter Appendix Figure
 Items Annex Schedule Exhibit SaaS PaaS IaaS ARR MRR CSV JSON YAML XML SQL HTTP HTTPS REST KPI KPIs OKR OKRs ROI B2B B2C SMB SMBs CEO CTO CFO
 COO VP HR IT AI ML LLM GPU CPU RAM SSD SLA SLAs SLO SLOs SDK CLI API APIs URL URLs Mon Tue Tues Wed Thu Thur Thurs Fri Sat Sun Jan Feb Mar Apr Jun Jul Aug Sep Sept Oct Nov Dec Mondays Tuesdays Wednesdays Thursdays Fridays Saturdays Sundays TBD TBC EOD EOW COB ASAP ETA FYI FAQ WIP OOO PR PRs QA UI UX""".split())
 
+# role and term acronyms left out of the name check; one replaced by another is still compared
+ACRONYMS = {w for w in NAME_STOP if sum(c.isupper() for c in w) >= 2}
+
+
+def acronyms(text: str) -> Counter[str]:
+    """Role and term acronyms ("CFO", "ARR", "KPIs" -> KPI), plus other all-capital words of 2 to 5 letters."""
+    found: Counter[str] = Counter()
+    for w in re.findall(r"\b[A-Za-z]*[A-Z][A-Za-z]*\b", text):
+        if w in ACRONYMS or re.fullmatch(r"[A-Z]{2,5}s?", w):
+            found[w[:-1] if len(w) > 2 and w.endswith("s") and w[:-1] in ACRONYMS | {w[:-1].upper()} else w] += 1
+    return found
+
 
 # ---------------------------------------------------------------- data
 
@@ -369,9 +397,19 @@ def number_key(m: re.Match[str]) -> str:
     if suffix in ("st", "nd", "rd", "th"):
         suffix = ""
     num = m.group("num").replace(",", "")
-    if prefix not in ("v", "q", "p") and re.fullmatch(r"\d+\.\d*?0+", num):
-        num = num.rstrip("0").rstrip(".")  # "1.0" is 1 and "0.50" is 0.5
+    if prefix not in ("v", "q", "p") and re.fullmatch(r"\d+\.\d*?0+", num) and \
+            not VERSION_BEFORE.search(m.string[max(0, m.start() - 30):m.start()]):
+        num = num.rstrip("0").rstrip(".")  # "1.0" is 1 and "0.50" is 0.5, but "Python 3.10" is not 3.1
     return prefix + num + suffix
+
+
+# words before a version number, whose trailing zero counts ("Python 3.10", "Node 18.20", "TypeScript 5.0")
+VERSION_BEFORE = re.compile(r"(?:\b(?i:version|versions|release|releases|ver\.?|build|python|node(?:\.js)?|nodejs|java|jdk|go|golang|"
+                            r"ruby|php|perl|rust|kotlin|swift|scala|ios|android|macos|ubuntu|debian|fedora|rhel|centos|windows|"
+                            r"django|rails|react|vue|angular|next\.js|nuxt|spring|postgres(?:ql)?|mysql|mariadb|redis|mongodb|"
+                            r"kubernetes|k8s|terraform|helm|docker|gcc|clang|llvm|openssl|tls|http|lts|chrome|firefox|safari|"
+                            r"electron|gradle|maven|npm|pnpm|yarn|pip|numpy|pandas|elixir|erlang|dart|flutter|unity|xcode)"
+                            r"|\b[a-z]*[A-Z][a-z]+[A-Z]\w*|\b[a-z]+[A-Z]\w*)\s*$")  # also TypeScript, PostgreSQL, iOS
 
 
 _TENS = {"twenty": 20, "thirty": 30, "forty": 40, "fifty": 50, "sixty": 60, "seventy": 70, "eighty": 80, "ninety": 90}
@@ -563,6 +601,14 @@ def frequencies(text: str) -> Counter[str]:
     text = re.sub(r"\b(?:wait|just|hang\s+on|give\s+(?:me|us)|take|in|for|half)\s+an?\s+(?:second|minute|moment)\b", " ", text,
                   flags=re.IGNORECASE)  # idioms, not durations
     text = DURATION_A.sub(" ", text)  # "lasts an hour" is a duration of 1, compared as a number
+    text = re.sub(r"\bARR\b", "annual", re.sub(r"\bMRR\b", "monthly", text))  # spelled out in a rewrite
+    text = re.sub(r"\beach(?=\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|weekday|business\s+day|working\s+day)\b)",
+                  "every", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bevery\s+second(?=\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|day|week|month|year)\b)",
+                  "every other", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bevery\s+(other|third|fourth)\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b",
+                  lambda w: "every " + {"other": "2", "third": "3", "fourth": "4"}[w.group(1).lower()] + " weeks", text,
+                  flags=re.IGNORECASE)  # "every other Friday" is every 2 weeks
     text = re.sub(r"\ban?\s+(?:second|minute|hour|day|week|month|quarter|year)\s+(?:ago|later|earlier|back|before|after|from\s+now)\b",
                   " ", text, flags=re.IGNORECASE)  # a point in time, not a frequency
     for m in FREQUENCY.finditer(text):
@@ -584,6 +630,19 @@ def frequencies(text: str) -> Counter[str]:
         c[w[:-1] if w.endswith("s") and w[:-1] in ("second", "minute", "hour", "day", "night", "week", "month", "year")
           else w] += 1
     return c
+
+
+@functools.lru_cache(maxsize=8)
+def _cached_frequencies(text: str) -> Counter[str]:
+    return frequencies(text)
+
+
+def _clause_deleted(o: str, r: str) -> bool:
+    """The revision only deletes one run of at least four words from the sentence (no word added or replaced)."""
+    a = re.findall(r"[\w']+", o.lower())
+    b = re.findall(r"[\w']+", r.lower())
+    ops = [op for op in difflib.SequenceMatcher(None, a, b, autojunk=False).get_opcodes() if op[0] != "equal"]
+    return len(ops) == 1 and ops[0][0] == "delete" and ops[0][2] - ops[0][1] >= 4
 
 
 def conditions(text: str) -> list[str]:
@@ -737,16 +796,21 @@ def _stem(word: str) -> str:
     return word
 
 
-def protected_items(doc: tx.Document) -> Counter[str]:
-    items: Counter[str] = Counter()
-    fence: list[str] = []
+def protected_by_line(doc: tx.Document) -> list[tuple[int, str, str]]:
+    """(line number, line text, item) for every protected item; a code block is placed on its first line."""
+    found: list[tuple[int, str, str]] = []
+    fence: list[tx.Line] = []
+
+    def close() -> None:
+        found.append((fence[0].no, fence[0].raw.strip(), "code block: " + "\n".join(x.raw for x in fence).strip()))
+        fence.clear()
+
     for line in doc.lines:
         if line.kind == "code":
-            fence.append(line.raw)
+            fence.append(line)
             continue
         if fence:
-            items["code block: " + "\n".join(fence).strip()] += 1
-            fence = []
+            close()
         if line.kind in ("para", "list", "heading", "table", "quote"):
             for s, e, kind in tx.protected_spans(line.content):
                 if kind == "html":
@@ -754,10 +818,31 @@ def protected_items(doc: tx.Document) -> Counter[str]:
                 text = line.content[s:e]
                 if kind == "url":
                     text = re.sub(r"^[\](<]+|[)>]+$", "", text)  # "[docs](URL)" and "<URL>" are the same URL
-                items[f"{kind}: {text}"] += 1
+                found.append((line.no, line.content.strip(), f"{kind}: {text}"))
     if fence:
-        items["code block: " + "\n".join(fence).strip()] += 1
-    return items
+        close()
+    return found
+
+
+def protected_items(doc: tx.Document) -> Counter[str]:
+    return Counter(item for _no, _text, item in protected_by_line(doc))
+
+
+def _protected_place(o_lines: list[tuple[int, str, str]], r_lines: list[tuple[int, str, str]],
+                     item: str, new: str) -> tuple[int, int, str, str]:
+    """The original and revised lines where a protected item changed: of the lines holding each,
+    the pair whose texts are most alike (so a value that appears on two lines is placed on the changed one)."""
+    lo = [(n, t) for n, t, x in o_lines if x == item] if item else []
+    lr = [(n, t) for n, t, x in r_lines if x == new] if new else []
+    if lo and lr:
+        (a, ta), (b, tb) = max(((x, y) for x in lo for y in lr),
+                               key=lambda p: difflib.SequenceMatcher(None, p[0][1], p[1][1], autojunk=False).ratio())
+        return a, b, ta, tb
+    if lo:
+        return lo[0][0], 0, lo[0][1], ""
+    if lr:
+        return 0, lr[0][0], "", lr[0][1]
+    return 0, 0, item, new
 
 
 def _norm(s: str) -> str:
@@ -1109,9 +1194,16 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
             risk("number", True, "Unit changed: " + ", ".join(sorted((uo - ur).elements())) + " → "
                  + ", ".join(sorted((ur - uo).elements())))
     fq_o, fq_r = frequencies(o), frequencies(r)
-    if fq_o != fq_r and (fq_o or fq_r):
-        risk("number", True, "Frequency or time unit changed: " + (", ".join(sorted((fq_o - fq_r).elements())) or "none") + " → "
-             + (", ".join(sorted((fq_r - fq_o).elements())) or "none"))
+    if set(fq_o) != set(fq_r):  # "weekly, every Tuesday" -> "every Tuesday" repeats one frequency
+        fq_gone = Counter({k: n for k, n in fq_o.items() if k not in fq_r})
+        fq_new = Counter({k: n for k, n in fq_r.items() if k not in fq_o})
+        # a whole clause deleted (chat residue, a repeat) whose frequency still stands elsewhere in the revision
+        kept_elsewhere = not fq_new and _clause_deleted(o, r) and \
+            all(_cached_frequencies(rev_all)[k] >= n for k, n in fq_gone.items())
+        risk("number", not kept_elsewhere, "Frequency or time unit changed: " + (", ".join(sorted(fq_gone.elements())) or "none")
+             + " → " + (", ".join(sorted(fq_new.elements())) or "none")
+             + (" (the clause holding it was deleted; the same frequency still appears in the revised text)"
+                if kept_elsewhere else ""))
     fr_o = [tuple(x.lower().rstrip(".,:;") for x in m.groups()) for m in FROM_TO.finditer(o)]
     fr_r = [tuple(x.lower().rstrip(".,:;") for x in m.groups()) for m in FROM_TO.finditer(r)]
     def _ft_key(v: str) -> str:
@@ -1125,6 +1217,11 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
                                                  (x.message.startswith("Unit changed") or x.kind == "approximation"))]
             risk("number", True, f'Order reversed: "from {a_} to {b_}" → "from {b_} to {a_}"')
             break
+    ac_o, ac_r = acronyms(o), acronyms(r)
+    ac_gone, ac_new = ac_o - ac_r, ac_r - ac_o
+    if ac_gone and ac_new and any(w in ACRONYMS for w in ac_gone):
+        risk("name", True, f"Role or term replaced: {', '.join(sorted(ac_gone))} → {', '.join(sorted(ac_new))}. "
+             "Check that it is the same person, team or measure.")
     do_, dr = dates(o), dates(r)
     if do_ != dr:
         parts = []
@@ -1165,8 +1262,10 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
             new = ", ".join(sorted((prof_r - prof_o).elements()))
             risk("negation", True, f"Negation changed: {gone} → {new}. Check that the same thing is still denied.")
         elif swapped_o and swapped_r and not (len(ch.orig) > len(ch.rev) and any(
-                re.match(r"\W*(?:\w+\s+){0,3}" + re.escape(w) + r"\b", x.masked, re.IGNORECASE)
-                for w in swapped_r for x in ch.orig)):  # "Churn was not the main drag. Costs were." -> "Costs, not churn, were"
+                re.match(r"\W*(?:\w+\s+){0,3}" + re.escape(w) + r"\b", x.masked, re.IGNORECASE) and NEGATION.search(x.masked)
+                for w in swapped_r for x in ch.orig)):
+            # "Churn was not the main drag. Costs were." -> "Costs, not churn, were": the word that is now denied
+            # led the original's negative sentence. "X was not A. It was B." -> "X was A, not B" is a flip.
             risk("negation", True, f'What is denied changed: "not {sorted(swapped_o)[0]}" → "not {sorted(swapped_r)[0]}"')
 
     q_orig = [s for s in ch.orig if _is_question(s.text)]
@@ -1203,6 +1302,12 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
         if count(ABILITY, r_st) >= count(ABILITY, o_st):
             # "can possibly" -> "can" reduces a stack (SKILL.md); "can" stays as the hedge
             o_st = re.sub(r"\b(can)\s+(?:possibly|potentially|conceivably|maybe)\b", r"\1", o_st, flags=re.IGNORECASE)
+        # "you're going to need to" is an obligation, not a prediction
+        o_st = re.sub(r"\bgoing\s+to\s+(?=(?:need|have)\s+to\b)", " ", o_st, flags=re.IGNORECASE)
+        r_st = re.sub(r"\bgoing\s+to\s+(?=(?:need|have)\s+to\b)", " ", r_st, flags=re.IGNORECASE)
+        if re.search(r"\b(?:allowed|permitted)\s+to\b", r_st, re.IGNORECASE) and not PERMISSION.search(o_st):
+            # "Attendees may bring" -> "Attendees are allowed to bring": the "may" was a permission
+            o_st = re.sub(r"\b(\w+\s+)may\b(?=\s+(?!be\b|have\b)[a-z]+)", r"\1", o_st, count=1, flags=re.IGNORECASE)
         if HEARSAY.search(o_st) and HEARSAY.search(r_st):
             o_st = re.sub(r"\breportedly\b", " ", o_st, flags=re.IGNORECASE)  # hearsay kept in another form
             r_st = re.sub(r"\breportedly\b", " ", r_st, flags=re.IGNORECASE)
@@ -1242,6 +1347,9 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
     elif po and not pr_ and po_m is not None and po_m.group(0).lower().endswith(" may") and \
             re.search(r"\b(?:may|might|could)\b", r, re.IGNORECASE):
         pass  # "Users may see a delay" -> "Users might see a delay": a possibility, compared as a hedge
+    elif pr_ and not po and re.search(r"\b(?:allowed|permitted)\s+to\b", r, re.IGNORECASE) and \
+            re.search(r"\b\w+\s+may\s+(?!be\b|have\b)[a-z]+", mask_month_may(o), re.IGNORECASE):
+        pass  # "Attendees may bring" -> "Attendees are allowed to bring": the same permission
     elif po != pr_:
         word = first(PERMISSION, o if po else r)
         risk("permission", True, f'Permission {"removed" if po else "added"}: "{word}"')
@@ -1328,6 +1436,19 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
                     not mm.group(1)[0].isdigit():
                 risk("scope", True, f'Restriction removed: "{mm.group(1)} {head}" → "{am.group(0)}"')
                 break
+    elif count(ALL_SCOPE, o) > count(ALL_SCOPE, r):
+        # the reverse: "Restart all workers" -> "Restart the affected workers", "Every request" -> "Failed requests"
+        o_words = {w.lower() for w in re.findall(r"[A-Za-z][\w'’-]*", o)}
+        for am in re.finditer(r"\b(?:all|every|each)\s+(?:of\s+)?(?:the\s+|our\s+|your\s+|their\s+)?([a-z]+)", o, re.IGNORECASE):
+            head = am.group(1).lower()
+            if head in STOPWORDS:
+                continue
+            stem = head[:-1] if head.endswith("s") and len(head) > 3 else head
+            nm = re.search(r"\b([A-Za-z][\w-]+)\s+" + re.escape(stem) + r"(?:s|es)?\b", r, re.IGNORECASE)
+            if nm and nm.group(1).lower() not in o_words and nm.group(1).lower() not in STOPWORDS and \
+                    not nm.group(1)[0].isdigit():
+                risk("scope", True, f'Scope narrowed: "{am.group(0)}" → "{nm.group(0)}"')
+                break
 
     cond_o, cond_r = conditions(o), conditions(r)
     contrast = re.compile(r"\b(?:but|although|though|however|yet|whereas)\b", re.IGNORECASE)
@@ -1341,6 +1462,13 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
     elif len(cond_r) > len(cond_o):
         new_c = next((w for w in cond_r if w.lower() not in {x.lower() for x in cond_o}), cond_r[0])
         review("condition_added", f'Condition added: "{new_c}". Do not add conditions the original lacks.')
+    elif cond_o:
+        c_gone = Counter(w.lower() for w in cond_o) - Counter(w.lower() for w in cond_r)
+        c_new = Counter(w.lower() for w in cond_r) - Counter(w.lower() for w in cond_o)
+        flip = next(((g, n) for g in c_gone for n in c_new if n in OPPOSITE_CONDITION.get(g, ())), None)
+        if flip:
+            risk("condition", True, f'Condition word changed: "{flip[0]}" → "{flip[1]}". Check that the timing or case '
+                 "is the same.")
 
     if (CHOICE.search(o) and not CHOICE.search(r) and ALL_SCOPE.search(r) and not ALL_SCOPE.search(o)) or \
             (ALL_SCOPE.search(o) and not ALL_SCOPE.search(r) and CHOICE.search(r) and not CHOICE.search(o)):
@@ -1358,6 +1486,9 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
         else:
             review("quantifier_gone", f'"{(first(PARTIAL_ADV, o) or first(MOST_ANY, o)).strip()}" disappeared. Check that the sentence did not become '
                    "always true.")
+
+    if RARE.search(o) and not STILL_RARE.search(r):
+        risk("negation", True, f'Near-negation removed: "{first(RARE, o)}". The sentence may now state the opposite.')
 
     ca_o, ca_r = count(CAUSAL, o), count(CAUSAL, r)
     if ca_r > ca_o:
@@ -1430,7 +1561,7 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
         review("quote_changed", "Text inside a block quotation changed. Restore it unless it is the writer's own note "
                "rather than a quotation.")
 
-    orig_starts = {x.masked.strip().lstrip("\"'“‘(*_").split(" ")[0].lower() for x in ch.orig}
+    orig_starts = {x.masked.strip().lstrip("\"'“‘(*_").split(" ")[0].lower().rstrip(",;:") for x in ch.orig}
     for s in ch.rev:
         start = s.masked.strip().lstrip("\"'“‘(*_")
         cm = CONNECTIVE.match(start)
@@ -1481,6 +1612,12 @@ BOLD_LABEL = re.compile(r"^\s*(?:\*\*|__)[^*_\n]{1,60}?(?:\*\*|__)\s*:?")
 LABEL_PREFIX = re.compile(r"^\s*(?:\*\*|__)[^*_\n]{1,60}?(?:\*\*|__)\s*:?|^\s*[*_]?[A-Z][\w ]{0,40}?:(?=\s)")
 
 
+def _owner_not_verb(m: re.Match[str]) -> bool:
+    """ "Action: Dana to send ..." names an owner; "Action: Update the docs" starts with a task verb."""
+    return bool(re.match(r"\s+to\s+(?!(?:the|an?|our|your|their|all|this|that|these|those|it|them|each|every|v?\d)\b)[a-z]+\b",
+                         m.string[m.end():]))
+
+
 def _sentence_names(sentences: list[tx.Sentence], proper: set[str]) -> set[str]:
     """Names in sentences: capitalized words after the first word, plus a first word that is capitalized
     in the middle of some sentence elsewhere (so "Several" or "Feel" at the start is not a name). Headings
@@ -1489,7 +1626,8 @@ def _sentence_names(sentences: list[tx.Sentence], proper: set[str]) -> set[str]:
     for x in sentences:
         if x.kind == "heading":
             continue
-        masked = TASK_VERB.sub(lambda m: m.group(1) + m.group(2).lower(), re.sub(r"^\s*\[![A-Za-z]+\]\s*", "", x.masked))
+        masked = TASK_VERB.sub(lambda m: m.group(0) if _owner_not_verb(m) else m.group(1) + m.group(2).lower(),
+                               re.sub(r"^\s*\[![A-Za-z]+\]\s*", "", x.masked))
         label = LABEL_PREFIX.match(masked)
         if label and not (set(re.findall(r"[A-Z][\w'’-]+", label.group(0))) & proper):
             masked = masked[label.end():]  # a label such as "**Faster Startup**:", not a name such as "Dana:"
@@ -1722,6 +1860,9 @@ def disappeared_words(orig: tx.Document, rev: tx.Document) -> list[str]:
     r = " ".join(s.masked for s in rev.sentences)
     rev_stems = {_stem(w) for w in content_words(r)}
     lost = sorted(w for w in content_words(o) if _stem(w) not in rev_stems)
+    # short role and term acronyms ("CFO", "QA") are too short for content_words
+    rev_acronyms = acronyms(r)
+    lost += sorted(w for w in acronyms(o) if w in ACRONYMS and len(w) <= 3 and w not in rev_acronyms and w not in ("OK", "FYI"))
     return lost
 
 
@@ -1820,7 +1961,7 @@ def energy(orig: tx.Document, rev: tx.Document, doc_type: Optional[str],
 _GAP_EXCLUDE = re.compile(r"(?<![A-Za-z-])\d|\b(?:may|might|could|possibly|perhaps|likely|probably|appears?|seems?|plan(?:s|ned)?|"
                           r"expect\w*|if|when|unless|hope|aim\w*|goal|target)\b", re.IGNORECASE)
 _BUILTIN_GAPS = [
-    ("reference", r"\b(?:before|by|until|after)\s+the\s+(?:deadline|agreed\s+date|cutoff|due\s+date)\b|\bas\s+(?:discussed|agreed)\b|\bthe\s+(?:date|deadline|time|amount)\s+we\s+(?:discussed|agreed\s+on|agreed)\b"),
+    ("reference", r"\b(?:before|by|until|after)\s+the\s+(?:deadline|agreed\s+date|cutoff|due\s+date)\b|\bas\s+(?:discussed|agreed)\b|\bthe\s+(?:date|deadline|time|amount)\s+we\s+(?:discussed|agreed\s+on|agreed)\b|\bthe\s+(?:appropriate|relevant|responsible|designated)\s+(?:team\s+lead|team|person|owner|lead|manager|contact|party|department|channel|group|stakeholders?|approver)\b|\b(?:in\s+a\s+timely\s+manner|in\s+due\s+course|at\s+the\s+appropriate\s+time)\b"),
     ("figure", r"\b(?:lay(?:s|ing)?|laid) the (?:foundation|groundwork)\b|\bpav(?:e|es|ed|ing) the way\b|\bquietly (?:break|breaks|broke|broken|breaking)\b"),
     ("effect", r"\b(?:improv|enhanc|boost|increas)\w* (?:the )?(?:reliability|stability|quality|performance|usability|productivity|efficiency)\b|\bseamless(?:ly)?\b"),
     ("degree", r"\b(?:significantly|dramatically|drastically|substantially|vastly|greatly)\b"),
@@ -1867,10 +2008,13 @@ def fact_gaps(doc: tx.Document) -> tuple[list[Review], str]:
         if s.kind not in ("para", "list"):
             continue
         text = s.masked
-        if text.rstrip().endswith("?") or _GAP_EXCLUDE.search(VERSION_NAME.sub("vX", text)) or VAGUE_QUANTITY.search(text) or \
-                CLOSING_RESOLUTION.search(text):
+        if text.rstrip().endswith("?") or VAGUE_QUANTITY.search(text) or CLOSING_RESOLUTION.search(text):
             continue
+        # a number, hedge, plan or condition may stand for the value; a vague owner or time stays a gap anyway
+        excluded = bool(_GAP_EXCLUDE.search(VERSION_NAME.sub("vX", text)))
         for kind, pattern in rules:
+            if excluded and kind != "reference":
+                continue
             m = pattern.search(text)
             if m:
                 result.append(Review(kind, f'"{m.group(0)}": {GAP_HINTS[kind]}', s.line, s.text))
@@ -1886,6 +2030,9 @@ def _unit_agrees(line: str, n: str, own_units: set[str]) -> bool:
 
 def material_check(final: tx.Document, materials: str, original: str) -> dict[str, Any]:
     """Compare the final draft with the material (and original): numbers and names not found there."""
+    # unified-diff headers (hunk ranges, index hashes) hold no values a draft could take
+    materials = re.sub(r"(?m)^(?:@@ -\d.*|diff --git .*|index [0-9a-f]{6,}\.\.[0-9a-f]{6,}.*|(?:---|\+\+\+) (?:[ab]/|/dev/null).*)$",
+                       "", materials)
     materials = re.sub(r"(?m)^(\s*)(?:\d+[.)]|[-*+])\s+", r"\1", materials)  # list markers are not values
     source = materials + "\n" + original
     src_numbers = numbers(source)
@@ -2146,7 +2293,8 @@ def compare(orig_text: str, rev_text: str, doc_type: Optional[str] = None, reade
                                       "nothing appears only here, and that its content does not come back elsewhere "
                                       f"with a different negation or hedge. (original line {ch.orig_line})", 0, text))
 
-    po, pr_ = protected_items(orig), protected_items(rev)
+    pl_o, pl_r = protected_by_line(orig), protected_by_line(rev)
+    po, pr_ = Counter(x for _n, _t, x in pl_o), Counter(x for _n, _t, x in pl_r)
     gone_items, new_items = sorted((po - pr_).elements()), sorted((pr_ - po).elements())
     changed: set[str] = set()
     for item in gone_items:
@@ -2156,14 +2304,14 @@ def compare(orig_text: str, rev_text: str, doc_type: Optional[str] = None, reade
         if best is not None and difflib.SequenceMatcher(None, item, best).ratio() >= 0.6:
             changed.add(best)
             risks.append(Risk("code", True, "Value or name inside code or a URL changed: " + tx.display_width_cut(item, 60)
-                              + " → " + tx.display_width_cut(best, 60), 0, 0, item, best))
+                              + " → " + tx.display_width_cut(best, 60), *_protected_place(pl_o, pl_r, item, best)))
         else:
             risks.append(Risk("protected", False, "Text that must not change is gone or changed: "
-                              + tx.display_width_cut(item, 120), 0, 0, item, ""))
+                              + tx.display_width_cut(item, 120), *_protected_place(pl_o, pl_r, item, "")))
     for item in new_items:
         if item not in changed:
             risks.append(Risk("protected", False, "New or changed text in code or URLs: " + tx.display_width_cut(item, 120),
-                              0, 0, "", item))
+                              *_protected_place(pl_o, pl_r, "", item)))
 
     reviews.extend(added_actors(orig, rev, materials, chunks))
     lost_words = disappeared_words(orig, rev)
@@ -2173,7 +2321,9 @@ def compare(orig_text: str, rev_text: str, doc_type: Optional[str] = None, reade
 
     oh = [b.lines[0].content.strip() for b in orig.blocks if b.kind == "heading"]
     rh = [b.lines[0].content.strip() for b in rev.blocks if b.kind == "heading"]
-    removed_h = list((Counter(oh) - Counter(rh)).elements())
+    # compared without a trailing colon or emoji, so fixing those in the same pass keeps the closing-section case
+    core_o = {_heading_core(h): h for h in oh}
+    removed_h = [core_o[h] for h in (Counter(_heading_core(h) for h in oh) - Counter(_heading_core(h) for h in rh)).elements()]
     trailing = set(_trailing_closing(oh)) if doc_type not in ("pr", "minutes") else set()
     if len(oh) > len(rh) and len(removed_h) == len(oh) - len(rh) and all(h in trailing for h in removed_h):
         reviews.append(Review("heading", f'Closing section removed: "{removed_h[0]}". Fine only when the section '
@@ -2205,7 +2355,7 @@ def compare(orig_text: str, rev_text: str, doc_type: Optional[str] = None, reade
     en_items, en_ref = energy(orig, rev, doc_type, chunks)
     gaps: list[Review] = []
     gaps_note = ""
-    if want_fact_gaps and doc_type not in ("essay", "promo"):
+    if want_fact_gaps and doc_type not in ("essay", "promo", "script"):
         gaps, gaps_note = fact_gaps(rev)
     material: dict[str, Any] = {}
     if materials.strip():
@@ -2222,7 +2372,7 @@ def compare(orig_text: str, rev_text: str, doc_type: Optional[str] = None, reade
     risks.extend(r for r in line_risks if not any(_moved_tokens(r.message) <= t for t in reported))
     return DiffResult(changes, risks, reviews, stiff, doc_type in STIFF_REFERENCE_TYPES, en_items, en_ref,
                       gaps, gaps_note, material, full, doc_type, reader, stance, "rewrite", words or tx.Words(),
-                      want_fact_gaps and doc_type not in ("essay", "promo"))
+                      want_fact_gaps and doc_type not in ("essay", "promo", "script"))
 
 
 def compose(final_text: str, materials: str, doc_type: Optional[str] = None, reader: Optional[str] = None,
@@ -2236,10 +2386,10 @@ def compose(final_text: str, materials: str, doc_type: Optional[str] = None, rea
                    int(str(item["line"])), "", str(item["text"])) for item in material["units_dates_not_in_material"]]
     gaps: list[Review] = []
     note = ""
-    if want_fact_gaps and doc_type not in ("essay", "promo"):
+    if want_fact_gaps and doc_type not in ("essay", "promo", "script"):
         gaps, note = fact_gaps(final)
     return DiffResult([], risks, [], [], False, [], [], gaps, note, material, "", doc_type, reader, stance,
-                      "compose", words or tx.Words(), want_fact_gaps and doc_type not in ("essay", "promo"))
+                      "compose", words or tx.Words(), want_fact_gaps and doc_type not in ("essay", "promo", "script"))
 
 
 # ---------------------------------------------------------------- output
@@ -2301,8 +2451,10 @@ def format_sections(result: DiffResult) -> list[str]:
     if not result.risks:
         out.append("- None found. This does not prove the meaning is the same.")
     for r in counted + other:
-        if r.orig_line:
+        if r.orig_line and r.rev_line:
             where = f" (original line {r.orig_line} → revised line {r.rev_line})"
+        elif r.orig_line:
+            where = f" (original line {r.orig_line})"
         elif r.rev_line:
             where = f" (revised line {r.rev_line})"
         else:
