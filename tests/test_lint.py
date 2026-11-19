@@ -1680,4 +1680,231 @@ def test_writers_offers_in_mail_are_still_exempt(text: str) -> None:
 
 def test_editing_verb_with_another_object_after_a_rule_is_not_an_offer() -> None:
     assert residue("# Setup\n\nInstall it.\n\n---\n\nFeel free to tweak the config to your liking.\n") == []
-    assert residue("# Post\n\nBody.\n\n---\n\nFeel free to personalize it with your own projects!\n") == ["Feel free to"]
+    # After a drafted mail (a greeting before the rule), an editing verb on "it" is an offer about the draft.
+    assert residue("Hi Dana,\n\nThe report is attached.\n\n---\n\nFeel free to personalize it with your own "
+                   "projects!\n") == ["Feel free to"]
+
+
+# ---------------------------------------------------------------- set 11
+
+
+@pytest.mark.parametrize(("text", "doc_type"), [
+    # A README, a style guide and a template end with a note to their readers after a thematic break.
+    ("# csvtrim\n\nTrims whitespace in CSV files.\n\n## Install\n\nRun `pip install csvtrim`.\n\n---\n\n"
+     "If you would like a shorter version of this guide, see QUICKSTART.md. If you'd like a different version of the "
+     "binary for ARM, see Releases.\n", "manual"),
+    ("# Error message style\n\nSay what happened and what to do next.\n\n---\n\nFeel free to suggest clearer wording "
+     "for any message in this list by opening a pull request.\n", None),
+    ("# .editorconfig template\n\nCopy `.editorconfig` into the root of your repository.\n\n---\n\nThis file is only "
+     "a starting point. Feel free to tweak it for your team.\n", None),
+    ("# Voice and tone guide\n\nOur product voice is plain.\n\n---\n\nFeel free to post in #writing if you're unsure "
+     "about tone or wording.\n", "manual"),
+    ("## Notes from the workshop\n\nWe covered pacing and tone.\n\n---\n\nWould you like to join the next session on "
+     "phrasing? Sign up below.\n", None),
+])
+def test_readers_notes_after_a_rule_are_not_assistant_offers(text: str, doc_type: str | None) -> None:
+    assert residue(text, doc_type) == []
+
+
+@pytest.mark.parametrize("header", [
+    "From: Ana Ruiz\nSent: Monday, November 3, 2025 9:14 AM\nTo: Sam Lee\nSubject: Board deck",
+    "-----Original Message-----\nFrom: Ana Ruiz",
+    "On Mon, Nov 3, 2025 at 9:14 AM Ana Ruiz <ana@example.com>\nwrote:",
+])
+def test_earlier_messages_in_a_pasted_thread_are_not_after_the_sign_off(header: str) -> None:
+    text = (f"Hi Ana,\n\nThe board deck is attached.\n\nBest,\nSam\n\n{header}\n\nAttached is my first pass. Let me know "
+            "if you'd like me to adjust the tone for the board version.\n\nThanks,\nAna\n")
+    assert residue(text, "mail") == []
+
+
+def test_a_new_greeting_starts_a_new_message() -> None:
+    text = ("Hi Ana,\n\nThe deck is attached.\n\nBest,\nSam\n\nHi Sam,\n\nLet me know if you'd like me to adjust the "
+            "tone for the board version.\n\nThanks,\nAna\n")
+    assert residue(text, "mail") == []
+    # The offer after the last sign-off is still the assistant's.
+    assert residue(text + "\nWould you like me to make it more formal?\n", "mail") == ["Would you like me to"]
+
+
+@pytest.mark.parametrize(("text", "match"), [
+    # No greeting or sign-off before the rule: words about a draft, or the assistant offering to change it.
+    ("# Launch post\n\nWe shipped v2.\n\n---\n\nFeel free to adjust the tone of this draft.\n", ["Feel free to"]),
+    ("# Launch post\n\nWe shipped v2.\n\n---\n\nWant me to make it shorter?\n", ["Want me to"]),
+    ("# Launch post\n\nWe shipped v2.\n\n---\n\nI can also rewrite the email in a friendlier tone.\n",
+     ["I can also"]),
+    # Once the paragraph is assistant chat, its other offers are too.
+    ("# Post\n\nBody.\n\n---\n\nFeel free to personalize it with your own projects! Let me know if you'd like a "
+     "shorter version.\n", ["Feel free to", "Let me know if you'd like"]),
+])
+def test_assistant_offers_after_a_rule_without_a_mail(text: str, match: list[str]) -> None:
+    assert residue(text) == match
+
+
+def test_offers_after_a_rule_in_mail_and_after_a_drafted_mail() -> None:
+    # In mail, and after a greeting or sign-off in any doc type, any talk about the draft after the rule.
+    assert residue("Team,\n\nThe offsite moved to Thursday.\n\nPriya\n\n---\n\nFeel free to tweak it.\n", "mail") \
+        == ["Feel free to"]
+    assert residue("Hi team,\n\nThe offsite moved to Thursday.\n\n---\n\nFeel free to tweak it.\n") == ["Feel free to"]
+    assert residue("Team,\n\nThe offsite moved to Thursday.\n\nPriya\n\n---\n\nFeel free to tweak it.\n") == []
+    text = ("Hi Dana,\n\nThe report is attached.\n\nBest,\nSam\n\n---\n\nLet me know if you'd like me to adjust the tone "
+            "or make it more concise!\n")
+    assert residue(text, "mail") == ["Let me know if you'd like"]
+
+
+def contrasts(text: str) -> list[str]:
+    return [f.match for f in findings(text) if f.rule == "negative_contrast"]
+
+
+@pytest.mark.parametrize(("text", "match"), [
+    ("🚀 This isn't just an update. It's a revolution.\n", "This isn't just an update. It's"),
+    ("We shipped v2! 🎉 This isn't just an update. It's a new era.\n", "This isn't just an update. It's"),
+    ("**The big shift**\nThis isn't a tool. It's a mindset.\n", "This isn't a tool. It's"),
+    ("- **Culture over tools**\n  Remote work isn't a perk, it's a paradigm shift.\n", "Remote work isn't a perk, it's"),
+    ("💡 Remote work isn't a perk. It's a paradigm shift.\n", "Remote work isn't a perk. It's"),
+    ("The truth is simple: it isn't a tool. It's a mindset.\n", "it isn't a tool. It's"),
+    ("Here's the truth: we don't sell software. We sell outcomes.\n", "we don't sell software. We sell"),
+    ("Hi team\nWe don't sell software. We sell outcomes.\n", "We don't sell software. We sell"),
+    ("Shipped! 👨‍👩‍👧‍👦 This isn't a tool. It's a mindset.\n", "This isn't a tool. It's"),
+])
+def test_contrast_after_emoji_a_line_break_or_a_colon(text: str, match: str) -> None:
+    assert contrasts(text) == [match]
+
+
+@pytest.mark.parametrize("text", [
+    "Here's the thing nobody tells you: it's not hard. It's barely even cooking.\n",  # an adjective is denied
+    "We tested it and it isn't a tool. It's a mindset.\n",  # a lower-case pronoun not after a colon
+    "Yesterday I didn't ship the fix. I shipped a workaround.\n",  # the pronoun does not start the sentence
+    "→ This isn't a tool. It's a mindset.\n",  # an arrow is not an emoji
+])
+def test_contrast_needs_a_sentence_start(text: str) -> None:
+    assert contrasts(text) == []
+
+
+def test_emoji_before_an_interjection_starts_a_sentence() -> None:
+    assert residue("🎉 Sure! Here's what changed.\n") == ["Sure!"]
+
+
+@pytest.mark.parametrize("text", [
+    "**Speaker 1:** So when did you start?\n\n**Speaker 2:** In 2019.\n\n**Speaker 1:** And the first job?\n",
+    "**Participant 3:** I never use it.\n\n**Moderator:** Why not?\n\n**Participant 3:** I don't trust it.\n",
+    "**Caller 1:** Is the road open?\n\n**Host:** Not yet.\n\n**Caller 1:** Thanks.\n",
+    "**P2:** Fine.\n\n**P1:** Good.\n\n**P2:** Done.\n",
+    "**MAYA:** Where were you?\n\n**DEV (into the phone, whispering):** I can't talk.\n\n**MAYA:** Dev.\n",
+])
+def test_numbered_speakers_and_long_notes_are_dialogue_turns(text: str) -> None:
+    got = rules(text)
+    assert "bold_label_list" not in got
+    assert "sentence_start_repeat" not in got
+
+
+def test_a_bold_label_is_not_the_first_word_of_a_sentence() -> None:
+    assert "sentence_start_repeat" in rules("**Note:** We ran it.\n\n**Tip:** We fixed it.\n\n**Warning:** We shipped it.\n")
+    # Summary labels with a number are still reported outside script, and exempted in script.
+    steps = "**Step 1:** Install it.\n\n**Step 2:** Configure it.\n"
+    assert rules(steps).count("bold_label_list") == 2
+    assert "bold_label_list" not in rules(steps, "script")
+
+
+@pytest.mark.parametrize("text", [
+    "INT. KITCHEN — NIGHT\n\nMaya stands at the counter.\n",
+    "EXT. PARKING LOT – DAY\n",
+    "**INT. MAYA'S APARTMENT — CONTINUOUS**\n",
+    "INT./EXT. CAR — MOVING — DAY\n",
+    "I/E. VAN — NIGHT\n",
+])
+def test_scene_headings_are_not_spliced_clauses(text: str) -> None:
+    assert "em_dash" not in rules(text, "script")
+
+
+def test_a_sentence_after_a_scene_heading_dash_is_still_checked() -> None:
+    assert "em_dash" in rules("INT. KITCHEN — Maya slams the door. She leaves.\n", "script")
+
+
+@pytest.mark.parametrize("text", [
+    "## Monday (Mar 3) — Workshops\n",
+    "- Friday (Nov 14) — Code freeze\n",
+    "Thursday (6 Feb) — Committee meeting\n",
+    "Tue (11/12) — retro\n",
+    "## Mar 3 (Mon) — Workshops\n",
+])
+def test_weekday_with_a_date_in_parentheses_is_a_stamp(text: str) -> None:
+    assert "em_dash" not in rules(text)
+
+
+def test_words_in_parentheses_after_a_weekday_are_not_a_stamp() -> None:
+    assert "em_dash" in rules("Friday (the day we ship) — big day.\n")
+
+
+def test_tamp_your_is_not_tame_your() -> None:
+    assert "metaphor_verb" not in rules("Tamp your coffee evenly, then lock the portafilter.\n")
+    for text in ("This tool will tame your inbox.\n", "It tames your backlog.\n", "We tamed your queue.\n",
+                 "Taming your logs is easy.\n"):
+        assert "metaphor_verb" in rules(text)
+
+
+@pytest.mark.parametrize("text", [
+    "To all staff:\n\nThe office will close at noon on Friday.\n",
+    "To All Residents of Building C:\n\nThe water will be off on Monday.\n",
+    "To all concerned:\n\nThe audit is complete.\n",
+])
+def test_to_all_salutation_is_not_a_decorative_colon(text: str) -> None:
+    assert "decorative_colon" not in rules(text)
+
+
+def test_to_all_of_this_is_still_a_decorative_colon() -> None:
+    assert "decorative_colon" in rules("To all of this:\n\nWe say no.\n")
+
+
+@pytest.mark.parametrize(("text", "match"), [
+    ("Below is a polished version of your email:\n\nHi Mark,\n\nThanks for the contract.\n\nBest,\nAnna\n",
+     "Below is a polished version"),
+    ("I've revised your email to sound more confident:\n\nHi Mark,\n\nThanks for the contract.\n",
+     "I've revised your email"),
+    ("Below is a draft email to your landlord:\n\n---\n\nDear Mr. Patel,\n\nThe heat is out.\n", "Below is a draft email"),
+    ("Sure! I have polished your cover letter:\n\nDear hiring manager,\n\nI am applying.\n",
+     "Sure! I have polished your cover letter"),
+])
+def test_below_is_and_ive_revised_preambles(text: str, match: str) -> None:
+    assert residue(text, "mail") == [match]
+    assert residue(text) == [match]
+
+
+@pytest.mark.parametrize("text", [
+    "Below is an updated summary of the API:\n\n- `get`\n- `put`\n",  # no mail follows
+    "Below is the full text of the letter:\n\nDear Sirs,\n\nWe object.\n",  # not offered as a draft
+    "Below is the email I sent to the landlord:\n\nDear Mr. Patel,\n\nThe heat is out.\n",  # a sent mail
+    "Below is a sample reply:\n\nHi there,\n\nThanks for writing.\n",  # an example in a support guide
+    "I've revised your email address:\n\nHi Mark,\n\nIt is mark@example.com now.\n",  # not a text
+    "I've revised your draft and left comments.\n\nHi Mark,\n\nThanks.\n",  # no colon
+    "Hi Mark,\n\nI've revised your draft:\n\nHi team,\n\nThe launch moved.\n",  # after a greeting
+])
+def test_below_is_and_ive_revised_that_are_not_preambles(text: str) -> None:
+    assert residue(text) == []
+
+
+@pytest.mark.parametrize(("text", "rule", "match"), [
+    ("The scheduler doesn't care that rows went missing.\n", "personification", "The scheduler doesn't care"),
+    ("The logs don't care who you are.\n", "personification", "The logs don't care"),
+    ("Don't hesitate to reach out if you have any questions.\n", "chat_residue", "Don't hesitate to"),
+    ("Remember, onboarding isn't a sprint; it's a marathon.\n", "negative_contrast",
+     "Remember, onboarding isn't a sprint; it's"),
+    ("This guide provides a comprehensive overview of the API.\n", "stock_phrase", "provides a comprehensive overview"),
+])
+def test_trial_misses_set11(text: str, rule: str, match: str) -> None:
+    assert match in [f.match for f in findings(text) if f.rule == rule]
+
+
+@pytest.mark.parametrize("text", [
+    "The cache doesn't know about the new key.\n",  # what a program has no data for
+    "The app doesn't remember your settings.\n",
+    "Remember, if it isn't tested, it's broken.\n",  # a condition
+    "Remember, the office isn't open on Monday; it's closed.\n",  # a status
+    "Please remember, work isn't a race; it's a habit.\n",  # the reminder does not open the sentence
+])
+def test_trial_look_alikes_set11(text: str) -> None:
+    got = rules(text)
+    assert "personification" not in got and "negative_contrast" not in got
+
+
+def test_comprehensive_overview_message_asks_for_the_coverage() -> None:
+    [f] = [f for f in findings("The report offers a comprehensive overview of costs.\n") if f.rule == "stock_phrase"]
+    assert "say what it covers, only from the original or material; otherwise keep and ask" in f.message

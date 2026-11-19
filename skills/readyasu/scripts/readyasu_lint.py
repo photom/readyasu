@@ -125,8 +125,9 @@ def _partial_help() -> str:
 HELP_EPILOG = """Rules exempted by --doc-type:
 """ + "\n".join(f"  {k:<9} {', '.join(v) if v else 'none'}" for k, v in EXEMPT.items()) + "\n" + _partial_help() + """
   Interjections are reported only where they start a sentence, and never inside double quotation marks.
-  script also exempts bold_label_list for a run of speaker names ("**G:**", "**MAYA:**").
-  mail still reports an offer about the drafted mail after its sign-off or a thematic break.
+  script also exempts bold_label_list for a run of speaker names ("**G:**", "**MAYA:**", "**Speaker 1:**").
+  mail still reports an offer about the drafted mail after its sign-off or a thematic break. Other types report an
+  offer after a thematic break with no greeting or sign-off before it only when it names a draft ("adjust the tone").
 Exempted findings do not count toward the review findings, --strict or --fail-on.
 
 Exit codes:
@@ -226,19 +227,37 @@ def _scan(pattern: re.Pattern[str], key: str, text: str, low: Optional[str]) -> 
             pos = low.find(key, pos + 1)
 
 
+def _before_space_and_emoji(text: str, pos: int) -> int:
+    """The offset before the spaces and emoji that end at pos ("We shipped! 🎉 " before "This")."""
+    j = pos
+    while True:
+        while j > 0 and text[j - 1].isspace():
+            j -= 1
+        if j == 0:
+            return j
+        last = text[j - 1]  # an emoji ends with a symbol, U+FE0F, a keycap mark or a tag character
+        if not (_EMOJI_CANDIDATE.match(last) or last == "\uFE0F" or "\U000E0020" <= last <= "\U000E007F"):
+            return j
+        window = max(0, j - 32)  # long enough for a joined emoji such as 👨‍👩‍👧‍👦
+        spans = tx.emoji_spans(text[window:j])
+        if not spans or spans[-1][1] != j - window:
+            return j
+        j = window + spans[-1][0]
+
+
 def _starts_sentence(text: str, pos: int) -> bool:
     """True if text[pos:] starts the block, a table cell, a sentence (after . ! ? : or …) or a line with a capital.
 
-    Opening quotes, brackets and emphasis markers before pos are skipped.
+    Opening quotes, brackets and emphasis markers before pos are skipped, and so are the spaces and emoji before them
+    ("🚀 This ...", "We shipped v2! 🎉 This ..."). text keeps its line breaks (pass masked, not flat), so a capital
+    that starts a line after a bold title line starts a sentence.
     """
     i = pos
     while i > 0 and text[i - 1] in "\"'“‘([*_":
         i -= 1
     if i == 0:
         return True
-    j = i
-    while j > 0 and text[j - 1].isspace():
-        j -= 1
+    j = _before_space_and_emoji(text, i)
     if j == i:
         return False
     if j == 0:
@@ -444,6 +463,15 @@ _NEG_CONTRAST = (
 _NOT_JUST_BUT = 1  # index of the "not just X but also Y" pattern, which is reported also inside a condition
 _NOT_A_BUT = 2  # index of the "not a X, but Y" pattern, whose noun phrase after "but" is checked
 _NOT_X_IT_IS = 0  # index of the "isn't X; it's Y" pattern, which skips a status or place like the two-sentence form
+# The one-sentence form after a reminder that opens the sentence, where the subject may be a noun in lower case
+# without a determiner: "Remember, onboarding isn't a sprint; it's a marathon.", "Ultimately, success isn't a
+# destination, it's a journey." Checked like _NEG_CONTRAST[_NOT_X_IT_IS].
+_REMINDER_CONTRAST = re.compile(
+    r"\b(?:remember|ultimately|honestly|after\s+all|in\s+the\s+end|at\s+the\s+end\s+of\s+the\s+day|keep\s+in\s+mind|"
+    r"the\s+truth\s+is|the\s+reality\s+is)[,:]\s+"
+    r"(?!" + _NOT_SUBJECT_START + r"|there\b|nobody\b|nothing\b|everyone\b)(?P<s1>[a-z][\w-]*(?:\s+[a-z][\w-]*)?)"
+    + _NEG_BE + r"\s+(?P<just>just\s+|only\s+|merely\s+|simply\s+|about\s+)?(?P<denied>[^.;:!?\n]{1,80}?)[,;—–]\s*"
+    r"(?P<s2>it|this|that|they)(?P<be2>['’]s|\s+is|\s+was|\s+are|\s+were|['’]re)\b", re.IGNORECASE)
 # A heading that is "Not X, but Y" ("## Not a linter, but a formatter"), with an article, "about" or "just" after
 # "not", like the sentence form: "## Not supported, but planned" and "## Not now, but soon" are not contrasts.
 _HEADING_CONTRAST = re.compile(
@@ -457,9 +485,10 @@ _HEADING_CONTRAST = re.compile(
 # the first capitalized: "Remote work isn't a perk.", "Ledgerly Flow isn't just a tool.", "What we need isn't more
 # meetings." An imperative is not a subject ("Please don't use the old endpoint. It uses ..."). The second sentence
 # is in a lookahead, so that it can start the next match ("This isn't a tool. It's not a framework. It's a
-# mindset."); emphasis may close and open between the two ("**This isn't a tool.** **It's a mindset.**").
+# mindset."); emphasis may close and open between the two ("**This isn't a tool.** **It's a mindset.**"). A pronoun
+# in lower case is a subject only right after a colon ("The truth is simple: it isn't a tool. It's a mindset.").
 _NEG_TWO = re.compile(
-    r"(?<![\w.+#'’-])(?P<s1>It|This|That|They|These|Those|We|I|You|He|She|"
+    r"(?<![\w.+#'’-])(?P<s1>It|This|That|They|These|Those|We|I|You|He|She|it|this|that|they|these|those|we|you|he|she|"
     r"(?!(?i:please|just|never|kindly|always|simply|do|let['’]s)\b)" + _CAP_SUBJECT + r")"
     r"(?:\s+(?:isn['’]t|is\s+not|wasn['’]t|was\s+not|aren['’]t|are\s+not|weren['’]t|were\s+not|am\s+not)|"
     r"['’](?:s|re|m)\s+not"
@@ -587,19 +616,56 @@ def _be_contrast_skipped(text: str, s1: str, denied: str, s2: str, be2: str, aft
         or (s1.lower() == "it" and _extraposed(denied)) or (s2.lower() == "it" and _extraposed(text, after))
 
 
-def _two_sentence_contrast(text: str) -> Iterator[tuple[int, int]]:
-    """(start, end) of each two-sentence contrast: from the first subject to the verb of the second sentence."""
-    for m in _NEG_TWO.finditer(text):
-        if not _same_subject(m.group("s1"), m.group("s2")) or not _starts_sentence(text, m.start()):
+# After a colon, a pronoun in lower case starts a contrast only when a verb, a noun phrase or "just" is denied ("they
+# don't ship features", "it isn't a tool", "it's not just an update"), not an adjective ("it's not hard").
+_DENIED_NOUN = re.compile(r"\s+(?:just|only|merely|simply|really|about|a|an|the|my|our|your|his|her|its|their|one|"
+                          r"another|some)\b", re.IGNORECASE)
+
+
+def _after_colon(text: str, pos: int) -> bool:
+    """True if a colon comes before pos, after spaces, opening quotes and emphasis."""
+    i = pos
+    while i > 0 and (text[i - 1].isspace() or text[i - 1] in "\"'“‘(*_"):
+        i -= 1
+    return i > 0 and text[i - 1] == ":"
+
+
+def _two_sentence_end(text: str, masked: str, m: re.Match[str]) -> int:
+    """Where the contrast that _NEG_TWO matched as m ends (the verb of the second sentence), or -1 if it is none."""
+    if not _same_subject(m.group("s1"), m.group("s2")) or not _starts_sentence(masked, m.start()):
+        return -1
+    if m.group("s1").islower() and not (_after_colon(masked, m.start())
+                                        and (m.group("v1") or _DENIED_NOUN.match(m.group("rest1")))):
+        return -1  # "Here's the thing: it's not hard. It's barely even cooking." is not checked
+    if m.group("v1") is None and m.group("be2") is not None:
+        if _be_contrast_skipped(text, m.group("s1"), m.group("rest1"), m.group("s2"), m.group("be2").strip(),
+                                m.end("be2")):
+            return -1
+        return m.end("be2")
+    if m.group("v1") is not None and m.group("v2") is not None \
+            and m.group("v2").lower() in _verb_forms(m.group("v1")):
+        return m.end("v2")
+    return -1
+
+
+def _two_sentence_contrast(text: str, masked: str) -> Iterator[tuple[int, int]]:
+    """(start, end) of each two-sentence contrast: from the first subject to the verb of the second sentence.
+
+    text is the block's flat text, masked the same with its line breaks (for _starts_sentence). When a subject of
+    several words is rejected, the search goes on from its second word, so a run of capitalized words over a line
+    break does not hide the pronoun that starts the line ("Hi team" then "We don't sell software. We sell ...")."""
+    pos = 0
+    while True:
+        m = _NEG_TWO.search(text, pos)
+        if m is None:
+            return
+        end = _two_sentence_end(text, masked, m)
+        if end >= 0:
+            yield m.start(), end
+            pos = m.end()
             continue
-        if m.group("v1") is None and m.group("be2") is not None:
-            if _be_contrast_skipped(text, m.group("s1"), m.group("rest1"), m.group("s2"), m.group("be2").strip(),
-                                    m.end("be2")):
-                continue
-            yield m.start(), m.end("be2")
-        elif m.group("v1") is not None and m.group("v2") is not None \
-                and m.group("v2").lower() in _verb_forms(m.group("v1")):
-            yield m.start(), m.end("v2")
+        space = re.search(r"\s+", m.group("s1"))
+        pos = m.start("s1") + space.end() if space else m.end()
 
 
 # Software and documents only: people (an agent, an assistant) may want, remember and do things happily.
@@ -618,10 +684,13 @@ _PERSON_VERB = (r"(?:tells?(?:\s+a\s+story)?|speaks?(?:\s+volumes)?|whispers?|sc
 _PERSON_ADVERB = (r"(?:itself|quietly|silently|now|always|really|never|carefully|faithfully|dutifully|lovingly|"
                   r"gladly|happily|tirelessly|patiently|eagerly|cheerfully|proudly|stubbornly|graciously|kindly|"
                   r"politely|bravely)")
+# Negated, only "care": "The scheduler doesn't care that rows went missing." "doesn't know" and "doesn't remember"
+# usually state what a program has no data for ("The cache doesn't know about the new key").
+_PERSON_NEGATED = r"(?:(?:does|do|did|would)n['’]t|won['’]t|(?:does|do|did|would|will)\s+not)\s+(?:really\s+)?care"
 _PERSONIFICATION = re.compile(
     r"\b(?:the|this|that|your|our|its|each|every|my)\s+(?:\w+\s+)?" + _PERSON_SUBJECT +
     r"\s+(?:(?:will|would)\s+)?(?:" + _PERSON_ADVERB + r"\s+)?"
-    r"(?:(?:seems?|seemed|appears?|appeared)\s+to\s+)?" + _PERSON_VERB + r"\b",
+    r"(?:(?:seems?|seemed|appears?|appeared)\s+to\s+)?(?:" + _PERSON_VERB + "|" + _PERSON_NEGATED + r")\b",
     re.IGNORECASE)
 
 # Questions of up to six words; _SELF_Q_LONG has the forms that may run to nine ("But what does this mean for
@@ -679,7 +748,7 @@ _TEXT_NOUN = (r"(?:versions?|text|drafts?|copy|rewrites?|e-?mails?|mail|messages
 _MAIL_NOUN = r"(?:repl(?:y|ies)|drafts?|responses?|e-?mails?|notes?|rewrites?|letters?)" + _NOT_COMPOUND
 _PREAMBLE = re.compile(
     r"(?P<interjection>\b(?:certainly|sure|absolutely|of\s+course|great\s+question)(?:[!.,]\s+|\s*[—–]\s*))?"
-    r"\bhere(?:['’]s|\s+is|\s+are)\s+(?P<det>a|an|the|your|some)\s+"
+    r"\b(?:here(?:['’]s|\s+is|\s+are)|(?P<below>below\s+(?:is|are)))\s+(?P<det>a|an|the|your|some)\s+"
     r"(?:(?P<revised>(?:[\w-]+\s+){0,2}?" + _REVISION_ADJECTIVE +
     r"\s+(?:(?:[\w-]+\s+)?(?P<text>" + _TEXT_NOUN + r")\b|(?P<other>[\w-]+)))"
     r"|(?P<pre>(?:[\w-]+\s+){0,3}?)(?:(?P<draft>" + _MAIL_NOUN + r")(?:\s+" + _MAIL_NOUN + r")?"
@@ -687,6 +756,13 @@ _PREAMBLE = re.compile(
     r"(?:[^.!?:\n]{0,40}?\b(?:you\s+(?:can|could|might|may)|for\s+you\s+to)\s+"
     r"(?P<verb>send|use|copy|paste|forward|adapt)\b)?",
     re.IGNORECASE)
+# "I've revised your email to sound more confident:", "I have polished your cover letter:". Checked in _preambles like
+# a lead-in that starts with "Below is": reported after an interjection, or before a greeting or "Subject:".
+_REVISED_YOUR = re.compile(
+    r"(?P<interjection>\b(?:certainly|sure|absolutely|of\s+course|great\s+question)(?:[!.,]\s+|\s*[—–]\s*))?"
+    r"\bI(?:['’]ve|\s+have)\s+(?:just\s+)?(?:revised|rewritten|polished|reworded|rephrased|edited|improved|refined|"
+    r"tightened|proofread|updated|simplified|condensed|corrected|reworked|shortened|softened|streamlined|"
+    r"restructured|cleaned\s+up)\s+your\s+(?:[\w-]+\s+){0,2}?" + _TEXT_NOUN + r"\b", re.IGNORECASE)
 _EXAMPLE_WORD = re.compile(r"\b(?:sample|example|template|boilerplate)s?\b", re.IGNORECASE)
 # A mail noun without a verb is a draft for the requester only after "a", "an" or "your", or with one of these words
 # ("Here's the suggested reply:"); "Here's the email that went out on Monday:" shares a mail.
@@ -766,9 +842,9 @@ _VERSION = (r"(?:(?:version|revision|rev\.?|release|v)\s*\d+(?:\.\d+)*[a-z]?|"
             r"(?!\d{1,2}\.\d{2}(?![\d.-]))\d+\.\d+(?:\.\d+)*(?:-[\w.]+)?)")
 _STAMP_LABEL = (r"(?:(?:effective|updated|last\s+updated|last\s+revised|revised|published|released|issued|dated?)"
                 r"(?:\s+on)?:?\s+)?")
-# "2026-11-13 (Thu)": a weekday in parentheses after a date or time.
-_WEEKDAY_NOTE = r"(?:\s*\(\s*" + _WEEKDAY + r"\s*\))?"
-_ONE_STAMP = r"(?:" + _STAMP_LABEL + r"(?:" + _TIME + "|" + _DATE + r")" + _ZONE + _WEEKDAY_NOTE + "|" + _VERSION + r")"
+# "2026-11-13 (Thu)", "Monday (Mar 3)", "Tue (11/12)": a weekday, date or time in parentheses after a date or time.
+_STAMP_NOTE = r"(?:\s*\(\s*(?:" + _TIME + "|" + _DATE + r")" + _ZONE + r"\s*\))?"
+_ONE_STAMP = r"(?:" + _STAMP_LABEL + r"(?:" + _TIME + "|" + _DATE + r")" + _ZONE + _STAMP_NOTE + "|" + _VERSION + r")"
 # "Dec 3–5", "v1.0–v1.4", "2.0.0 – 2.3.1"
 _RANGE_END = r"(?:(?:" + _TIME + "|" + _DATE + r")" + _ZONE + "|" + _VERSION + r"|\d{1,2}(?:st|nd|rd|th)?)"
 # Stamps in a row need a separator, so a long run of digits and dots ("1.11.11.1...") cannot be split in
@@ -819,21 +895,24 @@ _EMOJI_CANDIDATE = re.compile("[\u00A9\u00AE\u203C\u2049\u2122\u2139\u2190-\u2BF
 
 _BOLD_LABEL = re.compile(r"^\s*(?:\*\*|__)([^*_\n]{1,60}?)(?::\s*(?:\*\*|__)|(?:\*\*|__)\s*:)(?:\s|$)")
 _LINE_BOLD_LABEL = re.compile(_BOLD_LABEL.pattern, re.MULTILINE)  # a bold label at the start of any line
-# A speaker's name in a script or transcript: one to three capitalized words or initials, with an optional note in
-# parentheses ("G", "OWEN", "Dr. Lee", "Peter Hardwick", "MAYA (V.O.)", "Q").
-_SPEAKER = re.compile(r"(?:[A-Z][\w'’.-]*)(?:\s+[A-Z][\w'’.-]*){0,2}(?:\s*\([^()\n]{1,20}\))?")
+# A speaker's name in a script or transcript: one to three capitalized words or initials, then an optional number
+# ("Speaker 1", "Participant 3", "Caller 12") and an optional note in parentheses ("G", "OWEN", "Dr. Lee", "Peter
+# Hardwick", "P2", "MAYA (V.O.)", "DEV (into the phone, whispering)", "Q").
+_SPEAKER = re.compile(r"(?:[A-Z][\w'’.-]*)(?:\s+[A-Z][\w'’.-]*){0,2}(?:\s+\d{1,3})?(?:\s*\([^()\n]{1,40}\))?")
 # The text inside cannot contain the delimiter, so an unclosed ** stops at the next one (linear time).
 _BOLD_SPAN = re.compile(r"\*\*(?=\S)(?:[^*\n]|\*(?!\*))+?(?<=\S)\*\*|__(?=\S)(?:[^_\n]|_(?!_))+?(?<=\S)__")
 _STOP_STARTS = {"the", "a", "an"}
 _LINK_DEFINITION = re.compile(r"^\s*\[[^\]]+\]:\s*\S")
-# A letter's salutation on a line of its own ends with a colon in US business letters. "To the ...:" names the
-# addressee with a capital or a role ("To the Graduate Admissions Committee:", "To the editor:"), so "To the point:"
-# is still reported.
+# A letter's salutation on a line of its own ends with a colon in US business letters. "To the ...:" and "To all
+# ...:" name the addressee with a capital or a role ("To the Graduate Admissions Committee:", "To the editor:", "To
+# all staff:", "To All Residents of Building C:"), so "To the point:" and "To all of this:" are still reported.
+_ADDRESSEE = (r"(?:editors?|committee|manager|managers|team|teams|board|council|panel|members|residents|parents|families|"
+              r"staff|director|department|chair|reviewers?|employees|tenants|students|faculty|volunteers|customers|"
+              r"users|contributors|colleagues|attendees|participants|concerned|hands)")
 _SALUTATION = re.compile(r"^\s*(?:dear\b|to\s+whom\s+it\s+may\s+concern\b|(?:ladies\s+and\s+)?gentlemen\b|"
                          r"(?:hello|hi|greetings)\b[^.!?]{0,40}:\s*$|"
-                         r"to\s+the\s+(?:(?-i:[A-Z])[^.!?:\n]{0,60}|(?:[\w'’-]+\s+){0,4}?(?:editors?|committee|"
-                         r"manager|team|board|council|panel|members|residents|parents|families|staff|director|"
-                         r"department|chair|reviewers?))\s*:\s*$)", re.IGNORECASE)
+                         r"to\s+(?:the|all)\s+(?:(?-i:[A-Z])[^.!?:\n]{0,60}|(?:[\w'’-]+\s+){0,4}?" + _ADDRESSEE
+                         + r")\s*:\s*$)", re.IGNORECASE)
 # A mail's greeting on a line of its own ("Hi Ana,", "Dear Mr. Lee:", "Hello team"). After it, "Here's a draft reply
 # you can send to the customer:" is the writer's own mail, not an assistant's preamble.
 _GREETING = re.compile(r"^\s*(?:hi|hello|hey|dear|greetings|good\s+(?:morning|afternoon|evening)|"
@@ -855,6 +934,30 @@ _DRAFT_TALK = re.compile(
     r"(?:version|draft|take)|(?:adjust|tweak|rewrite|rephrase|reword|tailor|personali[sz]e|polish|shorten|edit)\s+"
     r"(?:it|this|the\s+(?:tone|wording|length|email|message|letter|note|post|draft|text|reply|bio|intro))|"
     r"(?:make|keep)\s+it\s+(?:shorter|longer|more|less))\b", re.IGNORECASE)
+# After a thematic break in a document with no greeting or sign-off before it (not mail), _DRAFT_TALK alone is too
+# loose: "If you'd like a different version of the binary, see Releases.", "Feel free to suggest clearer wording",
+# "Feel free to tweak it for your team" end READMEs and guides. There an offer needs words that name a draft, or the
+# assistant offering to change the text itself ("Let me know if you want me to tailor it to your PR template!").
+_DRAFT_SPECIFIC = re.compile(
+    r"\b(?:(?:this|that)\s+draft|(?:adjust|change|tweak|soften|shift|warm\s+up|tone\s+down|make)\s+the\s+tone|"
+    r"version\s+of\s+(?:the|this|your)\s+(?:e-?mail|message|letter|reply|response)|"
+    r"(?:adjust|tweak|rewrite|rephrase|reword|tailor|personali[sz]e|polish|shorten|edit|revise|soften)\s+"
+    r"(?:the|this|your)\s+(?:e-?mail|message|letter|reply|response|draft))\b", re.IGNORECASE)
+_SELF_OFFER = re.compile(r"\b(?:(?:like|want|prefer)\s+me\s+to|shall\s+i|i\s+can\s+also|"
+                         r"i['’]d\s+be\s+happy\s+to|i['’]m\s+happy\s+to)\b", re.IGNORECASE)
+# A header that starts an earlier message in a pasted thread.
+_MESSAGE_HEADER = re.compile(r"^\s*(?:(?:from|sent)\s*:|-{2,}\s*(?:original|forwarded)\s+message\s*-{2,})|"
+                             r"^\s*on\b[^\n]{0,200}(?:\n[^\n]{0,200})?\bwrote\s*:\s*$", re.IGNORECASE | re.MULTILINE)
+
+
+def _draft_offer(sentence: str, mode: str) -> bool:
+    """True if the sentence of an offer talks about the drafted text: _DRAFT_TALK in "loose" mode; in "strict" mode,
+    _DRAFT_SPECIFIC, or the assistant offering to change the text itself with _DRAFT_TALK."""
+    if mode == "loose":
+        return bool(_DRAFT_TALK.search(sentence))
+    return bool(_DRAFT_SPECIFIC.search(sentence) or (_SELF_OFFER.search(sentence) and _DRAFT_TALK.search(sentence)))
+
+
 # The start of an offer, for offers that no word list has: "Would you like a shorter version for SMS as well?",
 # "Feel free to adjust the dates, discount amount, or tone to fit your brand voice."
 _OFFER_OPENER = re.compile(
@@ -943,6 +1046,10 @@ def _term_ends(masked: str, plain: str, line: int) -> tuple[int, int]:
 # section label ("**[COLD OPEN — ambient sound: wind, birds]**", "[THEME MUSIC — 10 sec, then under]").
 _CAPS_LABEL = re.compile(r"[\s*_\[(]*[A-Z][A-Z0-9&'’/+-]+(?:[ \t]+[A-Z][A-Z0-9&'’/+-]*){0,3}[\s*_\])]*")
 _SENTENCE_END = re.compile(r"[.!?][\])*_\"”’]*(?:\s|$)")
+# A screenplay scene heading, whose dashes separate its parts: "INT. KITCHEN — NIGHT", "EXT. PARKING LOT – DAY",
+# "INT./EXT. CAR — MOVING — DAY", "**INT. MAYA'S APARTMENT — CONTINUOUS**". Checked like _CAPS_LABEL: no sentence may
+# end after the dash on the line.
+_SCENE_HEADING = re.compile(r"[\s*_\[(]*(?:INT\.?/EXT|EXT\.?/INT|I/E|INT|EXT)\.[ \t]+[A-Z0-9]")
 
 
 def _label_dash(masked: str, line: int, start: int, end: int) -> bool:
@@ -1139,7 +1246,8 @@ def lint(text: str, doc_type: Optional[str] = None, reader: Optional[str] = None
     title = _title_block(doc)
     first_prose = -1
     greeted = False  # a greeting line came before this block
-    signed = False  # a mail's sign-off came before this block
+    signed = False  # a mail's sign-off came before this block, after the last greeting or message header
+    mail_seen = False  # a greeting or a sign-off came before this block
 
     for bi, block in enumerate(doc.blocks):
         if block.kind == "quote":
@@ -1163,10 +1271,21 @@ def lint(text: str, doc_type: Optional[str] = None, reader: Optional[str] = None
         greeting = block.kind == "para" and bool(_GREETING.match(block.lines[0].content))
         after_greeting = 0 if greeted else (starts[1][0] if greeting and len(starts) > 1 else -1)
         greeted = greeted or greeting
-        # After the mail: after its sign-off, or right after a thematic break ("---" then the assistant's offer).
-        after_mail = signed or _after_rule(doc, block)
+        # A new message in a pasted thread starts with a greeting or a header ("From:", "On ... wrote:"): the offers
+        # in it are its writer's, not an assistant's after the mail.
+        header = block.kind == "para" and bool(_MESSAGE_HEADER.search(plain))
+        if greeting:
+            signed = False
+        # After the mail: after its sign-off, or right after a thematic break ("---" then the assistant's offer) in
+        # mail or after a greeting or sign-off (loose: any talk about the draft). After a thematic break elsewhere,
+        # only an offer with words about a draft (strict: "adjust the tone", "this draft").
+        rule_before = _after_rule(doc, block)
+        loose = signed or (rule_before and (doc_type == "mail" or mail_seen))
+        offer_mode = "loose" if loose else "strict" if rule_before else ""
         sign_off = block.kind == "para" and _SIGN_OFF.match(block.lines[0].content)
-        signed = signed or bool(sign_off and (sign_off.group("comma") or len(block.lines) > 1))
+        new_sign_off = bool(sign_off and (sign_off.group("comma") or len(block.lines) > 1))
+        signed = (signed or new_sign_off) and not header
+        mail_seen = mail_seen or greeting or new_sign_off
         is_title = bi == title  # the document title is not changed: only emoji and bold markup are reported
         quotes: Optional[_Quotes] = None
 
@@ -1179,6 +1298,7 @@ def lint(text: str, doc_type: Optional[str] = None, reader: Optional[str] = None
             found.append(f)
 
         # word lists
+        listed = len(found)
         for rule, name, entries in ([] if is_title else lists):
             for entry, key, types in entries:
                 for m in _scan(entry.pattern, key, seen, low):
@@ -1193,15 +1313,18 @@ def lint(text: str, doc_type: Optional[str] = None, reader: Optional[str] = None
                             continue
                     note = entry.note or RULES[rule][1]
                     exempt_in = types
-                    if after_mail and "mail" in types and name == "closing-courtesies" \
-                            and _DRAFT_TALK.search(_sentence_around(seen, m.start(), m.end())):
+                    if offer_mode and "mail" in types and name == "closing-courtesies" \
+                            and _draft_offer(_sentence_around(seen, m.start(), m.end()), offer_mode):
                         exempt_in = tuple(t for t in types if t != "mail")
                         note = _AFTER_DRAFT_NOTE
                     add(rule, m.start(), m.end(), _list_message(rule, shown, note), exempt_in)
-        if after_mail and not is_title:
+        if offer_mode == "strict" and any(f.rule == "chat_residue" and doc_type not in f.exempt_in
+                                          for f in found[listed:]):
+            offer_mode = "loose"  # the paragraph is already assistant chat ("Let me know if you'd like ...")
+        if offer_mode and not is_title:
             for m in _OFFER_OPENER.finditer(seen):
                 if _starts_sentence(masked, m.start()) \
-                        and _DRAFT_TALK.search(_sentence_around(seen, m.start(), m.end())):
+                        and _draft_offer(_sentence_around(seen, m.start(), m.end()), offer_mode):
                     quotes = quotes or _Quotes(plain)
                     if not quotes.inside(m.start(), m.end()):
                         add("chat_residue", m.start(), m.end(),
@@ -1317,8 +1440,9 @@ def _expression_rules(flat: str, masked: str, plain: str, letters: str, block: t
             "remove the hedge.")
     # letters, not masked, so that a dash after inline code is found like any other.
     newlines = [m.start() for m in re.finditer("\n", masked)]
-    # For each line, by its start offset: _term_ends, and where an all-capitals label at its start ends (or -1).
-    terms: dict[int, tuple[int, int, int]] = {}
+    # For each line, by its start offset: _term_ends, where an all-capitals label at its start ends (or -1), and
+    # whether the line is a scene heading.
+    terms: dict[int, tuple[int, int, int, bool]] = {}
     for m in _DASHES.finditer(letters):
         around = masked[max(0, m.start() - 2): m.end() + 2]
         if _RANGE_DASH.search(around):
@@ -1331,8 +1455,11 @@ def _expression_rules(flat: str, masked: str, plain: str, letters: str, block: t
         line = _line_start(newlines, ds)
         if line not in terms:
             caps = _CAPS_LABEL.match(plain, line)
-            terms[line] = _term_ends(masked, plain, line) + (caps.end() if caps else -1,)
-        term_end, placeholders_end, label_end = terms[line]
+            terms[line] = _term_ends(masked, plain, line) + (caps.end() if caps else -1,
+                                                              bool(_SCENE_HEADING.match(plain, line)))
+        term_end, placeholders_end, label_end, scene = terms[line]
+        if scene:
+            label_end = ds  # a scene heading is a label that ends at each dash on its line
         if _after_timestamp(masked, ds) or _FIELD_AFTER.match(masked, m.end()) or _attribution(masked, ds) \
                 or _range_dash(masked, ds, de) or (term_end >= 0 and ds in (term_end, placeholders_end)) \
                 or _caps_label_dash(masked, line, ds, de, label_end) or _label_dash(masked, line, ds, de) \
@@ -1351,14 +1478,19 @@ def _expression_rules(flat: str, masked: str, plain: str, letters: str, block: t
             if k == _NOT_X_IT_IS:
                 name = m.group("name") or ""
                 if not _same_subject(m.group("s1") or name, m.group("s2")) \
-                        or (len(name.split()) > 1 and not _starts_sentence(flat, m.start())):
+                        or (len(name.split()) > 1 and not _starts_sentence(masked, m.start())):
                     continue  # "He wasn't the one who called; she was."
                 if not m.group("just") and _be_contrast_skipped(flat, m.group("s1") or name, m.group("denied"),
                                                                 m.group("s2"), m.group("be2").strip(), m.end()):
                     continue  # "She's not in the office this week; she's at the conference."
             if k == _NOT_JUST_BUT or not _after_subordinator(flat, m.start()):
                 contrasts.append(m.span())
-    contrasts.extend(_two_sentence_contrast(flat))
+    for m in _REMINDER_CONTRAST.finditer(flat):
+        if _starts_sentence(masked, m.start()) and _same_subject(m.group("s1"), m.group("s2")) \
+                and (m.group("just") or not _be_contrast_skipped(flat, m.group("s1"), m.group("denied"), m.group("s2"),
+                                                                 m.group("be2").strip(), m.end())):
+            contrasts.append(m.span())
+    contrasts.extend(_two_sentence_contrast(flat, masked))
     if block.kind == "heading":
         contrasts.extend(m.span() for m in _HEADING_CONTRAST.finditer(flat) if _but_noun_phrase(flat, m))
     for start, end in contrasts:
@@ -1425,17 +1557,40 @@ def _preambles(doc: tx.Document, block: tx.Block, flat: str, masked: str, plain:
     that is not a text, only when a greeting or "Subject:" follows), "Here's a draft:" like a revision lead-in, an
     offer of a drafted mail when a drafted mail or message follows, and a mail noun without a verb offered as a draft
     (_DRAFT_SIGN) when a greeting or "Subject:" follows. Without a verb, a mail someone wrote or sent ("Here's a quick
-    note from our CEO:", "Here is the letter my grandfather wrote in 1944:") is never reported. after_greeting is the
-    offset after a greeting line in this or an earlier block, or -1.
+    note from our CEO:", "Here is the letter my grandfather wrote in 1944:") is never reported. A lead-in that starts
+    with "Below is" or "Below are", and "I've revised your email ...:" (_REVISED_YOUR), are reported without an
+    interjection only when a greeting or "Subject:" follows the colon. after_greeting is the offset after a greeting
+    line in this or an earlier block, or -1.
     """
     block_end = len(masked.rstrip())
     block_colon = first and masked[:block_end].endswith(":")
-    for m in _PREAMBLE.finditer(flat):
+
+    def lead_in(m: re.Match[str]) -> tuple[int, bool]:
+        """(start, interjection) of a preamble match, or (-1, False) if it does not start a sentence or follows a
+        greeting. An interjection that does not start the sentence is left out: "I'm not sure. Here's a reply ..."."""
         start = m.start()
         interjection = bool(m.group("interjection")) and _starts_sentence(masked, start)
         if m.group("interjection") and not interjection:
-            start = m.end("interjection")  # "I'm not sure. Here's a reply ...": checked without the interjection
+            start = m.end("interjection")
         if 0 <= after_greeting <= start or not _starts_sentence(masked, start):
+            return -1, False
+        return start, interjection
+
+    def report(start: int, end: int, exempt_in: tuple[str, ...] = ()) -> None:
+        scope = "" if exempt_in else " (reported in every doc type)"
+        add("chat_residue", start, end,
+            f'Assistant chat "{_show(plain[start:end])}" left in the text: delete the preamble; it '
+            f"speaks to the requester, not the reader{scope}.", exempt_in)
+
+    for m in _REVISED_YOUR.finditer(flat):
+        start, interjection = lead_in(m)
+        colon = _PREAMBLE_COLON.match(flat, m.end())
+        if start >= 0 and colon and (interjection or (first and _mail_follows(doc, block, masked, colon.end(),
+                                                                                strict=True))):
+            report(start, m.end())
+    for m in _PREAMBLE.finditer(flat):
+        start, interjection = lead_in(m)
+        if start < 0:
             continue
         colon = _PREAMBLE_COLON.match(flat, m.end())
         ends = _PREAMBLE_END.match(flat, m.end())
@@ -1451,6 +1606,8 @@ def _preambles(doc: tx.Document, block: tx.Block, flat: str, masked: str, plain:
                 continue
         elif not first:
             continue
+        elif m.group("below") and not (colon and _mail_follows(doc, block, masked, colon.end(), strict=True)):
+            continue  # "Below is an updated summary of the API:"
         elif m.group("revised"):
             if not colon:
                 continue
@@ -1475,10 +1632,7 @@ def _preambles(doc: tx.Document, block: tx.Block, flat: str, masked: str, plain:
                 continue  # "Here's a sample reply:" in a support guide, "Here's the email that went out:"
         else:
             continue
-        scope = "" if exempt_in else " (reported in every doc type)"
-        add("chat_residue", start, m.end(),
-            f'Assistant chat "{_show(plain[start:m.end()])}" left in the text: delete the preamble; it '
-            f"speaks to the requester, not the reader{scope}.", exempt_in)
+        report(start, m.end(), exempt_in)
 
 
 def _list_message(rule: str, match: str, note: str) -> str:
@@ -1664,7 +1818,9 @@ def _block_rules(doc: tx.Document, found: list[Finding]) -> None:
             flush_starts()
             current, prev_word = [], ""
             continue
-        m = _WORD.match(sent.masked.lstrip("\"'“‘(*_"))  # no word when the sentence starts with code
+        # A bold label is not the sentence's first word: "**Speaker 1:** So ..." then "**Speaker 2:** In ...".
+        label = _BOLD_LABEL.match(sent.masked)
+        m = _WORD.match(sent.masked[label.end() if label else 0:].lstrip("\"'“‘(*_"))  # none if code starts it
         w = m.group(0) if m else ""
         if w[:1].isdigit():
             w = ""  # numbered clauses ("3.1 ...", "3.2 ...") and figures are not a repeated word
