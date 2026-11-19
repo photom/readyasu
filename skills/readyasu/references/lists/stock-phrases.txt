@@ -53,3 +53,5 @@ simply put	delete; say the point
 put simply	delete; say the point
 moving forward,	delete, or say when
 let's be clear	delete; say the point
+provid* a comprehensive overview	say what it covers, only from the original or material; otherwise keep and ask
+offer* a comprehensive overview	say what it covers, only from the original or material; otherwise keep and ask
