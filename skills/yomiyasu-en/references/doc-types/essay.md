@@ -1,7 +1,7 @@
 # Essay and fiction (essay)
 
 See also: domains/essay.md
-Lint rules exempted: fragment_run, exclamation
+Lint rules exempted: fragment_run, exclamation, chat_residue (interjections only)
 
 ## 1. Normal forms (do not change)
 

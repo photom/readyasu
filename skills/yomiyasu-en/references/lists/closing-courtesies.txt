@@ -1,4 +1,4 @@
-# Closing courtesies: normal in mail, residue in documents. Not reported for --doc-type mail.
+# Courtesies, offers and closings: normal in mail, residue in documents. Not reported for --doc-type mail.
 feel free to reach out	delete from documents
 feel free to ask	delete from documents
 let me know if you have any questions	delete from documents
@@ -7,3 +7,10 @@ do not hesitate to	delete from documents
 thanks in advance	delete from documents
 thank you for your attention	delete from documents
 happy coding	delete from documents
+here's a draft	delete from documents
+here is a draft	delete from documents
+i'd be happy to help	delete from documents
+i'm happy to help	delete from documents
+happy to help!	delete from documents
+let me know if you'd like	delete from documents
+would you like me to	delete from documents

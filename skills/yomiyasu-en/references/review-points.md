@@ -108,13 +108,13 @@ Every changed line pair, not shortened. `~` lines show word-level changes as `[-
 
 | Rule | Severity | How to look at it |
 |---|---|---|
-| `bold_unrendered` | error | Markdown will show the asterisks. Fix the markup: no space inside `**text**`; add a space after a closing `**` that follows punctuation and precedes a letter (`**Note:** This`) |
+| `bold_unrendered` | error | Markdown will show the asterisks. Fix the markup: no space inside `**text**`; add a space after a closing `**` that follows punctuation and precedes a letter (`**Note:** This`). A lone `**` (the only one in the paragraph, as in `**kwargs`) is info: add the closing `**` if bold was meant, or put code in backticks. `**` between letters or digits (`2**3`) is not reported |
 | `emoji` | warn | Remove decoration; keep emoji that carry meaning (a status icon in a table the reader needs). Exempt in promo and mail |
-| `em_dash` | warn | Replace clause-splicing dashes with punctuation that keeps the scope; split into two sentences when a reason or condition would reach farther. Keep in fiction narration and dialogue, quotations, ranges and code |
-| `chat_residue` | warn | Assistant chat left in a document: delete. In mail, closing courtesies are not reported; the writer's own sign-off stays |
+| `em_dash` | warn | Replace clause-splicing dashes with punctuation that keeps the scope; split into two sentences when a reason or condition would reach farther. Keep in fiction narration and dialogue, quotations, ranges and code. Not reported in the document title (the first level-1 heading), for a dash that is a whole table cell, after a time or date that starts a line or item (`09:12 — Config change`), or before a field label (`— Owner: Marco`) |
+| `chat_residue` | warn | Assistant chat left in a document: delete. In mail, courtesies, offers and closings (`closing-courtesies.txt`) are not reported; the writer's own sign-off stays. Interjections such as "Sure!" and "Of course!" (`chat-interjections.txt`) are not reported in essay, script and mail, or inside double quotation marks |
 | `stock_phrase` | warn | Openers, signposts and closers that announce instead of saying. Delete, and keep any fact that appears only there |
 | `hedge_stack` | warn | Use one hedge of the same strength. Never remove the hedge entirely |
-| `heading_colon` | warn | Remove the colon from the heading |
+| `heading_colon` | warn | Remove the colon from the heading (also inside emphasis, as in `## **Benefits:**`) |
 | `bold_label_list` | warn | SKILL.md "Bold and labels": keep labels for values, fold summary labels into the sentence, remove the bold. Exempt in minutes and slides |
 | `heavy_bold` | warn | Keep bold only for what readers must not miss |
 | `ai_vocabulary` | info | slop-catalog.md section 3 and section 10. Keep the field's terms |

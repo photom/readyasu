@@ -18,7 +18,10 @@ provide assistance	"help"
 offer assistance	"help"
 utiliz*	"use" (keep "utilization" as a metric)
 utilis*	"use" (keep "utilisation" as a metric)
-facilitat*	"help", "make easier", "run"
+facilitate	"help", "make easier", "run"
+facilitates	"help", "make easier", "run"
+facilitated	"help", "make easier", "run"
+facilitating	"help", "make easier", "run"
 a large number of	"many", or the number
 the majority of	"most"
 in the event that	"if" (keep in contracts that use it)
