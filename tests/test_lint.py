@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 import pytest
 import readyasu_lint as lint
 import readyasu_text as tx
@@ -1596,7 +1598,7 @@ def test_option_dash_check_is_linear_on_a_long_placeholder_run() -> None:
     "## Round 2 — Interviews\n",
     "## Quest 7 — The cave\n",  # any capitalized word and a number, on a title line
     "## Units 3–5 — Review\n",
-    "## 2026-11-13 (Thu) — Miniprep and digest\n",
+    "## 2026-11-13 (Fri) — Miniprep and digest\n",
     "## Nov 13 (Thu) — Miniprep\n",
 ])
 def test_em_dash_after_a_numbered_label_set10(text: str) -> None:
@@ -1914,7 +1916,7 @@ def test_comprehensive_overview_message_asks_for_the_coverage() -> None:
 
 
 @pytest.mark.parametrize("header", [
-    "On Mon, Mar 2, 2025 at 4:10 PM Mark Lee <mark@example.com> wrote:",
+    "On Mon, Mar 3, 2025 at 4:10 PM Mark Lee <mark@example.com> wrote:",
     "-----Original Message-----\nFrom: Mark Lee <mark@example.com>\nSent: Monday, March 2, 2025 4:10 PM\nSubject: Deck",
 ])
 def test_offer_under_a_message_header_in_the_same_block_is_not_after_the_sign_off(header: str) -> None:
@@ -2003,7 +2005,7 @@ def test_sentence_start_repeat_ends_where_the_speaker_changes() -> None:
 
 def test_on_wrote_header_is_not_a_decorative_colon() -> None:
     text = ("Hi Mark,\n\nThe deck is attached.\n\nBest,\nAna\n\n"
-            "On Mon, Mar 2, 2025 at 4:10 PM Mark Lee <mark@example.com> wrote:\n\nHi Ana, could you send the deck?\n")
+            "On Mon, Mar 3, 2025 at 4:10 PM Mark Lee <mark@example.com> wrote:\n\nHi Ana, could you send the deck?\n")
     assert "decorative_colon" not in rules(text)
     assert "decorative_colon" in rules("On reflection, here is what I think:\n\nWe should wait.\n")
 
@@ -2108,3 +2110,220 @@ def test_reply_subject_lines_are_not_changed(subject: str) -> None:
 def test_subject_in_a_pasted_header_is_not_changed_and_a_new_subject_is_checked() -> None:
     assert "em_dash" not in rules("From: Ana Ruiz\nSent: Monday\nSubject: Outage — action needed\n\nHi Jo,\n", "mail")
     assert "em_dash" in rules("Subject: Partnership opportunity — Brightwave x Tallyhop\n\nHi Jo,\n", "mail")
+
+
+# ---------------------------------------------------------------- set 13
+
+
+_MAIL_AFTER = "\n\nHi Mark,\n\nThe report is attached.\n\nBest,\nAna\n"
+
+
+@pytest.mark.parametrize(("lead", "match"), [
+    ("Certainly! Here's a tighter, friendlier version of your message:",
+     "Certainly! Here's a tighter, friendlier version"),
+    ("Here's a revised, more concise version of your email:", "Here's a revised, more concise version"),
+    ("Here's a shorter and warmer version of your note:", "Here's a shorter and warmer version"),
+    ("Here's a polished, more professional version of your email:", "Here's a polished, more professional version"),
+])
+def test_preamble_with_comma_separated_or_stacked_modifiers(lead: str, match: str) -> None:
+    for doc_type in (None, "mail", "article", "pr"):
+        assert residue(lead + _MAIL_AFTER, doc_type) == [match], doc_type
+
+
+def test_preamble_with_several_modifiers_before_a_mail_noun() -> None:
+    text = ("Of course! Here's a professional and heartfelt resignation letter you can adapt to your situation:\n\n"
+            "---\n\n[Your Name]\n[Your Address]\n\nDear [Manager's Name],\n\nPlease accept this letter.\n")
+    want = ["Of course! Here's a professional and heartfelt resignation letter you can adapt"]
+    assert residue(text) == want
+    assert residue(text, "mail") == want  # an offer of a drafted letter with "you can adapt"
+
+
+def test_modifiers_do_not_run_into_a_clause_or_a_prepositional_phrase() -> None:
+    # "for the email campaign" names pricing, not an email: an "other" noun that needs a mail after it.
+    text = "Here's the updated pricing for the email campaign:\n\n| Plan | Price |\n|---|---|\n| A | 1 |\n"
+    assert residue(text) == []
+    assert residue("Here's the form where you can send notes:\n\n- Name\n- Note\n") == []
+
+
+@pytest.mark.parametrize("text", [
+    "Sure, here's the updated schedule:\n\nMon 9-5, Tue 9-1, Wed off.\n\nThanks,\nDan\n",
+    "Sure! Here's the updated invoice.\n\nThanks,\nDan\n",
+    "Of course, here are the revised numbers.\n\nThanks,\nDan\n",
+    "Absolutely, here's the corrected address:\n\n12 Elm Street\n\nThanks,\nDan\n",
+    "Sure, here are the options:\n\n- Tuesday\n- Wednesday\n\nThanks,\nDan\n",
+])
+def test_writers_short_reply_after_an_interjection_is_not_a_preamble_in_mail(text: str) -> None:
+    assert residue(text, "mail") == []
+    # Outside mail the interjection is still reported on its own (if it is in chat-interjections.txt), not as a
+    # preamble.
+    assert all(not match.lower().startswith(("sure, here", "sure! here", "of course, here", "absolutely, here"))
+               for match in residue(text))
+
+
+def test_interjection_preambles_that_stay_reported() -> None:
+    text = ("Sure! Here's a draft email you can send to your landlord. I kept it polite but firm.\n\nDear Mr. Lee,\n\n"
+            "The heater is broken.\n\nBest,\nAna\n")
+    assert residue(text, "mail") == ["Sure! Here's a draft email you can send"]
+    text = "Certainly! Here's the updated invitation:\n\nDear guests,\n\nThe party moved to Friday.\n"
+    assert residue(text, "mail") == ["Certainly! Here's the updated invitation"]  # a mail follows
+    # Without a mail after it, a revision lead-in after an interjection is reported outside mail only.
+    text = "Sure! Here's a polished version of your email:\n\nThe report is attached.\n"
+    assert residue(text, "mail") == []
+    assert residue(text) == ["Sure! Here's a polished version"]
+    # An offer of a text that is not a mail ("you can adapt") is reported outside mail.
+    text = "Sure! Here's a polished self-assessment you can adapt for your review:\n\n---\n\n## Self-assessment\n"
+    assert residue(text) == ["Sure! Here's a polished self-assessment you can adapt"]
+    assert residue(text, "mail") == []
+    # "I've revised your ..." after an interjection: in mail only before a mail.
+    assert residue("Sure! I've revised your note:\n\nThe office is closed on Friday.\n", "mail") == []
+    assert residue("Sure! I've revised your note:\n\nThe office is closed on Friday.\n") \
+        == ["Sure! I've revised your note"]
+    assert residue("Sure! I've revised your note:\n\nHi team,\n\nThe office is closed.\n", "mail") \
+        == ["Sure! I've revised your note"]
+
+
+_NOTE_DECK = ("Here's the deck. I kept it short — slide 3 has placeholder numbers.\n\n---\n\n# Q3 results\n\n"
+              "- Revenue up 12%\n\n---\n\nLet me know if you'd like me to add speaker notes!\n")
+
+
+def test_every_finding_in_notes_to_the_requester_is_exempt_in_slides() -> None:
+    result = lint.lint(_NOTE_DECK, "slides")
+    assert result.findings == []
+    assert {(f.rule, f.line) for f in result.exempted} >= {("em_dash", 1), ("exclamation", 11), ("chat_residue", 11)}
+    assert {"em_dash", "exclamation"} <= set(rules(_NOTE_DECK))  # other doc types report them
+
+
+def test_slide_notes_exemption_is_linear() -> None:
+    import time
+    for n in (1, 4):
+        text = "I hope this helps! Feel free to reach out — truly. " * 1000 * n + "\n\n# End\n"
+        start = time.monotonic()
+        result = lint.lint(text, "slides")
+        assert time.monotonic() - start < 3 * n
+        assert result.findings == [] and len(result.exempted) >= 3000 * n
+
+
+@pytest.mark.parametrize("text", [
+    "**Slide 1: Why**\n\n- Costs rose\n\n---\n\n**Slide 2: Questions**\n\nFeel free to reach out with any questions.\n",
+    "Q3 Results\n==========\n\n- Revenue up\n\nNext Steps\n----------\n\nFeel free to reach out with any questions.\n",
+    "# Q3 Results\n\n- Revenue up\n\n## Next Steps\n\nFeel free to reach out with any questions.\n",
+])
+def test_last_slide_with_a_slide_line_or_setext_heading_is_not_a_note(text: str) -> None:
+    assert residue(text, "slides") == ["Feel free to reach out"]
+
+
+def test_setext_underline_is_not_a_thematic_break_before_an_offer() -> None:
+    # After a setext heading, an offer is not "right after a thematic break".
+    assert residue("Setup\n-----\n\nWant me to make it shorter?\n") == []
+    assert residue("Setup\n\n---\n\nWant me to make it shorter?\n") == ["Want me to"]
+
+
+def test_allow_entry_hides_shorter_list_matches_inside_it() -> None:
+    words = tx.Words(allow=["I hope this helps", "plays a crucial role", "robust statistics", "unlock the door"])
+    text = ("Caching plays a crucial role here. I hope this helps.\n\n"
+            "We used robust statistics. Please unlock the door.\n")
+    assert rules(text, words=words) == []
+    assert {"ai_vocabulary", "chat_residue", "metaphor_verb"} <= set(rules(text))
+    # Other uses of the same words are still reported.
+    assert sorted(rules("A robust plan will unlock value.\n", words=words)) == ["ai_vocabulary", "metaphor_verb"]
+
+
+def test_allow_entry_hides_project_words_and_preambles_inside_it() -> None:
+    words = tx.Words(allow=["Here's a polished version of your email"],
+                     flags=[("polished", "", re.compile(tx.phrase_regex("polished"), re.IGNORECASE))])
+    text = "Here's a polished version of your email:\n\nHi Sam,\n\nThanks.\n"
+    assert residue(text) == ["Here's a polished version"]
+    assert [f.rule for f in findings(text, words=words) if f.rule in ("chat_residue", "project_term")] == []
+
+
+@pytest.mark.parametrize("text", [
+    "- `timeout` (float) – HTTP timeout in seconds.\n- `cache` (`bool`, default `True`) – Store the response.\n",
+    "- `retries` (int, optional) — How many times to retry.\n",
+    "- **`limit`** (*int*) – The page size.\n",
+])
+def test_dash_after_a_code_term_and_a_type_note_is_not_reported(text: str) -> None:
+    assert "em_dash" not in rules(text)
+
+
+@pytest.mark.parametrize("text", [
+    "- `x` (see below — important) – a thing.\n",  # a dash inside the parentheses: not a type note
+    "- The `retry` helper (new) – it wraps every call.\n",  # words before the parentheses
+    "- `x` (int) (str) – two notes.\n",
+])
+def test_dash_after_other_parentheses_is_still_reported(text: str) -> None:
+    assert "em_dash" in rules(text)
+
+
+def test_two_sentence_negative_contrast_has_its_own_message() -> None:
+    [two] = findings("It isn't a tool. It's a philosophy.\n")
+    assert two.message.startswith('Two-sentence negative contrast "It isn\'t a tool. It\'s"')
+    assert 'Join it into one sentence that keeps the negation (SKILL.md "Two-sentence negative contrast")' \
+        in two.message
+    assert "unless the second sentence adds a separate claim" in two.message
+    [one] = findings("It's not a bug, it's a feature request.\n")
+    assert one.message.startswith('Negative contrast "') and "Remove the denied part only if" in one.message
+
+
+@pytest.mark.parametrize("text", [
+    "Office hours are 9 am – noon on Saturdays.\n", "We are open noon – 3 pm daily.\n",
+    "Quiet hours: 10 pm – midnight.\n", "Lunch is served Midday – 2 pm.\n",
+])
+def test_noon_midday_and_midnight_are_range_endpoints(text: str) -> None:
+    assert "em_dash" not in rules(text)
+
+
+def test_noon_before_a_clause_dash_is_still_reported() -> None:
+    assert "em_dash" in rules("We stopped at noon – then the rain came.\n")
+
+
+def test_decorative_colon_before_label_value_lines() -> None:
+    text = "The party is confirmed. Details:\n\nDate: Friday, Dec 18\nTime: 5:30 pm\nPlace: Room 4B\n"
+    assert "decorative_colon" not in rules(text)
+    assert "decorative_colon" not in rules("Details:\n\n**Date:** Friday\n**Place:** Room 4B\n")
+    # A single label line, or lines that are not all labels, are still an ordinary paragraph.
+    assert "decorative_colon" in rules("Consider this:\n\nNote: the server restarts nightly.\n")
+    assert "decorative_colon" in rules("Consider this:\n\nDate: Friday\nWe will meet in the hall.\n")
+
+
+@pytest.mark.parametrize(("text", "match"), [
+    ("These numbers tell a story.\n", "These numbers tell a story"),
+    ("Those metrics speak volumes.\n", "Those metrics speak volumes"),
+    ("Their dashboard knows what you need.\n", "Their dashboard knows"),
+    ("The customer survey data tells a compelling story.\n", "The customer survey data tells a compelling story"),
+])
+def test_personification_with_more_determiners_and_modifiers(text: str, match: str) -> None:
+    assert [f.match for f in findings(text) if f.rule == "personification"] == [match]
+
+
+def test_personification_does_not_reach_past_two_modifiers_or_to_people() -> None:
+    assert "personification" not in rules("Those students know the answer.\n")
+    assert "personification" not in rules("The data team knows the answer.\n")
+
+
+def test_dive_right_in_and_landscape_frames() -> None:
+    assert [f.match for f in findings("Let's dive right in.\n")] == ["Let's dive right in"]
+    assert [f.match for f in findings("Let's dive right into the numbers.\n")] == ["Let's dive right into"]
+    got = findings("In this rapidly evolving landscape, we adapt. The business landscape is shifting.\n")
+    assert [f.match for f in got if f.rule == "ai_vocabulary"] == ["evolving landscape", "business landscape"]
+    assert "ai_vocabulary" not in rules("The landscape of the Lake District is green.\n")
+    assert "ai_vocabulary" not in rules("Print the report in landscape mode.\n")
+
+
+def test_synthetic_examples_pair_weekdays_with_the_right_dates() -> None:
+    import datetime
+    from pathlib import Path
+    root = Path(lint.__file__).resolve().parents[3]
+    docs = [root / "skills" / "readyasu" / "references" / "review-points.md", root / "docs" / "limitations.md"]
+    days = {"Mon": 0, "Tue": 1, "Wed": 2, "Thu": 3, "Fri": 4, "Sat": 5, "Sun": 6}
+    months = {m: i for i, m in enumerate(("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct",
+                                          "Nov", "Dec"), 1)}
+    checked = 0
+    for path in docs:
+        text = path.read_text(encoding="utf-8")
+        for y, mo, d, day in re.findall(r"\b(\d{4})-(\d{2})-(\d{2}) \((Mon|Tue|Wed|Thu|Fri|Sat|Sun)\)", text):
+            assert datetime.date(int(y), int(mo), int(d)).weekday() == days[day], (path.name, y, mo, d, day)
+            checked += 1
+        for day, mo, d, y in re.findall(r"\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun), (\w{3}) (\d{1,2}), (\d{4})", text):
+            assert datetime.date(int(y), months[mo], int(d)).weekday() == days[day], (path.name, day, mo, d, y)
+            checked += 1
+    assert checked >= 3

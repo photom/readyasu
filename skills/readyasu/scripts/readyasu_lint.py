@@ -126,9 +126,11 @@ HELP_EPILOG = """Rules exempted by --doc-type:
 """ + "\n".join(f"  {k:<9} {', '.join(v) if v else 'none'}" for k, v in EXEMPT.items()) + "\n" + _partial_help() + """
   Interjections are reported only where they start a sentence, and never inside double quotation marks.
   script also exempts bold_label_list for a run of speaker names ("**G:**", "**MAYA:**", "**Speaker 1:**").
-  slides also exempts chat_residue, the findings inside it and decorative_colon in notes to the requester before the
-  first slide (before the first heading, "---" or "Slide 1" line) or after the last one (after the last "---" when
-  no heading follows it).
+  slides also exempts every finding in notes to the requester before the first slide (before the first heading,
+  "---" or "Slide 1" line) or after the last one (after the last "---" when no heading or "Slide N" line follows
+  it; a setext heading's underline is not a "---").
+  mail also exempts an assistant's preamble after an interjection ("Sure! Here's a revised version:") unless a
+  greeting or "Subject:" follows it or it offers a drafted mail ("a letter you can adapt").
   mail still reports an offer about the drafted mail after its sign-off or a thematic break. Other types report an
   offer after a thematic break with no greeting or sign-off before it only when it names a draft ("adjust the tone").
 Exempted findings do not count toward the review findings, --strict or --fail-on.
@@ -701,8 +703,9 @@ _PERSON_SUBJECT = (r"(?:code|codebase|data|dataset|tool|system|function|method|l
                    r"test|dev|staging|production|prod|sql|mcp|language|media|ci|auth|license|update|graphql|grpc)\s+"
                    r"server|(?:base|parent|child|abstract|wrapper|helper|utility|derived|super|java|python|ruby)\s+class)")
 # "feels" is left out: "The dashboard feels faster" is perception, not a feeling.
-_PERSON_VERB = (r"(?:tells?(?:\s+a\s+story)?|speaks?(?:\s+volumes)?|whispers?|screams?|sings?|knows?|wants?|loves?|"
-                r"hates?|cares?|believes?|remembers?|forgets?|understands?|thinks?|refuses?|insists?|begs?|"
+_PERSON_VERB = (r"(?:tells?(?:\s+a\s+(?:[\w-]+\s+)?story)?|speaks?(?:\s+volumes)?|whispers?|screams?|sings?|knows?|"
+                r"wants?|loves?|hates?|cares?|believes?|remembers?|forgets?|understands?|thinks?|refuses?|insists?|"
+                r"begs?|"
                 r"cries|craves?|longs?|dreams?|deserves?|demands?|breathes?|yearns?|resents?|watch(?:es)?\s+over|"
                 r"gladly|happily|tirelessly|patiently|eagerly|cheerfully|lovingly|proudly|stubbornly|dutifully|"
                 r"graciously|kindly|politely|bravely|(?:chooses?|chose|decides?|decided)\s+to|"
@@ -713,8 +716,10 @@ _PERSON_ADVERB = (r"(?:itself|quietly|silently|now|always|really|never|carefully
 # Negated, only "care": "The scheduler doesn't care that rows went missing." "doesn't know" and "doesn't remember"
 # usually state what a program has no data for ("The cache doesn't know about the new key").
 _PERSON_NEGATED = r"(?:(?:does|do|did|would)n['’]t|won['’]t|(?:does|do|did|would|will)\s+not)\s+(?:really\s+)?care"
+# A determiner and up to two modifiers before the subject: "These numbers tell a story.", "The customer survey data
+# tells a compelling story."
 _PERSONIFICATION = re.compile(
-    r"\b(?:the|this|that|your|our|its|each|every|my)\s+(?:\w+\s+)?" + _PERSON_SUBJECT +
+    r"\b(?:the|this|that|these|those|your|our|their|its|each|every|my)\s+(?:\w+\s+){0,2}?" + _PERSON_SUBJECT +
     r"\s+(?:(?:will|would)\s+)?(?:" + _PERSON_ADVERB + r"\s+)?"
     r"(?:(?:seems?|seemed|appears?|appeared)\s+to\s+)?(?:" + _PERSON_VERB + "|" + _PERSON_NEGATED + r")\b",
     re.IGNORECASE)
@@ -745,7 +750,8 @@ _TODAYS_OPENER = re.compile(
     r"(?=[\s\"”)\]*_]*(?:[,;:.!?—–|]|$))", re.IGNORECASE)
 # An assistant's preamble before a text it drafted or revised. Checked in _preambles; the forms:
 # - after an interjection that starts the sentence ("Certainly! Here's a revised version:", "Sure! Here's a draft
-#   email you can send:"), with any of the nouns below;
+#   email you can send:"), with any of the nouns below; a noun of group "other" or "options" or "message" without
+#   a verb only when a greeting or "Subject:" follows ("Sure, here's the updated schedule:" is a reply);
 # - a revision lead-in (group "revised"): a revision adjective and a text noun (group "text": "Here's a polished
 #   version of your email:", "Here's your revised email:") or any other noun (group "other": "Here's the updated
 #   invitation:"), which is reported only when a mail follows, so "Here are the updated numbers:" is not;
@@ -772,18 +778,28 @@ _TEXT_NOUN = (r"(?:versions?|text|drafts?|copy|rewrites?|e-?mails?|mail|messages
               r"letters?|paragraphs?|sentences?|bio|intro(?:duction)?|posts?|summary|wording|phrasing|essay|"
               r"statement|announcement|description|caption|abstract|speech|outline|passage)" + _NOT_COMPOUND)
 _MAIL_NOUN = r"(?:repl(?:y|ies)|drafts?|responses?|e-?mails?|notes?|rewrites?|letters?)" + _NOT_COMPOUND
+# A word before the noun, optionally with a comma: "a tighter, friendlier version", "a revised, more concise
+# version", "a professional and heartfelt resignation letter". Not a pronoun, a modal, a form of "be" or a word that
+# opens a clause, so the noun phrase does not run into a clause ("the form where you can send notes").
+_MODIFIER = (r"(?!(?:you|we|i|they|he|she|it|can|could|will|would|should|may|might|must|is|are|was|were|that|which|"
+             r"who|where|when|to)\b)[\w-]+,?\s+")
+# After the revision word, not a preposition or a determiner either: "the updated pricing for the email campaign"
+# names pricing, not an email.
+_NOUN_MODIFIER = (r"(?!(?:of|for|in|on|at|from|with|by|about|as|the|a|an|this|these|those|your|my|our|their)\b)"
+                  + _MODIFIER)
 _PREAMBLE = re.compile(
     r"(?P<interjection>\b(?:certainly|sure|absolutely|of\s+course|great\s+question)(?:[!.,]\s+|\s*[—–]\s*))?"
     r"\b(?:here(?:['’]s|\s+is|\s+are)|(?P<below>below\s+(?:is|are)))\s+(?P<det>a|an|the|your|some)\s+"
-    r"(?:(?P<revised>(?:[\w-]+\s+){0,2}?" + _REVISION_ADJECTIVE +
-    r"\s+(?:(?:[\w-]+\s+)?(?P<text>" + _TEXT_NOUN + r")\b|(?P<other>[\w-]+)))"
-    r"|(?P<pre>(?:[\w-]+\s+){0,3}?)(?:(?P<draft>" + _MAIL_NOUN + r")(?:\s+" + _MAIL_NOUN + r")?"
+    r"(?:(?P<revised>(?:" + _MODIFIER + r"){0,4}?" + _REVISION_ADJECTIVE +
+    r",?\s+(?:(?:" + _NOUN_MODIFIER + r"){0,3}?(?P<text>" + _TEXT_NOUN + r")\b|(?P<other>[\w-]+)))"
+    r"|(?P<pre>(?:" + _MODIFIER + r"){0,5}?)(?:(?P<draft>" + _MAIL_NOUN + r")(?:\s+" + _MAIL_NOUN + r")?"
     r"|(?P<generic>versions?|text|options?|messages?))\b)"
     r"(?:[^.!?:\n]{0,40}?\b(?:you\s+(?:can|could|might|may)|for\s+you\s+to)\s+"
     r"(?P<verb>send|use|copy|paste|forward|adapt)\b)?",
     re.IGNORECASE)
 # "I've revised your email to sound more confident:", "I have polished your cover letter:". Checked in _preambles like
-# a lead-in that starts with "Below is": reported after an interjection, or before a greeting or "Subject:".
+# a lead-in that starts with "Below is": reported after an interjection (in mail only before a greeting or
+# "Subject:"), or before a greeting or "Subject:".
 _REVISED_YOUR = re.compile(
     r"(?P<interjection>\b(?:certainly|sure|absolutely|of\s+course|great\s+question)(?:[!.,]\s+|\s*[—–]\s*))?"
     r"\bI(?:['’]ve|\s+have)\s+(?:just\s+)?(?:revised|rewritten|polished|reworded|rephrased|edited|improved|refined|"
@@ -831,9 +847,9 @@ _CLOSING = re.compile(
 _DASHES = re.compile(r"(?<=\S)\s*—\s*(?=\S)|\s–\s|\s--\s|―")
 _RANGE_DASH = re.compile(r"\d\s*[—–]\s*\d")
 # Range endpoints on both sides of a spaced dash: "Monday – Friday", "9 am – 5 pm", "$5 – $10", "v1.2 – v1.4",
-# "January – March", "20% – 30%", "Q1 – Q3", "10 kg – 12 kg". Month and weekday names need a capital ("may" is a
-# verb) and a word end ("Janet", "Monica" and "Sunil" are names); a unit is one of _UNIT, so "We fixed 3 bugs — 2
-# remain." is a clause.
+# "January – March", "20% – 30%", "Q1 – Q3", "10 kg – 12 kg", "9 am – noon". Month and weekday names need a capital
+# ("may" is a verb) and a word end ("Janet", "Monica" and "Sunil" are names); a unit is one of _UNIT, so "We fixed 3
+# bugs — 2 remain." is a clause.
 _UNIT = (r"(?:[aApP]\.?[mM]\.?|°[CF]?|[nµum]?s|secs?|mins?|h|hrs?|d|wks?|mo|yrs?|days?|weeks?|months?|years?|"
          r"hours?|minutes?|seconds?|nights?|[mck]?m|in|ft|mi|yds?|[mk]?g|lbs?|oz|[mM]?[lL]|gal|qt|[kKMGTP]i?[Bb]|"
          r"miles?|feet|foot|inch(?:es)?|pounds?|ounces?|grams?|kilos?|lit(?:er|re)s?|met(?:er|re)s?|cups?|tbsp|tsp|"
@@ -842,7 +858,7 @@ _ENDPOINT = (
     r"(?:(?:[$€£¥]\s?)?[~≈]?\d[\d,.:]*(?:\s?%)?|[vV]\d+(?:\.\d+)*[a-z]?|Q[1-4]|"
     r"(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|June?|July?|Aug(?:ust)?|Sept?(?:ember)?|"
     r"Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|"
-    r"Mon|Tues?|Wed|Thu(?:rs?)?|Fri|Sat|Sun)(?![A-Za-z])\.?)"
+    r"Mon|Tues?|Wed|Thu(?:rs?)?|Fri|Sat|Sun)(?![A-Za-z])\.?|(?i:noon|midday|midnight)(?![A-Za-z]))"
     r"(?:\s?" + _UNIT + r")?")  # "9 am", "5 km", "10 GB"
 _RANGE_BEFORE = re.compile(r"(?:^|(?<=[\s(\[]))" + _ENDPOINT + r"[,.]?[ \t]*$")
 _RANGE_AFTER = re.compile(r"[ \t]*" + _ENDPOINT + r"(?![\w$€£¥])")
@@ -874,7 +890,7 @@ _VERSION = (r"(?:(?:version|revision|rev\.?|release|v)\s*\d+(?:\.\d+)*[a-z]?|"
             r"(?!\d{1,2}\.\d{2}(?![\d.-]))\d+\.\d+(?:\.\d+)*(?:-[\w.]+)?)")
 _STAMP_LABEL = (r"(?:(?:effective|updated|last\s+updated|last\s+revised|revised|published|released|issued|dated?)"
                 r"(?:\s+on)?:?\s+)?")
-# "2026-11-13 (Thu)", "Monday (Mar 3)", "Tue (11/12)": a weekday, date or time in parentheses after a date or time.
+# "2026-11-13 (Fri)", "Monday (Mar 3)", "Tue (11/12)": a weekday, date or time in parentheses after a date or time.
 _STAMP_NOTE = r"(?:\s*\(\s*(?:" + _TIME + "|" + _DATE + r")" + _ZONE + r"\s*\))?"
 _ONE_STAMP = r"(?:" + _STAMP_LABEL + r"(?:" + _TIME + "|" + _DATE + r")" + _ZONE + _STAMP_NOTE + "|" + _VERSION + r")"
 # "Dec 3–5", "v1.0–v1.4", "2.0.0 – 2.3.1"
@@ -925,6 +941,9 @@ _NAME_LINE = re.compile(r"[*_\s]*[\w.+:-]+(?:[*_]*\s*,\s*[*_]*[\w.+:-]+)*[*_\s]*
 _FIELD_AFTER = re.compile(r"\s*[*_]*[A-Z][\w/&-]*(?:[ \t]+[\w/&-]+){0,2}[*_]*:[*_]*(?:\s|$)")
 # A paragraph that starts like a lettered or numbered item, "(a)", "a)", "(iv)", "(1)", is a list after a colon.
 _LETTERED_ITEM = re.compile(r"^(?:\((?:[a-z]|[ivx]{1,6}|\d{1,3})\)|(?:[a-z]|[ivx]{1,6})\))\s", re.IGNORECASE)
+# A line of a field block ("Date: Friday, Dec 18" then "Time: 5:30 pm"): a capitalized label of up to four words, a
+# colon and a value. A paragraph of two or more such lines is a list after a colon.
+_FIELD_LINE = re.compile(r"^[*_]*[A-Z][\w'’/&().-]*(?:[ \t]+[\w'’/&().-]+){0,3}[*_]*:[*_]*[ \t]+\S")
 # A paragraph that is only an image or display math still follows a colon.
 _FIGURE_LINE = re.compile(r"^(?:\[?!\[[^\]]*\](?:\([^()]*\)|\[[^\]]*\])(?:\]\([^()]*\))?\s*)+$|^\$\$|^\\\[")
 # Every code point that can start an emoji in tx.emoji_spans, and the keycap mark of 1️⃣ and #️⃣.
@@ -1016,11 +1035,12 @@ def _words_view(masked: str) -> str:
 
 
 def _after_rule(doc: tx.Document, block: tx.Block) -> bool:
-    """True if a thematic break ("---") is the last line before the block that is not blank."""
+    """True if a thematic break ("---") is the last line before the block that is not blank. A setext heading's
+    underline is not a thematic break."""
     index = block.lines[0].no - 2  # the 0-based index of the line before the block
     while index >= 0 and doc.lines[index].kind == "blank":
         index -= 1
-    return index >= 0 and doc.lines[index].kind == "rule"
+    return index >= 0 and doc.lines[index].kind == "rule" and not doc.lines[index].setext
 
 
 def _sentence_around(text: str, start: int, end: int, limit: int = 300) -> str:
@@ -1058,6 +1078,9 @@ _TERM_GLUE = re.compile(r"(?:[\s*_\[\]()|,/]|(?<!\w)or\b)*")
 # Placeholders written after the option in a man page or a help text: LEVEL, KEY=PATTERN, FILE..., <path>, [WHEN].
 _METAVAR = r"(?:[A-Z][A-Z0-9_]*(?:=[A-Z][A-Z0-9_]*)?|<[\w.-]+>)(?:\.\.\.)?"
 _METAVARS = re.compile(_METAVAR + r"(?:[\s\[\]|,]+" + _METAVAR + r")*[\s\[\]|,]*")
+# A type or default note in parentheses after the term in an API reference: "`timeout` (float) – ...", "`cache`
+# (`bool`, default `True`) – ...". No dash inside, so a clause in parentheses with a dash is still checked.
+_TYPE_NOTE = re.compile(r"\([^()\n—–]{1,60}\)")
 
 
 def _term_ends(masked: str, plain: str, line: int) -> tuple[int, int]:
@@ -1066,7 +1089,8 @@ def _term_ends(masked: str, plain: str, line: int) -> tuple[int, int]:
 
     "- `--threads N` — number of workers" is an option list: the dash separates a term from its description.
     Aliases joined by a comma, a slash or "or" count as one term ("- `-h`, `--help` — show help"), and so do
-    placeholders in capitals or angle brackets outside the backticks ("`-l`, `--level` LEVEL — show only ..."). A
+    placeholders in capitals or angle brackets outside the backticks ("`-l`, `--level` LEVEL — show only ...") and
+    one type note in parentheses ("- `timeout` (float) – HTTP timeout in seconds", _TYPE_NOTE). A
     link with words ("[Guide](guide.md) — ...") is still checked, and so is a line with no code or URL at all, even
     after a bracket or emphasis ("[UPDATE — the fix is live.]", "_IMPORTANT_ — back up first."). Computed once per
     line: neither run can pass a dash, so both end at or before the first dash on the line.
@@ -1076,6 +1100,13 @@ def _term_ends(masked: str, plain: str, line: int) -> tuple[int, int]:
     # Code and URLs are spaces in masked and characters in plain.
     if not any(masked[i] == " " and not plain[i].isspace() for i in range(line, end)):
         return -1, -1
+    # The glue stops inside an opening parenthesis that holds words: one type note may follow the term.
+    paren = masked.rfind("(", line, end)
+    if paren >= 0 and masked.find(")", paren, end) < 0:
+        note = _TYPE_NOTE.match(masked, paren)
+        if note:
+            glue = _TERM_GLUE.match(masked, note.end())
+            end = glue.end() if glue else note.end()
     run = _METAVARS.match(masked, end)
     return end, run.end() if run else end
 
@@ -1345,19 +1376,31 @@ _SLIDE_LINE = re.compile(r"^[\s*_#]*slide\s+\d+\b", re.IGNORECASE)
 def _slide_notes(doc: tx.Document) -> set[int]:
     """Indexes of the blocks that are notes to the requester around a deck, not slides: the blocks before the first
     heading, thematic break or "Slide 1" line ("Here's a revised version of your deck:"), and the blocks after the last
-    thematic break when no heading comes after it and a heading or another break comes before it ("---" then "Let me
-    know if you'd like me to add speaker notes.")."""
-    rules = [ln.no for ln in doc.lines if ln.kind == "rule"]
+    thematic break when no heading or "Slide N" line comes after it and a slide start or another break comes before it
+    ("---" then "Let me know if you'd like me to add speaker notes."). A setext heading's underline is not a break."""
+    rules = [ln.no for ln in doc.lines if ln.kind == "rule" and not ln.setext]
     starts = [b.lines[0].no for b in doc.blocks
               if b.kind == "heading" or (b.kind == "para" and _SLIDE_LINE.match(b.lines[0].content))]
-    headings = [b.lines[0].no for b in doc.blocks if b.kind == "heading"]
     if not rules and not starts:
         return set()
     first = min(rules + starts)
     notes = {bi for bi, b in enumerate(doc.blocks) if b.lines[-1].no < first}
-    if rules and not any(no > rules[-1] for no in headings) and min(rules + starts) < rules[-1]:
+    if rules and not any(no > rules[-1] for no in starts) and first < rules[-1]:
         notes.update(bi for bi, b in enumerate(doc.blocks) if b.lines[0].no > rules[-1])
     return notes
+
+
+def _allowed_spans(allow: list[tuple[re.Pattern[str], str]], seen: str, low: Optional[str]) -> list[tuple[int, int]]:
+    """(start, end) of each occurrence of an allow.txt entry in a block's words view."""
+    return [m.span() for pattern, key in allow for m in _scan(pattern, key, seen, low) if m.end() > m.start()]
+
+
+def _drop_allowed(found: list[Finding], since: int, allowed: list[tuple[int, int]]) -> None:
+    """Remove the word-list, chat and project-word findings in found[since:] that lie inside an allowed phrase:
+    with "plays a crucial role" in allow.txt, neither that phrase nor "crucial" inside it is reported."""
+    if allowed:
+        found[since:] = [f for f in found[since:] if f.rule not in LIST_RULE_NAMES
+                         or not any(s <= f.start and f.end <= e for s, e in allowed)]
 
 
 def lint(text: str, doc_type: Optional[str] = None, reader: Optional[str] = None,
@@ -1373,6 +1416,7 @@ def lint(text: str, doc_type: Optional[str] = None, reader: Optional[str] = None
     for name, replacement, pattern in words.flags:
         is_phrase = pattern.pattern == tx.phrase_regex(name)  # flag.txt entry, not a flag-patterns.txt regex
         flags.append((name, replacement, pattern, is_phrase, _first_key(name) if is_phrase else ""))
+    allow = [(pattern, _first_key(entry)) for entry, pattern in words.allow_patterns()]
     title = _title_block(doc)
     first_prose = -1
     greeted = False  # a greeting line came before this block
@@ -1431,6 +1475,8 @@ def lint(text: str, doc_type: Optional[str] = None, reader: Optional[str] = None
                 f.severity = severity
             found.append(f)
 
+        allowed: Optional[list[tuple[int, int]]] = None  # where allow.txt entries occur in the block, once needed
+
         # word lists
         listed = len(found)
         for rule, name, entries in ([] if is_title else lists):
@@ -1452,6 +1498,9 @@ def lint(text: str, doc_type: Optional[str] = None, reader: Optional[str] = None
                         exempt_in = tuple(t for t in types if t != "mail")
                         note = _AFTER_DRAFT_NOTE
                     add(rule, m.start(), m.end(), _list_message(rule, shown, note), exempt_in)
+        if allow and len(found) > listed:
+            allowed = _allowed_spans(allow, seen, low)
+            _drop_allowed(found, listed, allowed)
         if offer_mode == "strict" and any(f.rule == "chat_residue" and doc_type not in f.exempt_in
                                           for f in found[listed:]):
             offer_mode = "loose"  # the paragraph is already assistant chat ("Let me know if you'd like ...")
@@ -1479,6 +1528,8 @@ def lint(text: str, doc_type: Optional[str] = None, reader: Optional[str] = None
                 and prev.lines[0].masked.strip(" *_").upper() == "NAME"
             _expression_rules(flat, masked, plain, bold_view, block, add, name_line)
             _preambles(doc, block, flat, masked, plain, bi == first_prose, after_greeting, add)
+            if allow and len(found) > listed:
+                _drop_allowed(found, listed, _allowed_spans(allow, seen, low) if allowed is None else allowed)
 
         # emoji
         if _EMOJI_CANDIDATE.search(masked):
@@ -1526,15 +1577,13 @@ def lint(text: str, doc_type: Optional[str] = None, reader: Optional[str] = None
                 _fragment_runs(doc, view, plain, spans, locate, bi, found)
 
     _block_rules(doc, found)
-    # Notes to the requester before or after the slides are kept in slides ("Here's a revised version of your deck:"),
-    # and so is the colon that introduces the deck. A finding inside their chat ("Absolutely" and "!" in
-    # "Absolutely!") is exempted with it.
+    # Notes to the requester before or after the slides ("Here's a revised version of your deck:", "I kept it short —
+    # slide 3 has placeholder numbers.") are kept as they are in slides, so no finding in them is reported there.
     notes = _slide_notes(doc)
-    chat = [(f.block, f.start, f.end) for f in found if f.rule == "chat_residue" and f.block in notes and f.end]
-    for f in found:
-        if f.block in notes and (f.rule in ("chat_residue", "decorative_colon") or (
-                f.end and any(b == f.block and s < f.end and f.start < e for b, s, e in chat))):
-            f.exempt_in = f.exempt_in + ("slides",)
+    if notes:
+        for f in found:
+            if f.block in notes:
+                f.exempt_in = f.exempt_in + ("slides",)
 
     # Split before removing overlaps, so that an exempted finding does not hide a reported one.
     exempt = set(EXEMPT.get(doc_type or "", ()))
@@ -1634,7 +1683,6 @@ def _expression_rules(flat: str, masked: str, plain: str, letters: str, block: t
                 and (m.group("just") or not _be_contrast_skipped(flat, m.group("s1"), m.group("denied"), m.group("s2"),
                                                                  m.group("be2").strip(), m.end())):
             contrasts.append(m.span())
-    contrasts.extend(_two_sentence_contrast(flat, masked))
     if block.kind == "heading":
         contrasts.extend(m.span() for m in _HEADING_CONTRAST.finditer(flat) if _but_noun_phrase(flat, m))
     for start, end in contrasts:
@@ -1642,6 +1690,12 @@ def _expression_rules(flat: str, masked: str, plain: str, letters: str, block: t
         add("negative_contrast", start, end,
             f'Negative contrast "{tx.display_width_cut(shown, 70)}". Remove the denied part only if '
             'the claim stays the same ("not just X" affirms X; keep X); keep it when it corrects a likely misreading.')
+    for start, end in _two_sentence_contrast(flat, masked):
+        shown = _show(plain[start:end])
+        add("negative_contrast", start, end,
+            f'Two-sentence negative contrast "{tx.display_width_cut(shown, 70)}". Join it into one sentence that '
+            'keeps the negation (SKILL.md "Two-sentence negative contrast"), unless the second sentence adds a '
+            "separate claim.")
     for m in _PERSONIFICATION.finditer(flat):
         add("personification", m.start(), m.end(),
             f'"{_show(plain[m.start():m.end()])}" gives a tool or idea a will or feelings. Say what it does, '
@@ -1697,7 +1751,11 @@ def _preambles(doc: tx.Document, block: tx.Block, flat: str, masked: str, plain:
     The lead-in ends with a colon, ends the block, or (in the first prose block) goes on with more sentences up to a
     colon that ends the block ("Sure — here's a draft you can send. It's polite but firm:"). After an interjection:
     reported when the clause ends with a colon, in the first prose block, or when a greeting or "Subject:" follows the
-    paragraph ("Sure! Here's a draft email. I kept it polite but firm." then "Dear Mr. Lee,"). Without one, only in
+    paragraph ("Sure! Here's a draft email. I kept it polite but firm." then "Dear Mr. Lee,"); when no greeting or
+    "Subject:" follows, a noun that is not a text ("Sure, here's the updated schedule:", "Sure, here are the
+    options:") is not reported, and the rest is exempt in mail, where it may be the writer's own reply, unless it
+    offers a drafted mail with a verb ("a resignation letter you can adapt", or "a version you can use" before a
+    quotation or code block). Without one, only in
     the first prose block: a revision lead-in when the clause ends with a colon (in mail only when a drafted mail follows; with a noun
     that is not a text, only when a greeting or "Subject:" follows), "Here's a draft:" like a revision lead-in, an
     offer of a drafted mail when a drafted mail or message follows, and a mail noun without a verb offered as a draft
@@ -1730,9 +1788,11 @@ def _preambles(doc: tx.Document, block: tx.Block, flat: str, masked: str, plain:
     for m in _REVISED_YOUR.finditer(flat):
         start, interjection = lead_in(m)
         colon = _PREAMBLE_COLON.match(flat, m.end())
-        if start >= 0 and colon and (interjection or (first and _mail_follows(doc, block, masked, colon.end(),
-                                                                                strict=True))):
-            report(start, m.end())
+        if start < 0 or not colon:
+            continue
+        follows = _mail_follows(doc, block, masked, colon.end(), strict=True)
+        if interjection or (first and follows):
+            report(start, m.end(), () if follows else ("mail",))  # in a mail, "Sure, I've edited your note:" is a reply
     for m in _PREAMBLE.finditer(flat):
         start, interjection = lead_in(m)
         if start < 0:
@@ -1747,8 +1807,18 @@ def _preambles(doc: tx.Document, block: tx.Block, flat: str, masked: str, plain:
             continue  # "Here is the letter my grandfather wrote in 1944:", "Here's a quick note from our CEO:"
         exempt_in: tuple[str, ...] = ()
         if interjection:
-            if not (colon or (first and lead_end >= 0) or _mail_follows(doc, block, masked, block_end, strict=True)):
+            follows = bool(colon and _mail_follows(doc, block, masked, colon.end(), strict=True)) \
+                or _mail_follows(doc, block, masked, block_end, strict=True)
+            if not (colon or (first and lead_end >= 0) or follows):
                 continue  # reported before a greeting: "Sure! Here's a draft email. I kept it polite." then "Dear ..."
+            if not follows:
+                # An offer of the text to the requester: "a resignation letter you can adapt", "a version you can use".
+                offer = bool(verb) and generic not in ("option", "options")
+                if not offer and (m.group("other") or generic in ("option", "options", "message", "messages")):
+                    continue  # a reply: "Sure, here's the updated schedule:", "Sure, here are the options:"
+                if not (offer and (draft or _mail_follows(doc, block, masked,
+                                                          lead_end if lead_end >= 0 else block_end))):
+                    exempt_in = ("mail",)  # "Sure! Here's a revised version:" may be the writer's own reply in a mail
         elif not first:
             continue
         elif m.group("below") and not (colon and _mail_follows(doc, block, masked, colon.end(), strict=True)):
@@ -1927,14 +1997,16 @@ def _block_rules(doc: tx.Document, found: list[Finding]) -> None:
     # decorative colon: a paragraph ending with ":" followed by a paragraph, heading or the end
     next_kind: dict[int, str] = {}
     following = "end"
+    fields = {b.lines[0].no for b in blocks if b.kind == "para" and len(b.lines) >= 2
+              and all(_FIELD_LINE.match(ln.masked) for ln in b.lines)}
     for line in reversed(doc.lines):
         if line.kind == "blank":
             continue
         next_kind[line.no] = following
         if line.kind == "para" and _FIGURE_LINE.match(line.raw.strip()):
             following = "figure"  # an image or display math is what the colon introduces
-        elif line.kind == "para" and _LETTERED_ITEM.match(line.content):
-            following = "list"  # "In this policy:" then "(a) ..." and "(b) ..."
+        elif line.kind == "para" and (_LETTERED_ITEM.match(line.content) or line.no in fields):
+            following = "list"  # "In this policy:" then "(a) ..." and "(b) ...", "Details:" then "Date: ..."
         else:
             following = line.kind
     for bi, block in enumerate(blocks):

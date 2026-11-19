@@ -246,6 +246,7 @@ class Line:
     continuation: bool = False  # para line that continues a list item
     level: int = 0  # heading level, 1 to 6
     quoted: bool = False  # code or fence line inside a block quote
+    setext: bool = False  # the underline of a setext heading (kind "rule"), not a thematic break
 
 
 @dataclass
@@ -489,7 +490,7 @@ def classify(text: str) -> list[Line]:
         if sm and prev_kind == "para" and lines and not lines[-1].continuation:
             lines[-1].kind = "heading"
             lines[-1].level = 1 if sm.group(1)[0] == "=" else 2
-            lines.append(Line(no, raw, "rule"))
+            lines.append(Line(no, raw, "rule", setext=True))
             prev_kind = "rule"
             continue
         if _RULE.match(raw):
@@ -824,12 +825,13 @@ WORD_LEAD = r"(?<![^\W_])(?<![^\W_]_)(?<![^\W_]__)(?<![^\W_]___)(?<!-)"
 WORD_TAIL = r"(?!_*[^\W_])(?!-)"
 
 
-def phrase_regex(phrase: str) -> str:
-    """Turn a list phrase into a regex: spaces match whitespace, a trailing * matches a word suffix."""
+def phrase_regex(phrase: str, wildcard: bool = True) -> str:
+    """Turn a list phrase into a regex: spaces match whitespace, a trailing * matches a word suffix (with wildcard;
+    otherwise it is a literal *)."""
     words = phrase.strip().split()
     parts = []
     for word in words:
-        star = word.endswith("*")
+        star = wildcard and word.endswith("*")
         core = word[:-1] if star else word
         piece = _APOSTROPHE.sub("['’]", re.escape(core))  # one pass, so ’ and ' both work
         if star:
@@ -837,7 +839,7 @@ def phrase_regex(phrase: str) -> str:
         parts.append(piece)
     body = r"\s+".join(parts)
     lead = WORD_LEAD if words and re.match(r"\w", words[0]) else ""
-    tail = r"(?!_*[^\W_])" if words and words[-1].endswith("*") else ""
+    tail = r"(?!_*[^\W_])" if wildcard and words and words[-1].endswith("*") else ""
     if not tail and words and re.search(r"\w$", words[-1]):
         tail = WORD_TAIL
     return lead + body + tail
@@ -882,6 +884,7 @@ class Words:
 
     _allow_keys: frozenset[str] = field(default=frozenset(), repr=False, compare=False)
     _allow_size: int = field(default=-1, repr=False, compare=False)
+    _allow_patterns: list[tuple[str, re.Pattern[str]]] = field(default_factory=list, repr=False, compare=False)
 
     def allowed(self, text: str) -> bool:
         """True if text equals an allow.txt entry, ignoring case, apostrophe style and line breaks."""
@@ -891,6 +894,15 @@ class Words:
             self._allow_keys = frozenset(normalize_phrase(a) for a in self.allow)
             self._allow_size = len(self.allow)
         return normalize_phrase(text) in self._allow_keys
+
+    def allow_patterns(self) -> list[tuple[str, re.Pattern[str]]]:
+        """(entry, regex) for each allow.txt entry, matched like a word-list phrase (case, apostrophe style and line
+        breaks ignored, whole words); a "*" in an entry is literal. Used to find the places an entry covers, so that
+        a shorter listed phrase inside it ("crucial" in "plays a crucial role") is not reported either."""
+        if len(self._allow_patterns) != len(self.allow):
+            self._allow_patterns = [(a, re.compile(phrase_regex(a, wildcard=False), re.IGNORECASE))
+                                    for a in self.allow]
+        return self._allow_patterns
 
 
 def normalize_phrase(text: str) -> str:

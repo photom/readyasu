@@ -7,6 +7,8 @@ in an era where	delete the opener
 in an increasingly	delete the opener
 let's dive in	delete the announcement
 let's dive into	delete the announcement
+let's dive right in	delete the announcement
+let's dive right into	delete the announcement
 let's take a closer look	delete or merge into the next sentence
 let's break it down	delete
 let's explore	delete or merge into the next sentence

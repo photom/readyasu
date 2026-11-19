@@ -14,6 +14,14 @@ the ever-changing landscape	usually delete
 the digital landscape	usually delete
 the modern landscape	usually delete
 the current landscape	usually delete
+evolving landscape	usually delete
+shifting landscape	usually delete
+changing landscape	usually delete
+business landscape	usually delete
+professional landscape	usually delete
+educational landscape	usually delete
+tech landscape	usually delete
+technology landscape	usually delete
 embark*	"start"
 fosters	say what people do, only from the original or material; otherwise keep and ask
 fostering	say what people do, only from the original or material; otherwise keep and ask
