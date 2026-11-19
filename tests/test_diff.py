@@ -1473,3 +1473,14 @@ def test_loop2_from_to_with_thousands_and_a_comma_unchanged() -> None:
     text = "The quota went from 2,500 to 4,000, starting in March.\n"
     assert kinds(text, text) == []
     assert kinds(text, "Starting in March, the quota went from 2,500 to 4,000.\n") == []
+
+
+@pytest.mark.parametrize(("orig", "rev"), [
+    ("Release — Fri\n", "Release — Mon\n"),
+    ("Fri — deploy to prod\n", "Mon — deploy to prod\n"),
+    ("Release — Dec\n", "Release — Nov\n"),
+    ("The review is Fri, May 3.\n", "The review is Mon, May 3.\n"),
+    ("The review is Fri (June 3).\n", "The review is Mon (June 3).\n"),
+])
+def test_loop3_weekday_abbreviation_after_em_dash_or_before_may(orig: str, rev: str) -> None:
+    assert "number" in kinds(orig, rev)

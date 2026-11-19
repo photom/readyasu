@@ -252,7 +252,7 @@ DATE_ABBR = {"Jan": "January", "Feb": "February", "Mar": "March", "Apr": "April"
              "Thu": "Thursday", "Thur": "Thursday", "Thurs": "Thursday", "Fri": "Friday", "Sat": "Saturday",
              "Sun": "Sunday"}
 DATE_WORD = re.compile(r"\b(" + "|".join(DATE_FULL) + r"|MONTHMAY)s?\b|\b(" + "|".join(sorted(DATE_ABBR, key=len, reverse=True))
-                       + r")\b\.?(?=,?\s+(?:\d|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\b)|\s*\|)"
+                       + r")\b\.?(?=,?\s+(?:\d|MONTHMAY\b|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\b)|\s*\|)"
                        r"|(?<=\b(?:by|on|to) )(" + "|".join(sorted(DATE_ABBR, key=len, reverse=True)) + r")\b\.?"
                        r"|(?:(?<=\b(?:until|after|every) )|(?<=\bbefore ))(" + "|".join(sorted(DATE_ABBR, key=len, reverse=True)) + r")\b\.?")
 UNIT_NAMES = {
@@ -527,8 +527,8 @@ def mask_month_may(text: str) -> str:
 
 
 _ABBR_TOKEN = re.compile(r"\b(" + "|".join(sorted(DATE_ABBR, key=len, reverse=True)) + r")\b\.?")
-_ABBR_BEFORE = re.compile(r"(?:\(|(?:by|on|until|after|every|before|due|from|to|and|or)\s*:?\s*|[-–]\s*|:\s+)$", re.IGNORECASE)
-_ABBR_AFTER = re.compile(r"^\s*(?:\)|[-–]|and\b|or\b|,?\s*\d)")
+_ABBR_BEFORE = re.compile(r"(?:\(|(?:by|on|until|after|every|before|due|from|to|and|or)\s*:?\s*|[-–—]\s*|:\s+)$", re.IGNORECASE)
+_ABBR_AFTER = re.compile(r"^\s*(?:\)|[-–—]|and\b|or\b|,?\s*(?:\d|MONTHMAY\b|\(?(?:Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\b))")
 
 
 def dates(text: str) -> Counter[str]:
