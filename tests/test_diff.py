@@ -502,3 +502,61 @@ def test_energy_ignores_deleted_residue() -> None:
     o = "Certainly! Here's a reply you can send.\n\nThanks for flagging it! I'll send the numbers.\n"
     r = "Thanks for flagging it! I'll send the numbers.\n"
     assert diff.compare(o, r, "mail").energy == []
+
+
+@pytest.mark.parametrize(("orig", "rev"), [
+    ("It appears that the cache might be stale.\n", "The cache might be stale.\n"),
+    ("It seems like the server may be down.\n", "The server may be down.\n"),
+    ("It should be noted that backups run nightly.\n", "Backups run nightly.\n"),
+    ("When it comes to caching, Redis is the default choice.\n", "Redis is the default choice for caching.\n"),
+    ("While this approach works, it has drawbacks.\n", "This approach works, but it has drawbacks.\n"),
+    ("That said, the plan holds.\n", "Still, the plan holds.\n"),
+    ("Users may see a brief delay during the upgrade.\n", "Users might see a brief delay during the upgrade.\n"),
+    ("You may include a cover letter.\n", "You are allowed to include a cover letter.\n"),
+    ("We didn't need a new tool. We needed a shared way to use the old one.\n",
+     "What we needed was not a new tool but a shared way to use the old one.\n"),
+    ("You don't have to restart the service.\n", "Restarting the service is optional.\n"),
+    ("Users are not required to sign in.\n", "Signing in is optional.\n"),
+    ("We do not use Kafka. We use RabbitMQ.\n", "We use RabbitMQ, not Kafka.\n"),
+    ("Do not restart the primary. Restart the replicas instead.\n", "Restart the replicas, not the primary.\n"),
+    ("Several services broke.\n", "A handful of services broke.\n"),
+])
+def test_set6_diff_review_harmless(orig: str, rev: str) -> None:
+    assert kinds(orig, rev) == []
+
+
+@pytest.mark.parametrize(("orig", "rev", "kind"), [
+    ("Could the cache be stale? We restarted it at 3:00.\n", "The cache was stale, so we restarted it at 3:00.\n",
+     "question"),
+    ("We have around a dozen customers on v1.\n", "We have 12 customers on v1.\n", "approximation"),
+    ("Over a dozen users signed up.\n", "A dozen users signed up.\n", "approximation"),
+    ("Dana asked Lee to review it.\n", "Dana reviewed it.\n", "name"),
+    ("It looks like the disk is full.\n", "The disk is full.\n", "certainty"),
+    ("It is unclear whether the bug affects v2.\n", "The bug affects v2.\n", "certainty"),
+    ("As far as we know, no data was lost.\n", "No data was lost.\n", "certainty"),
+    ("| Day | Owner |\n|---|---|\n| Mon | Ana |\n| Tue | Ben |\n", "| Day | Owner |\n|---|---|\n| Tue | Ana |\n| Mon | Ben |\n",
+     "number"),
+])
+def test_set6_diff_review_counted(orig: str, rev: str, kind: str) -> None:
+    assert kind in kinds(orig, rev)
+
+
+def test_could_not_is_not_a_hedge() -> None:
+    assert "certainty" not in kinds("We could not reproduce the bug.\n", "We were unable to reproduce the bug.\n")
+
+
+def test_compose_compound_numbers_and_months() -> None:
+    ok = diff.compose("The timeout is twenty-five minutes, and up to two hundred users can join. The buffer holds 0.5 "
+                      "seconds.\n", "Timeout: 25 minutes. Max users: 200. Retention: 0.50 seconds of buffer.\n")
+    assert ok.risks == []
+    bad = diff.compose("The migration is planned for June.\n", "The migration is planned for May.\n")
+    assert bad.risks and bad.material["material_hedges_not_in_final"] == []
+
+
+def test_fully_rewritten_long_text_is_fast() -> None:
+    import time
+    o = "\n".join(f"Sentence {i} talks about the cache layer and the retry budget in some detail." for i in range(150))
+    r = "\n".join(f"Line {i} now covers retries, timeouts and the queue with other words entirely." for i in range(150))
+    start = time.monotonic()
+    diff.compare(o + "\n", r + "\n")
+    assert time.monotonic() - start < 10

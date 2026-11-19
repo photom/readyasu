@@ -309,3 +309,13 @@ def test_json_splits_kept_and_added_words(tmp_path: Path) -> None:
             tmp_path)
     data = json.loads(p.stdout)
     assert data["flagged_words_kept"] == [] and set(data["flagged_words_added"]) == {"leverage", "delve"}
+
+
+def test_first_line_hints_new_run_after_one_revision(tmp_path: Path) -> None:
+    src = write(tmp_path / "o.md", "We leverage a robust pipeline.\n")
+    fin = write(tmp_path / "f.md", "We use a robust pipeline.\n")
+    st = str(tmp_path / "st")
+    run(["run", "--source", src, "--final", fin, "--state-dir", st, "--no-words"], tmp_path)
+    write(tmp_path / "f.md", "We use a pipeline.\n")
+    p = run(["run", "--source", src, "--final", fin, "--state-dir", st, "--no-words"], tmp_path)
+    assert "--new-run" in p.stdout.splitlines()[0]

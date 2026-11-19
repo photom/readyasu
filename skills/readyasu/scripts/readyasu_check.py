@@ -460,6 +460,9 @@ def cmd_run(args: argparse.Namespace) -> int:
 
 def first_line(status: str, attempt: int, revisions: int, same_as_previous: bool, args: argparse.Namespace,
                problems: list[str], folder: Path) -> str:
+    if problems == ["the final draft changed during the run"]:
+        return ("The final draft changed while the checks ran. Run the same command again without changing the file, "
+                "then follow the first line of that output.")
     if problems:
         return ("Some checks did not finish: " + "; ".join(problems) + ". Report them under \"Checks not run\" "
                 "with the reason check_error.")
@@ -478,7 +481,8 @@ def first_line(status: str, attempt: int, revisions: int, same_as_previous: bool
                 f"Do not change the body. Right before submitting, {verify} once.")
     if revisions <= 1:
         return (f"Ran the checks (attempt {attempt}). That was your one revision: do not change the body again. Right "
-                f"before submitting, {verify} once.")
+                f"before submitting, {verify} once. (If this was the first run for a new request about this text, run it "
+                "again with --new-run instead.)")
     return (f"Ran the checks (attempt {attempt}, revision {revisions}). This exceeds the one-revision rule. Proceed only if this revision "
             "only reverted fills without a source (references/fact-recovery.md section 2, step 7), and say so in the "
             f"report. Right before submitting, {verify} once.")
