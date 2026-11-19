@@ -757,7 +757,7 @@ def _attach_leftovers(chunks: list[Chunk]) -> list[Chunk]:
             else:
                 merged = Chunk(pair.orig, pair.rev + ch.rev if nb < k else ch.rev + pair.rev)
             ratio = _chunk_ratio(merged)
-            if ratio > _chunk_ratio(pair) and (best is None or ratio > best[0]):
+            if ratio > _chunk_ratio(pair) and _leftover_overlap(ch, pair) >= 1 and (best is None or ratio > best[0]):
                 best = (ratio, nb, merged)
         if best is None:
             k += 1
@@ -767,6 +767,13 @@ def _attach_leftovers(chunks: list[Chunk]) -> list[Chunk]:
         if best[1] < k:
             k -= 1
     return result
+
+
+def _leftover_overlap(leftover: Chunk, pair: Chunk) -> int:
+    """Content words of a one-sided leftover sentence that appear on the pair's other side but not on its own side."""
+    if leftover.orig:
+        return len(content_words(leftover.orig_text) & (content_words(pair.rev_text) - content_words(pair.orig_text)))
+    return len(content_words(leftover.rev_text) & (content_words(pair.orig_text) - content_words(pair.rev_text)))
 
 
 def attach_adjacent(chunks: list[Chunk], orig: tx.Document, rev: tx.Document) -> list[Chunk]:
@@ -805,7 +812,7 @@ def attach_adjacent(chunks: list[Chunk], orig: tx.Document, rev: tx.Document) ->
             overlap = len(left & gained)
             moved_in = overlap >= 2 and overlap >= len(left) / 2
             score = ratio + (1.0 if moved_in else 0.0)
-            if (ratio > _chunk_ratio(pair) or moved_in) and (best is None or score > best[0]):
+            if ((ratio > _chunk_ratio(pair) and overlap >= 1) or moved_in) and (best is None or score > best[0]):
                 best = (score, nb, merged)
         if best is None:
             k += 1
@@ -948,10 +955,15 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
         # "You don't have to restart" -> "Restarting is optional": a negated obligation is a permission
         o_neg, r_neg = NEG_OBLIGATION.sub(" ", o), NEG_OBLIGATION.sub(" ", r)
     neg_o, neg_r = count(NEGATION, o_neg), count(NEGATION, r_neg)
+    not_just = re.compile(r"\b(?:not|n['’]t)\s+(?:just|only|merely|simply)\b|n['’]t\s+(?:just|only|merely|simply)\b", re.IGNORECASE)
+    nj_o, nj_r = len(not_just.findall(o_neg)), len(not_just.findall(r_neg))
     quiet = re.compile(r"\b(?:silent(?:ly)?|quiet(?:ly)?)\b", re.IGNORECASE)
     if neg_r == neg_o + 1 and quiet.search(o) and not quiet.search(r):
         risk("negation", False, f"Number of negations changed: {neg_o} → {neg_r}. \"silently\" or \"quietly\" became a "
              "negation (\"no alert\", \"without an error message\"); fine only when the text says what was missing.")
+    elif neg_o != neg_r and neg_o - nj_o == neg_r - nj_r:
+        risk("negation", False, f"Number of negations changed: {neg_o} → {neg_r}, only by \"not just\" or \"not only\". "
+             "Check that what it affirmed is still affirmed (\"not just X, Y\" keeps X).")
     elif neg_o != neg_r:
         risk("negation", True, f"Number of negations changed: {neg_o} → {neg_r}")
     else:
@@ -1042,7 +1054,15 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
              + (f'"{w_obl_o}"' if w_obl_o else "none") + " → " + (f'"{w_obl_r}"' if w_obl_r else "none"))
 
     if ABILITY.search(o) and not ABILITY.search(r) and not PERMISSION.search(r) and not OBLIGATION_STRONG.search(r):
-        review("ability", f'Ability phrase "{first(ABILITY, o)}" disappeared. Check that the sentence still says what is possible.')
+        possibility = re.search(r"\b(\w+)\s+can\s+(\w+)", o, re.IGNORECASE)
+        person = r"(?:i|you|we|they|he|she|users?|customers?|admins?|administrators?|people|members?|teams?|anyone|everyone)"
+        if possibility and not re.fullmatch(person, possibility.group(1), re.IGNORECASE) and \
+                re.search(r"\b" + re.escape(possibility.group(2)[:5]), r, re.IGNORECASE) and not has_question:
+            risk("certainty", True, f'"can {possibility.group(2)}" became a plain statement: if "can" meant possibility, '
+                 "the sentence now says it always happens")
+        else:
+            review("ability", f'Ability phrase "{first(ABILITY, o)}" disappeared. Check that the sentence still says what '
+                   'is possible; if "can" meant possibility, the sentence now says it always happens.')
 
     st_o, st_r = STATUS.findall(o), STATUS.findall(r)
     if st_o and not st_r:
@@ -1240,6 +1260,24 @@ def _list_hits(name: str, text: str) -> list[str]:
     return hits
 
 
+def _dedupe_risks(risks: list[Risk]) -> list[Risk]:
+    """One counted risk per change: two scope findings on the same pair, or "may" -> "can" reported as both
+    certainty and permission, count once."""
+    result: list[Risk] = []
+    seen_scope: set[tuple[int, int]] = set()
+    may_can: set[tuple[int, int]] = {(x.orig_line, x.rev_line) for x in risks if x.message.startswith('"may" became "can"')}
+    for x in risks:
+        key = (x.orig_line, x.rev_line)
+        if x.counted and x.kind == "scope" and key != (0, 0):
+            if key in seen_scope:
+                continue
+            seen_scope.add(key)
+        if x.kind == "permission" and key in may_can and x.message.lower().endswith(' may"'):
+            continue
+        result.append(x)
+    return result
+
+
 def moved_names(chunks: list[Chunk], lower_words: Optional[set[str]] = None) -> list[Risk]:
     """Names that left one changed sentence and appeared in another (owners swapped between list items)."""
     lw = lower_words if lower_words is not None else set()
@@ -1277,8 +1315,7 @@ def moved_names_in_lines(changes: list[dict[str, object]], lower_words: Optional
             for k, (a, b) in enumerate(zip(old, new)):
                 if ITEM_LINE.match(a) and ITEM_LINE.match(b):
                     pairs.append((int(str(c["orig_line"])) + k, int(str(c["rev_line"])) + k, a, b))
-    info = [(ol, rl, a, b, set(names(_strip_item(tx.mask(a)), lower_words=lw)),
-             set(names(_strip_item(tx.mask(b)), lower_words=lw))) for ol, rl, a, b in pairs]
+    info = [(ol, rl, a, b, _item_names(a, lw), _item_names(b, lw)) for ol, rl, a, b in pairs]
     result: list[Risk] = []
     for ol, rl, a, b, no, nr in info:
         moved: list[str] = []
@@ -1296,7 +1333,21 @@ def moved_names_in_lines(changes: list[dict[str, object]], lower_words: Optional
 
 
 def _strip_item(line: str) -> str:
-    return re.sub(r"^\s*(?:[-*+]\s+|\d+[.)]\s+|\|\s*)", "", line)
+    return re.sub(r"^\s*(?:[-*+]\s+|\d+[.)]\s+|\|\s*)(?:\[[ xX]\]\s+)?", "", line)
+
+
+def _item_names(line: str, lower_words: set[str]) -> set[str]:
+    """Names in a list item or table row, including a leading owner ("- [ ] Priya: Draft ...", "| Priya | ...")."""
+    text = _strip_item(tx.mask(line))
+    found = set(names(text, lower_words=lower_words))
+    cells = [c for c in text.split("|")] if line.lstrip().startswith("|") else [text]
+    for cell in cells:
+        m = re.match(r"\s*[*_]*([A-Z][A-Za-z'’-]+(?:\s+[A-Z][A-Za-z'’-]+)?)[*_]*\s*(?::|$)", cell)
+        if m:
+            for word in m.group(1).split():
+                if word not in NAME_STOP and not (_word_forms(word) & lower_words):
+                    found.add(word)
+    return found
 
 
 def added_actors(orig: tx.Document, rev: tx.Document, materials: str, chunks: list[Chunk]) -> list[Review]:
@@ -1375,6 +1426,10 @@ def stiffness(orig: tx.Document, rev: tx.Document, chunks: Optional[list[Chunk]]
                     added.add(id(y))
     o_kept = " ".join(s.masked for s in orig.sentences if id(s) not in deleted)
     r_kept = " ".join(s.masked for s in rev.sentences if id(s) not in added)
+    ai_forms = re.compile(r"\b\w+n['’]t\s+(?:just|only|merely|simply)\b|[;,—–]\s*(?:it|that|they)['’](?:s|re)\b"
+                          r"|\bit['’]s\s+(?:worth\s+noting|important\s+to\s+note)\b|\bhere['’]s\b|\blet['’]s\s+(?:dive|explore|take)\b",
+                          re.IGNORECASE)
+    o_kept, r_kept = ai_forms.sub(" ", o_kept), ai_forms.sub(" ", r_kept)
     co, cr = len(CONTRACTION.findall(o_kept)), len(CONTRACTION.findall(r_kept))
     if co >= 2 and cr < co / 2:
         items.append(f"Contractions dropped from {co} to {cr}. Check that the rewrite did not make the register stiffer.")
@@ -1479,6 +1534,7 @@ def fact_gaps(doc: tx.Document) -> tuple[list[Review], str]:
 
 def material_check(final: tx.Document, materials: str, original: str) -> dict[str, Any]:
     """Compare the final draft with the material (and original): numbers and names not found there."""
+    materials = re.sub(r"(?m)^(\s*)(?:\d+[.)]|[-*+])\s+", r"\1", materials)  # list markers are not values
     source = materials + "\n" + original
     src_numbers = numbers(source)
     src_low = source.lower()
@@ -1682,6 +1738,7 @@ def compare(orig_text: str, rev_text: str, doc_type: Optional[str] = None, reade
     for ch in chunks:
         compare_chunk(ch, doc_type, risks, reviews, orig_all, materials, proper, rev_all)
     risks.extend(moved_names(chunks, lower_words))
+    risks[:] = _dedupe_risks(risks)
 
     # whole-text checks catch sentences that were deleted, added, split or moved
     o_nums, r_nums = numbers(orig_all), numbers(" ".join(s.masked for s in rev.sentences))

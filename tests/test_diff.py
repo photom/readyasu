@@ -560,3 +560,48 @@ def test_fully_rewritten_long_text_is_fast() -> None:
     start = time.monotonic()
     diff.compare(o + "\n", r + "\n")
     assert time.monotonic() - start < 10
+
+
+# ---- set 7 review
+
+@pytest.mark.parametrize(("orig", "rev"), [
+    ("- [ ] Priya: Draft the rollback plan by Wednesday\n- [ ] Tom: Share the staging notes by Friday\n",
+     "- [ ] Tom: Draft the rollback plan by Wednesday\n- [ ] Priya: Share the staging notes by Friday\n"),
+    ("- **Priya**: Draft the rollback plan.\n- **Tom**: Share the notes.\n",
+     "- **Tom**: Draft the rollback plan.\n- **Priya**: Share the notes.\n"),
+    ("| Owner | Task |\n|---|---|\n| Priya | Draft the plan |\n| Tom | Share the notes |\n",
+     "| Owner | Task |\n|---|---|\n| Tom | Draft the plan |\n| Priya | Share the notes |\n"),
+])
+def test_owner_swaps_in_item_and_table_forms(orig: str, rev: str) -> None:
+    assert "name_order" in kinds(orig, rev)
+
+
+def test_possibility_can_becoming_plain_is_counted() -> None:
+    assert "certainty" in kinds("A crash during restore can corrupt the database.\n",
+                                "A crash during restore corrupts the database.\n")
+    assert "certainty" not in kinds("You can export the data as CSV.\n", "Export the data as CSV.\n")
+
+
+def test_not_just_removal_is_listed_not_counted() -> None:
+    o = "This PR does not just fix a bug; it also adds retries.\n\nThe tool is not only faster but also cheaper.\n"
+    r = "This PR fixes a bug and adds retries.\n\nThe tool is faster and cheaper.\n"
+    result = diff.compare(o, r)
+    assert [x for x in result.risks if x.counted] == []
+    assert any(x.kind == "negation" for x in result.risks)
+
+
+def test_one_change_counts_once() -> None:
+    assert kinds("Most services restarted.\n", "All services restarted.\n").count("scope") == 1
+    assert kinds("Admins may delete projects.\n", "Admins can delete projects.\n") == ["certainty"]
+
+
+def test_list_numbers_in_material_are_not_values() -> None:
+    result = diff.compare("We need controllers.\n", "We need two controllers.\n",
+                          materials="2. The new access points handle up to 60 devices each.\n")
+    assert [m["value"] for m in result.material["numbers_not_in_material"]] == ["2"]
+
+
+def test_contractions_in_removed_contrast_are_not_counted() -> None:
+    o = "This PR doesn't just fix a bug — it's a rethink. It's worth noting that retries are capped.\n"
+    r = "This PR fixes a bug and rethinks retries. Retries are capped.\n"
+    assert diff.compare(o, r).stiffness == []
