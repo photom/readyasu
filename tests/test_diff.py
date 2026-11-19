@@ -350,3 +350,87 @@ def test_changed_place_excerpt_shows_the_difference() -> None:
 def test_empty_fact_gaps_section_is_shown() -> None:
     result = diff.compare("We ship on Monday.\n", "We ship Monday.\n", want_fact_gaps=True)
     assert "None found" in "\n".join(diff.format_sections(result))
+
+
+# ---- set 5 review
+
+@pytest.mark.parametrize(("orig", "rev", "kind"), [
+    ("Why does this matter? Outages may cost us customers.\n", "This matters because outages cost us customers.\n",
+     "certainty"),
+    ("Is the cache the cause? It might be.\n", "The cache is the cause.\n", "certainty"),
+    ("Back up the database first.\n\nRun the migration on Fridays.\n\nDo not notify customers.\n",
+     "Do not notify customers.\n\nBack up the database first.\n\nDo not run the migration on Fridays.\n", "negation"),
+    ("It appears that a config change caused the outage.\n", "A config change caused the outage.\n", "certainty"),
+    ("The cache seems stale.\n", "The cache is stale.\n", "certainty"),
+    ("It's possible that the job failed.\n", "The job failed.\n", "certainty"),
+    ("The bug is believed to be fixed.\n", "The bug is fixed.\n", "certainty"),
+    ("Teams that may grow could hit the limit.\n", "Teams that may grow will hit the limit.\n", "certainty"),
+    ("The vendor claims the patch fixes the leak.\n", "The patch fixes the leak.\n", "hearsay"),
+    ("Only admins can delete projects while the freeze is active.\n", "Only admins can delete projects.\n", "condition"),
+    ("Merge the PR once the tests pass.\n", "Merge the PR.\n", "condition"),
+    ("The May release adds SSO.\n", "The June release adds SSO.\n", "number"),
+    ("The fix ships Fri, Dec 5.\n", "The fix ships Mon, Dec 5.\n", "number"),
+    ("We need at least two reviewers.\n", "We need two reviewers.\n", "approximation"),
+    ("The window starts at 10:00 UTC.\n", "The window starts at 10:00 PST.\n", "number"),
+    ("Pick either A or B.\n", "Pick A and B.\n", "scope"),
+    ("After a crash, the agent does not restart automatically.\n",
+     "After a crash, the agent restarts automatically without any delay.\n", "negation"),
+    ("The replicas are upgraded first, not the primary.\n", "The primary is upgraded first, not the replicas.\n",
+     "negation"),
+    ("You can export the data as CSV.\n", "Can you export the data as CSV?\n", "question"),
+])
+def test_set5_meaning_changes_are_counted(orig: str, rev: str, kind: str) -> None:
+    assert kind in kinds(orig, rev)
+
+
+@pytest.mark.parametrize(("orig", "rev"), [
+    ("Users may see errors during the upgrade, and they may need to sign in again.\n",
+     "Users may see errors during the upgrade and may need to sign in again.\n"),  # used to crash
+    ("Please send the report by Friday.\n", "Could you send the report by Friday?\n"),
+    ("When the build finishes, deploy it.\n", "After the build finishes, deploy it.\n"),
+    ("In order to deploy, you need to have admin rights.\n", "To deploy, you need admin rights.\n"),
+    ("It may take a few minutes.\n", "It might take a few minutes.\n"),
+    ("The cache can possibly fill up.\n", "The cache can fill up.\n"),
+    ("The results were nothing short of remarkable.\n", "The results were remarkable.\n"),
+    ("The cache now refreshes hourly. Feel free to reach out with any questions!\n",
+     "The cache refreshes every hour.\n"),
+    ("The interval changed from 1.0 to 0.5 seconds.\n", "The interval changed from 1 to 0.5 seconds.\n"),
+    ("We do not support Windows.\n", "We do not offer Windows builds.\n"),
+    ("We plan to ship this sprint. In order\nto finish, Priya will review the parser and Sam will\nupdate the docs.\n",
+     "We plan to ship this sprint. To finish, Priya\nwill review the parser and Sam will update the docs.\n"),
+])
+def test_set5_harmless_rewrites(orig: str, rev: str) -> None:
+    assert kinds(orig, rev) == []
+
+
+def test_deleted_first_paragraph_does_not_shift_pairs() -> None:
+    o = ("Great question! Here's a summary you can share.\n\nOur CI pipeline in Berlin has become a bottleneck.\n\n"
+         "Build times in Frankfurt rose to 47 minutes.\n\nThe CI team owns the runners.\n")
+    r = ("Our CI pipeline in Berlin has become a real bottleneck.\n\nBuild times in Frankfurt rose to 47 minutes "
+         "last quarter.\n\nThe CI team owns all runners.\n")
+    result = diff.compare(o, r)
+    assert [k.kind for k in result.risks if k.counted] == []
+    assert [(c["orig_line"], c["rev_line"]) for c in result.changes] == [(1, 0), (3, 1), (5, 3), (7, 5)]
+
+
+def test_contractions_in_deleted_residue_are_not_counted() -> None:
+    o = "Here's the update you asked for. The job runs nightly.\n\nLet me know if you'd like more detail.\n"
+    assert diff.compare(o, "The job runs every night.\n").stiffness == []
+
+
+def test_closing_section_removal_is_a_soft_review() -> None:
+    o = "# Guide\n\n## Setup\n\nInstall it.\n\n## Final Thoughts\n\nInstalling it is easy.\n"
+    result = diff.compare(o, "# Guide\n\n## Setup\n\nInstall it.\n")
+    messages = [v.message for v in result.reviews if v.kind == "heading"]
+    assert messages and messages[0].startswith("Closing section removed")
+    assert result.energy == []
+
+
+def test_not_just_is_not_a_reversed_contrast() -> None:
+    result = diff.compare("It is not just faster, but more reliable.\n", "It is faster and more reliable.\n")
+    assert "contrast_reversed" not in [r.kind for r in result.risks]
+
+
+def test_material_lines_from_the_original_are_marked() -> None:
+    result = diff.compare("The bill was $3200.\n", "The bill was $3200 per month.\n", materials="Cost: monthly.\n")
+    assert any(str(m["material_line"]).startswith("(original)") for m in result.material["matched_numbers"])

@@ -328,11 +328,14 @@ def cmd_run(args: argparse.Namespace) -> int:
         except tx.InputError:
             problems.append("the final draft could not be read again")
 
-    checks = ["lint", "diff"] if mode == "rewrite" else ["lint"]
-    if material_text.strip():
+    checks = []
+    if lint_final is not None:
+        checks.append("lint")
+    if diff is not None and mode == "rewrite":
+        checks.append("diff")
+    if diff is not None and material_text.strip():
         checks.append("material")
     meaning_risk = int(diff.get("meaning_risk_count", 0)) if diff else 0
-    final_findings = list(lint_final.get("findings", [])) if lint_final else []
     final_count = int(lint_final.get("review_findings", 0)) if lint_final else 0
     orig_count = int(lint_orig.get("review_findings", 0)) if lint_orig else None
     lint_counts = lint_final.get("counts", {}) if lint_final else {}
@@ -351,33 +354,34 @@ def cmd_run(args: argparse.Namespace) -> int:
             # The run key comes from the inputs as given, so adopting a material as the original in one attempt
             # and not in the next does not start a new run.
             key = source_hash if given_original else tx.sha256_text("\n".join(material_hashes))
+            session = args.session or os.environ.get("READYASU_SESSION") or None
+            if session:
+                # each session keeps its own run on the same original, so interleaved sessions do not reset counts
+                key += "-" + tx.sha256_text(session)[:12]
             by_source = folder / "index" / "by-source" / f"{key}.json"
             previous = read_json(by_source) or {}
+            if not valid_run_id(str(previous.get("run", ""))):
+                previous = {}
             cwd = str(Path.cwd().resolve())
-            session = args.session or os.environ.get("READYASU_SESSION") or None
-            fresh = False
             try:
                 age = now_utc().timestamp() - float(previous.get("updated_ts", 0))
             except (TypeError, ValueError):
                 age = RUN_WINDOW_SECONDS + 1
             if args.run_id:
                 run_id = args.run_id
-                fresh = previous.get("run") != run_id
-            elif args.new_run or not previous.get("run") or age > RUN_WINDOW_SECONDS or previous.get("cwd") != cwd \
-                    or (session and previous.get("session") and previous.get("session") != session):
+            elif args.new_run or not previous.get("run") or age > RUN_WINDOW_SECONDS or previous.get("cwd") != cwd:
                 run_id = new_run_id()
-                fresh = True
             else:
                 run_id = str(previous["run"])
-            if fresh:
-                previous = {}
             run_dir = folder / "runs" / run_id
             existing = [int(m.group(1)) for p in run_dir.glob("attempt-*.json")
                         if (m := re.match(r"attempt-(\d+)\.json$", p.name))] if run_dir.is_dir() else []
             attempt = (max(existing) + 1) if existing else 1
-            same_as_previous = attempt > 1 and previous.get("last_final") == final_hash
+            # the latest record of this run (not the index) says how many revisions it already had
+            last = read_json(run_dir / f"attempt-{max(existing)}.json") or {} if existing else {}
+            same_as_previous = attempt > 1 and last.get("final_sha256") == final_hash
             try:
-                revisions = int(previous.get("revisions", 0) or 0)
+                revisions = int(last.get("revisions", 0) or 0)
             except (TypeError, ValueError):
                 revisions = 0
             if attempt > 1 and not same_as_previous:
@@ -435,6 +439,7 @@ def cmd_run(args: argparse.Namespace) -> int:
                  "such folder; then follow the first line of that output.")
     else:
         first = first_line(status, attempt, revisions, same_as_previous, args, problems, folder)
+    kept_added = split_kept_added(lint_final, lint_orig, original)
     if args.json:
         out = {"format": 1, "tool": TOOL, "version": __version__, "status": status, "first_line": first,
                "status_line": status_line, "run": run_id or None, "attempt": attempt or None,
@@ -442,7 +447,8 @@ def cmd_run(args: argparse.Namespace) -> int:
                "problems": problems + ([f"record ({record_error})"] if record_error else []),
                "meaning_risk": meaning_risk,
                "review_findings": {"original": orig_count, "final": final_count},
-               "flagged_words_kept": kept_words(final_findings), "lint": lint_final, "diff": diff}
+               "flagged_words_kept": kept_added[0], "flagged_words_added": kept_added[1],
+               "lint": lint_final, "diff": diff}
         sys.stdout.write(json.dumps(out, ensure_ascii=True, indent=1) + "\n")
     else:
         sys.stdout.write(format_run(first, status_line, mode, checks, record_path, lint_final, lint_orig, diff,
@@ -478,6 +484,21 @@ def first_line(status: str, attempt: int, revisions: int, same_as_previous: bool
             f"report. Right before submitting, {verify} once.")
 
 
+def split_kept_added(lint_final: Optional[dict[str, Any]], lint_orig: Optional[dict[str, Any]],
+                     original_text: Optional[str]) -> tuple[list[str], list[str]]:
+    """Flagged words in the final draft: (kept from the original, added by the rewrite)."""
+    if lint_final is None:
+        return [], []
+    final_words = kept_words(list(lint_final.get("findings", [])))
+    if lint_orig is None:
+        return final_words, []
+    orig_words = {w.lower() for w in kept_words(list(lint_orig.get("findings", [])))}
+    orig_low = original_text.lower() if original_text else ""
+    in_orig = [w for w in final_words if w.lower() in orig_words or
+               (orig_low and re.search(r"(?<![\w-])" + re.escape(w.lower()), orig_low))]
+    return in_orig, [w for w in final_words if w not in in_orig]
+
+
 def format_run(first: str, status_line: str, mode: str, checks: list[str], record: Optional[Path],
                lint_final: Optional[dict[str, Any]], lint_orig: Optional[dict[str, Any]],
                diff: Optional[dict[str, Any]], orig_count: Optional[int], final_count: int, adopted: str,
@@ -508,13 +529,7 @@ def format_run(first: str, status_line: str, mode: str, checks: list[str], recor
     else:
         out.append(f"Review findings: final {final_count} {NOT_A_SCORE}")
     if lint_final is not None:
-        final_words = kept_words(list(lint_final.get("findings", [])))
-        orig_words = {w.lower() for w in kept_words(list((lint_orig or {}).get("findings", [])))}
-        orig_low = original_text.lower() if original_text else ""
-        in_orig = [w for w in final_words if w.lower() in orig_words or
-                   (orig_low and re.search(r"(?<![\w-])" + re.escape(w.lower()), orig_low))]
-        kept = in_orig if lint_orig is not None else final_words
-        added = [w for w in final_words if w not in in_orig] if lint_orig is not None else []
+        kept, added = split_kept_added(lint_final, lint_orig, original_text)
         if kept:
             out.append("Flagged words kept: " + ", ".join(kept)
                        + " (reread these sentences; ask the writer or give the reason under \"AI-like wording kept\")")

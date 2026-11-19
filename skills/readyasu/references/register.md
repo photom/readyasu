@@ -24,7 +24,7 @@ Details of the fourth item of SKILL.md section 2, Step 1: the writer's role and 
 | A specific outside party | a client, a vendor's contact | from their words (customers: general; a vendor's contact: informed) |
 | Everyone outside | all customers, readers of a public post | general; for technical articles and papers, do not decide |
 
-Use the default level only when the relationship was stated, and write "informed (inferred from the relationship)". A stated level takes priority.
+Use the default level only when the relationship was stated, and write it as "informed (inferred)" in the check record. A stated level takes priority.
 
 ## 3. How to decide
 
@@ -64,6 +64,6 @@ Use the reader's name or role only as the original gives it. Do not add a greeti
 
 ## 9. How to report
 
-- Write the three values in the check record ("Writer: support team (specified) / Reader: client, informed (inferred from the relationship) / Setting: mail (inferred)").
+- Write the three values in the check record ("Writer: support team (specified) / Reader: informed (inferred) / Setting: mail (inferred)").
 - Report register changes under "What changed" in one line ("made requests polite questions for a client").
 - A "register notice" is a line under "Questions for the writer" that says something the writer must decide because of the relationship (for example, an internal name the outside reader will not know). Like "Needs an explanation", it does not count toward the three questions.

@@ -28,23 +28,23 @@ Each item is tagged with its kind. Counted kinds make `--fail-on meaning-risk` f
 |---|---|---|
 | number | A number was removed, added or changed: digits, number words, quarters and versions (Q3, v2), currency and magnitudes ($1.5M, 5k), percentages; a unit written next to an unchanged number (30 seconds → 30 ms, 30 days → 30 business days); a month or weekday name. The whole-text line catches numbers that disappeared from or appeared in the whole text | Restore, unless it is a fill or correction from a source (fact-recovery.md), an absolute date you added after a relative one, or a count word you removed with a count announcement or a cleft list ("Three things:") while every item stayed |
 | approximation | about, up to, at least, more than... on the same number changed | Restore the original approximation |
-| negation | The number of negations (not, no, never, n't, without, unless...) changed in the paired sentences | Read both. Removing "not only" or turning "not X but Y" into "Y" also changes the count; that is fine only when the rephrase test passes |
-| certainty | A hedge (may, might, could, would, likely, appears to, we expect, planned...) disappeared or was replaced by a stronger one. Stacked hedges ("could potentially") count as one, so reducing a stack to one hedge is not reported | Restore the hedge at the same strength |
+| negation | The number of negations (not, no, never, n't, without, unless...) changed in the paired sentences; or the count stayed the same but the kind changed ("does not restart" → "restarts without delay"); or what is denied swapped sides ("the replicas, not the primary" → "the primary, not the replicas") | Read both. Removing "not only" or turning "not X but Y" into "Y" also changes the count; that is fine only when the rephrase test passes |
+| certainty | A hedge (may, might, could, would, likely, seems, appears to/that, it's possible, is believed to, we expect, planned...) disappeared or was replaced by a stronger one, also inside the answer of a folded self-answered question. Stacked hedges ("could potentially", "can possibly") count as one, so reducing a stack to one hedge is not reported | Restore the hedge at the same strength |
 | booster | always, guaranteed, definitely, ensures... was added. Counted only for pr, article, incident, proposal, manual, formal and paper (not when the original sentence already has a strong obligation word such as must or required); otherwise listed as a review finding | Remove the added certainty |
 | permission | you may, allowed to, optional, no need to... appeared or disappeared | Restore; permission is not ability ("may" is not "can") |
 | obligation | should ↔ must, or an obligation word appeared or disappeared | Restore the original strength |
 | status | TBD, pending, under investigation, not yet, unconfirmed... disappeared | Restore the state; do not turn it into a finding or a plan |
-| hearsay | reportedly, according to, says, said, told us, noted that, colleagues say... appeared or disappeared | Restore; hearsay is not assertion |
+| hearsay | reportedly, according to, says, said, told us, claims, noted, mentioned, colleagues say, users report... appeared or disappeared | Restore; hearsay is not assertion |
 | question | A question became a statement or the reverse. A short self-answered question folded into a statement, and a request turned into a polite question, are listed as not counted | Restore the sentence type, except when you folded a self-answered question into a statement (SKILL.md "Decoration and ad copy") or turned a request into a polite question for a stated relationship (register.md section 7) |
 | request | please, could you... disappeared | Restore the request form; a bare imperative changes politeness |
 | scope | A limiting word (only, solely) disappeared; either/or ↔ both/all; or a determiner such as some, most, many or several disappeared with no other partial word, or a partial word became all/every | Restore the scope |
-| condition | A condition or time limit disappeared: if, unless, until, when, as long as, provided, at launch, initially, for now, temporarily | Restore it; without it the sentence is true in more cases. A rewrite that keeps the condition in other words ("when" → "after") is fine |
+| condition | A condition or time limit disappeared: if, unless, until, when, while, once, before, after, as soon as, as long as, provided, at launch, initially, for now, temporarily | Restore it; without it the sentence is true in more cases. A rewrite that keeps the condition in other words is fine |
 | correlation | A cause word was added to a sentence that stated only a correlation | Restore the correlation wording |
 | commitment | we will, we guarantee, will never happen again... was added | Remove it unless the request or material states the commitment |
 | citation | A citation ([1], (Smith, 2020)) changed | Restore; which source supports which claim must not move |
 | name_order | The same names appear in a different order, or a name moved to another sentence or line (owners swapped between list items) | Check who does what to whom; restore if the roles swapped |
 | material_number | (compose) A number in the final draft is not in the material | Remove it or use the material's value |
-| contrast_reversed [not counted] | A word the original denied ("not X", "rather than X") now appears with focus, priority, first, both, and... | If X moved to the affirmative side, the claim flipped; restore the negation (rephrase-test.md section 3). A rewrite such as "First, reduce X" can also appear; read which side X is on |
+| contrast_reversed [not counted] | A word the original denied ("not X", "rather than X"; not "not just X", which affirms X) now appears with focus, priority, first, both, and... | If X moved to the affirmative side, the claim flipped; restore the negation (rephrase-test.md section 3). A rewrite such as "First, reduce X" can also appear; read which side X is on |
 | protected [not counted] | Inline code, URLs, e-mail addresses or code blocks changed | Restore them exactly |
 
 Some forms are not caught. Compare sentences without findings against your note too.
@@ -69,8 +69,9 @@ Some forms are not caught. Compare sentences without findings against your note 
 | connection | A rewritten sentence starts with a connective or "this/it". Say what it connects to; fix or ask |
 | actor_added | A role (team, manager, we, you...) or a name appeared that is in neither the original nor the material. Remove invented actors, owners and recipients |
 | deleted | A deleted sentence held a negation, hedge or obligation. Check that nothing appears only there |
+| added | An added sentence holds a negation, obligation or permission. Check that the original or material says so |
 | words_gone | Content words that no longer appear anywhere. Check that no fact went with them |
-| heading | A heading changed or the number of headings changed. Check the warnings, conditions and roles it held |
+| heading | A heading changed or the number of headings changed, or a closing section ("Conclusion", "Final thoughts") was removed. Check the warnings, conditions and roles it held; a closing section may go only when it repeated the body |
 | stance | With `--stance`: "let's" in a rule document, "will" added in an explanation, or an obligation added to a recommendation |
 
 ### == Stiffness ==
@@ -85,7 +86,7 @@ Exclamation marks, emoji or headings decreased. Check that the writer's energy w
 
 Shown when material was passed (`--material`, or material sections on standard input).
 - "Not in the material (numbers)" and "(names)": values in the final draft found in neither the material nor the original. In compose mode, numbers here are counted meaning risks. When you filled a value, the excerpt must have the line it came from (fact-recovery.md section 2, step 6).
-- "Matches a material line": shows only that a material line has the same value. It does not prove the line is the source or that the value is right.
+- "Matches a material line": shows only that a material line has the same value; lines marked "(original)" come from the original, not the material. It does not prove the line is the source or that the value is right.
 - "Hedge or status words in the material that the final draft lacks": check that the final draft kept "planned", "not yet", "may" and the like where it uses those values.
 
 ### == Fact gaps ==

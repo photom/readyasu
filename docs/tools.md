@@ -74,14 +74,14 @@ python3 readyasu_check.py verify --final FINAL|- [--state-dir DIR] [--json]
 ### Output
 
 1. What to do next (attempt and revision count, and the verify command to run).
-2. The status line: `readyasu-check: executed via=run run=ID attempt=N final=sha256:XXXXXXXXXXXX mode=rewrite|compose checks=lint,diff[,material] meaning_risk=N` (compose mode without an adopted original: `checks=lint,material`). Other statuses: `unrecorded`, `partial` (with `reason=check_error` when a check did not finish, `reason=record_error` when the record could not be written, `reason=internal_error`), `not_run reason=usage_error`.
+2. The status line: `readyasu-check: executed via=run run=ID attempt=N final=sha256:XXXXXXXXXXXX mode=rewrite|compose checks=lint,diff[,material] meaning_risk=N` (compose mode without an adopted original: `checks=lint,material`). `checks=` lists only the checks that finished. Other statuses: `unrecorded`, `partial` (with `reason=check_error` when a check did not finish, `reason=record_error` when the record could not be written, `reason=internal_error`), `not_run reason=usage_error`.
 3. `Checks run:`, the record path, `Stiffness check:` and `Energy check:` (not in compose mode), `Review findings: original N → final M`, and when present `Flagged words kept:` and `Flagged words added by the rewrite:`.
 4. The diff sections and the lint findings on the final draft.
 5. The first line and the status line again.
 
 ### Runs and attempts
 
-A run groups the attempts on one original. A new attempt continues the previous run only when the original (in compose mode, the material, whether or not it was adopted as the original) is the same, the working folder is the same, the session ID is the same (when both attempts have one), and the previous attempt was less than two hours ago. `--new-run` always starts a new run. An attempt whose final draft is identical to the previous attempt's is not counted as a revision.
+A run groups the attempts on one original. A new attempt continues the previous run only when the original (in compose mode, the material, whether or not it was adopted as the original) is the same, the working folder is the same, the session ID is the same (each session ID keeps its own run), and the previous attempt was less than two hours ago. `--new-run` always starts a new run; use it only on the first run of a new request. The revision count comes from the run's latest record, so `--run-id` resumes a run with its own count. An attempt whose final draft is identical to the previous attempt's is not counted as a revision.
 
 ### verify
 

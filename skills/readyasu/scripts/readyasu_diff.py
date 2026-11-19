@@ -15,6 +15,7 @@ sys.dont_write_bytecode = True
 
 import argparse
 import difflib
+import functools
 import json
 import re
 from collections import Counter
@@ -84,8 +85,9 @@ NUMBER_WORD = re.compile(r"\b(" + "|".join(NUMBER_WORDS) + r")\b", re.IGNORECASE
 NEGATION = _rx(r"\b(?:not|no|never|none|nothing|nobody|nowhere|neither|nor|without|cannot|unless)\b|n['’]t\b")
 CERTAINTY = (
     (1, _rx(r"\b(?:may|might|could|would|possibly|perhaps|maybe|potentially|sometimes|occasionally|conceivably)\b"
-            r"|\bin\s+some\s+cases\b|\btends?\s+to\b|\bit\s+is\s+possible\b|\bthere\s+is\s+a\s+chance\b")),
-    (2, _rx(r"\b(?:likely|probably|apparently|presumably|seemingly|reportedly)\b|\b(?:appears?|seems?)\s+to\b"
+            r"|\bin\s+some\s+cases\b|\btends?\s+to\b|\bit(?:\s+is|['’]s)\s+possible\b|\bthere(?:\s+is|['’]s)\s+a\s+chance\b")),
+    (2, _rx(r"\b(?:likely|probably|apparently|presumably|seemingly|reportedly)\b|\b(?:appears?|appeared)\s+(?:to|that|like)\b"
+            r"|\b(?:seems?|seemed)\b|\b(?:is|are|was|were)\s+believed\s+to\b"
             r"|\b(?:is|are)\s+expected\s+to\b|\bsuggests?\b|\bwe\s+(?:believe|think|suspect|estimate)\b"
             r"|\bi\s+(?:believe|think|suspect|guess|expect)\b|\bwe\s+expect\b|\bestimated\b")),
     (3, _rx(r"\bplan(?:s|ned)?\s+to\b|\bplanned\b|\bscheduled\b|\bintend(?:s|ed)?\s+to\b|\baim(?:s|ed)?\s+to\b"
@@ -93,11 +95,12 @@ CERTAINTY = (
 )
 BOOSTER = _rx(r"\b(?:always|certainly|definitely|guaranteed?|surely|undoubtedly|invariably|reliably)\b"
               r"|\bwithout\s+(?:fail|exception|a\s+doubt)\b|\bensures?\b|\b100\s?%")
-PERMISSION = _rx(r"\b(?:you|users?|they|we|it|customers?|members?)\s+may\b|\b(?:allowed|permitted)\s+to\b"
+PERMISSION = _rx(r"\b(?:you|users?|they|we|customers?|members?)\s+may\b|\b(?:allowed|permitted)\s+to\b"
                  r"|\b(?:is|are)\s+permitted\b|\bfeel\s+free\s+to\b|\b(?:it['’]s|it\s+is)\s+(?:fine|okay|ok|acceptable)\s+to\b"
                  r"|\boptional(?:ly)?\b|\bmay\s+be\s+(?:omitted|skipped|left|used|included|ignored|removed)\b"
                  r"|\bno\s+need\s+to\b|\b(?:don['’]t|do\s+not)\s+have\s+to\b")
 OBLIGATION_STRONG = _rx(r"\b(?:must|shall|mandatory|required|requires?)\b|\b(?:have|has|had)\s+to\b|\bneeds?\s+to\b"
+                        r"|(?<!\bno\s)\bneeds?\s+(?!to\b|for\b)(?=[\w$€£])"
                         r"|\bis\s+obligated\b")
 OBLIGATION_SOFT = _rx(r"\b(?:should|ought\s+to|recommended|advisable|encouraged)\b|\bwe\s+recommend\b|\bbest\s+to\b")
 ABILITY = _rx(r"\bcan\b|\bable\s+to\b|\bcapable\s+of\b")
@@ -109,7 +112,9 @@ STATUS = _rx(r"\b(?:tbd|tbc|pending|unconfirmed|undecided|tentative(?:ly)?|on\s+
 HEARSAY = _rx(r"\b(?:reportedly|allegedly|rumou?red)\b|\baccording\s+to\b|\b(?:is|are|was|were)\s+said\s+to\b"
               r"|\b(?:reported|claims?|claimed|indicated|noted|mentioned|stated|confirmed|announced)\s+that\b|\b(?:i|we)\s+heard\b"
               r"|\b(?:says|said|told\s+(?:us|me|them|him|her|the\s+team))\b"
-              r"|\b(?:people|colleagues|users|customers|experts|critics|others|they)\s+say\b"
+              r"|\b(?:people|colleagues|users|customers|experts|critics|others|they)\s+(?:say|report)\b"
+              r"|\b(?:claims?|claimed|noted|mentioned|stated)\s+(?=(?:the|a|an|it|we|they|this|that|our|its|there)\b)"
+              r"|\btells?\s+us\b"
               r"|\b(?:we['’]re|i['’]m|we\s+are|i\s+am)\s+told\b")
 REQUEST = _rx(r"\bplease\b|\b(?:could|would|can|will)\s+you\b|\bkindly\b|\bwe\s+ask\s+(?:that|you)\b"
               r"|\bi(?:['’]d|\s+would)\s+like\s+you\s+to\b|\bi\s+need\s+you\s+to\b")
@@ -157,18 +162,18 @@ CLOSING_RESOLUTION = _rx(r"\bwe(?:['’]ll|\s+will)\s+continue\b|\bwe(?:['’]re
 VAGUE_QUANTITY = _rx(r"\b(?:some|several|a\s+few|many|various|a\s+number\s+of|certain)\b")
 CONTRAST_DENIED = _rx(r"\bnot\s+(?:just\s+|only\s+|merely\s+|simply\s+)?(?:an?\s+|the\s+|about\s+)?([a-z][\w-]{2,})"
                       r"|\b(?:instead\s+of|rather\s+than)\s+(?:an?\s+|the\s+)?([a-z][\w-]{2,})")
-CONDITION = _rx(r"\b(?:if|unless|until|till|whenever|when|provided(?:\s+that)?|as\s+long\s+as|in\s+case|except\s+(?:when|if)"
-                r"|at\s+launch|at\s+first|initially|for\s+now|for\s+the\s+time\s+being|temporarily)\b")
+CONDITION = _rx(r"\b(?:if|unless|until|till|whenever|when|while|after|before|as\s+soon\s+as|provided(?:\s+that)?"
+                r"|as\s+long\s+as|in\s+case|except\s+(?:when|if)|at\s+launch|at\s+first|initially|for\s+now"
+                r"|for\s+the\s+time\s+being|temporarily)\b"
+                r"|(?<!\bat\s)\bonce\b(?!\s+(?:a|an|per|every|more|again|or|and)\b)")
 NOT_CONDITION = _rx(r"\b(?:check|see|ask(?:s|ed)?|know|wonder(?:ing)?|determine|verify|tell|find\s+out|sure|unsure|decide|"
                     r"confirm)\s+if\b|\bas\s+if\b|\bwhen\s+(?=(?:is|are|was|were|do|does|did|will|would|can|could|should)\s+"
                     r"(?:the|it|we|you|they|this|that|our|your)\b)")
+NOT_PERMISSION = _rx(r"\bfeel\s+free\s+to\s+(?:reach\s+out|contact|ask|get\s+in\s+touch|let\s+(?:me|us)\s+know|ping|email|"
+                     r"message|drop)\b")
 # Wording that is not a hedge: requests and "would like".
 NOT_HEDGE = _rx(r"\b(?:could|would|can|will)\s+you\b|\bwould\s+(?:like|love|appreciate|prefer|be\s+grateful|be\s+happy|mind)\b")
-MONTH_MAY = re.compile(r"\bMay(?=\s+\d)|(?<=\b[Ii]n\s)May\b|(?<=\b[Bb]y\s)May\b|(?<=\b[Oo]f\s)May\b|(?<=\b[Oo]n\s)May\b"
-                       r"|(?<=\b[Uu]ntil\s)May\b|(?<=\b[Ss]ince\s)May\b|(?<=\b[Ff]rom\s)May\b|(?<=\b[Ee]arly\s)May\b"
-                       r"|(?<=\b[Ll]ate\s)May\b|(?<=\b[Mm]id-)May\b|(?<=\b[Mm]id\s)May\b|(?<=\b[Dd]uring\s)May\b"
-                       r"|(?<=\b[Bb]efore\s)May\b|(?<=\b[Aa]fter\s)May\b|(?<=\b[Nn]ext\s)May\b|(?<=\b[Ll]ast\s)May\b"
-                       r"|(?<=\b[Tt]his\s)May\b|(?<=\b[Tt]hrough\s)May\b")
+MAY_MODAL_NEXT = re.compile(r"\s+(?:I|we|you|they|he|she|it|the|this|these|those|our|your|their|all|everyone)\b")
 DATE_FULL = {"January": "January", "February": "February", "March": "March", "April": "April", "June": "June",
              "July": "July", "August": "August", "September": "September", "October": "October",
              "November": "November", "December": "December", "Monday": "Monday", "Tuesday": "Tuesday",
@@ -180,7 +185,7 @@ DATE_ABBR = {"Jan": "January", "Feb": "February", "Mar": "March", "Apr": "April"
              "Thu": "Thursday", "Thur": "Thursday", "Thurs": "Thursday", "Fri": "Friday", "Sat": "Saturday",
              "Sun": "Sunday"}
 DATE_WORD = re.compile(r"\b(" + "|".join(DATE_FULL) + r"|MONTHMAY)\b|\b(" + "|".join(sorted(DATE_ABBR, key=len, reverse=True))
-                       + r")\b\.?(?=,?\s+\d)")
+                       + r")\b\.?(?=,?\s+(?:\d|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\b))")
 UNIT_NAMES = {
     "ms": "ms", "msec": "ms", "millisecond": "ms", "milliseconds": "ms", "s": "s", "sec": "s", "secs": "s",
     "second": "s", "seconds": "s", "min": "min", "mins": "min", "minute": "min", "minutes": "min", "h": "h",
@@ -191,6 +196,8 @@ UNIT_NAMES = {
     "km": "km", "kg": "kg", "lb": "lb", "lbs": "lb", "mph": "mph", "am": "a.m.", "a.m.": "a.m.", "pm": "p.m.",
     "p.m.": "p.m.", "usd": "USD", "eur": "EUR", "gbp": "GBP", "jpy": "JPY", "cad": "CAD", "aud": "AUD",
     "chf": "CHF", "cny": "CNY", "inr": "INR", "dollars": "$", "euros": "€",
+    "utc": "UTC", "gmt": "GMT", "pst": "PST", "pdt": "PDT", "est": "EST", "edt": "EDT", "cst": "CST", "cdt": "CDT",
+    "mst": "MST", "mdt": "MDT", "cet": "CET", "cest": "CEST", "bst": "BST", "ist": "IST", "jst": "JST", "aest": "AEST",
 }
 UNIT_AFTER = re.compile(r"\s?-?\s?(a\.m\.|p\.m\.|[A-Za-z]+)(?![\w-])")
 CURRENCY_BEFORE = re.compile(r"\b(USD|EUR|GBP|JPY|CAD|AUD|CHF|CNY|INR)\s?$")
@@ -198,6 +205,8 @@ UNIT_CODES = {"KB", "MB", "GB", "TB", "PB", "KIB", "MIB", "GIB", "TIB", "USD", "
               "CNY", "INR", "AM", "PM", "UTC", "GMT", "PST", "PDT", "EST", "EDT", "CET", "CEST", "JST", "IST"}
 VERBISH = re.compile(r"\s+(?:[a-z]+(?:ed|s)|will|would|can|could|must|should|may|might|had|said|told|wrote|led|ran|took|"
                      r"made|did|sent|built|found|got|gave|went|knew|saw)\b")
+CLOSING_HEADING = _rx(r"^[#*_\s]*(?:conclusions?|final\s+thoughts|closing\s+thoughts|summary|in\s+summary|wrapping\s+up|"
+                      r"wrap-up|key\s+takeaways|takeaways|tl;?dr|recap|in\s+closing)\b")
 PRIORITY_WORDS = _rx(r"\b(?:focus\w*|priorit\w*|first|both|as\s+well\s+as|in\s+addition\s+to|along\s+with|and|plus|also)\b")
 
 STOPWORDS = set("""
@@ -299,7 +308,10 @@ def number_key(m: re.Match[str]) -> str:
     suffix = (m.group("suffix") or "").lower()
     if suffix in ("st", "nd", "rd", "th"):
         suffix = ""
-    return prefix + m.group("num").replace(",", "") + suffix
+    num = m.group("num").replace(",", "")
+    if prefix not in ("v", "q") and re.fullmatch(r"\d+\.0+", num):
+        num = num.split(".")[0]  # "1.0" and "1" are the same value
+    return prefix + num + suffix
 
 
 def _number_text(text: str) -> str:
@@ -322,8 +334,15 @@ def numbers(text: str) -> Counter[str]:
 
 
 def mask_month_may(text: str) -> str:
-    """The month "May" (before a day number or after in/by/on ...) is not the hedge "may"."""
-    return MONTH_MAY.sub("MONTHMAY", text)
+    """A capitalized "May" is the month, not the hedge "may", except at the start of a sentence before a subject
+    ("May I ask", "May we")."""
+    def repl(m: re.Match[str]) -> str:
+        before = text[:m.start()].rstrip(" \t\"'“‘(*_")
+        at_start = not before or before[-1] in ".!?:\n" or bool(re.search(r"(?:^|\n)\s*(?:[-*+]|\d+[.)])$", before))
+        if at_start and MAY_MODAL_NEXT.match(text, m.end()):
+            return m.group(0)
+        return "MONTHMAY"
+    return re.sub(r"\bMay\b", repl, text)
 
 
 def dates(text: str) -> Counter[str]:
@@ -378,12 +397,46 @@ def hedges(text: str) -> list[tuple[int, str]]:
     last_end = -100
     for start, end, level, word in spans:
         gap = text[last_end:start] if last_end >= 0 else ""
-        if found and start - last_end <= 12 and not re.search(r"[,;:.!?]|\b(?:and|but|or|so)\b", gap):
+        if found and _stack_gap(gap):
             prev_level, prev_word = found[-1]
             found[-1] = (min(prev_level, level), prev_word if prev_level <= level else word)
         else:
             found.append((level, word))
         last_end = max(last_end, end)
+    return found
+
+
+STACK_GAP_WORDS = {"be", "that", "it", "to", "is", "was", "were", "are", "also", "still", "even", "ever", "just",
+                   "there", "this", "have", "has", "been", "well", "actually", "very", "quite"}
+
+
+def _stack_gap(gap: str) -> bool:
+    """Two hedges form one stack when only a few function words stand between them ("could potentially",
+    "it seems that it might")."""
+    if re.search(r"[,;:.!?]", gap):
+        return False
+    words = re.findall(r"[A-Za-z'’]+", gap)
+    return len(words) <= 3 and all(w.lower() in STACK_GAP_WORDS for w in words)
+
+
+NEG_GROUPS = (("not", _rx(r"\b(?:not|no|never|none|nothing|nobody|nowhere|cannot)\b|n['’]t\b")),
+              ("without", _rx(r"\bwithout\b")), ("unless", _rx(r"\bunless\b")), ("neither/nor", _rx(r"\b(?:neither|nor)\b")))
+
+
+def negation_profile(text: str) -> Counter[str]:
+    text = NOT_NEGATION.sub(" ", text)
+    return Counter({name: len(rx.findall(text)) for name, rx in NEG_GROUPS if rx.search(text)})
+
+
+def denied_words(text: str) -> set[str]:
+    """Words denied by "not (the) X", "rather than X", "instead of X", leaving out "not just/only X" (which affirms X)."""
+    found: set[str] = set()
+    for m in CONTRAST_DENIED.finditer(text):
+        if re.match(r"not\s+(?:just|only|merely|simply)\b", m.group(0), re.IGNORECASE):
+            continue
+        word = (m.group(1) or m.group(2) or "").lower()
+        if word and word not in STOPWORDS:
+            found.add(word)
     return found
 
 
@@ -418,6 +471,14 @@ def approx_map(text: str) -> dict[str, set[str]]:
             marks.add(before.group(0).strip().lower())
         if after:
             marks.add(re.sub(r"^[a-z]+\s+(?=or\b)", "", after.group(0).strip().lower()))
+    for m in NUMBER_WORD.finditer(text):
+        word = m.group(1).lower()
+        if word == "one" and _ordinary_word_use(text, m):
+            continue
+        before = APPROX_BEFORE.search(text[max(0, m.start() - 20):m.start()])
+        marks = result.setdefault(NUMBER_WORDS[word], set())
+        if before:
+            marks.add(before.group(0).strip().lower())
     return result
 
 
@@ -432,7 +493,7 @@ APPROX_GROUPS = (
     ("less than", ("less than", "under", "below", "fewer than", "just under")),
 )
 _APPROX_INDEX = {re.sub(r"\s+", " ", w): g for g, words in APPROX_GROUPS for w in words}
-NOT_NEGATION = _rx(r"\b(?:no|not)\s+(?:more|less|fewer)\s+than\s+(?=[$€£¥~#]?\d|(?:one|two|three|four|five|six|seven|"
+NOT_NEGATION = _rx(r"\bnothing\s+short\s+of\b|\b(?:no|not)\s+(?:more|less|fewer)\s+than\s+(?=[$€£¥~#]?\d|(?:one|two|three|four|five|six|seven|"
                    r"eight|nine|ten|eleven|twelve|twenty|thirty|fifty|hundred|a\s+(?:few|dozen|hundred|thousand))\b)")
 
 
@@ -646,17 +707,32 @@ def pair_moved(chunks: list[Chunk]) -> list[Chunk]:
     """Pair deleted and added sentences that are similar (a sentence moved and edited) so they are compared."""
     dels = [(ci, k) for ci, ch in enumerate(chunks) if ch.orig and not ch.rev for k in range(len(ch.orig))]
     ins = [(ci, k) for ci, ch in enumerate(chunks) if ch.rev and not ch.orig for k in range(len(ch.rev))]
-    if not dels or not ins or len(dels) * len(ins) > 40000:
+    # Sentences inside an uneven chunk (2 -> 1, 1 -> 3 ...) that closely match a one-sided sentence elsewhere were
+    # moved, not merged; pair them too, with a stricter threshold so split halves stay with their sentence.
+    uneven = [ci for ci, ch in enumerate(chunks) if ch.orig and ch.rev and len(ch.orig) != len(ch.rev)]
+    dels_u = [(ci, k) for ci in uneven for k in range(len(chunks[ci].orig))] if ins else []
+    ins_u = [(ci, k) for ci in uneven for k in range(len(chunks[ci].rev))] if dels else []
+    if (not dels or not ins) and not (dels_u and ins) and not (ins_u and dels):
+        return chunks
+    if (len(dels) + len(dels_u)) * (len(ins) + len(ins_u)) > 40000:
         return chunks
     candidates: list[tuple[float, tuple[int, int], tuple[int, int]]] = []
+
+    def consider(d: tuple[int, int], i: tuple[int, int], threshold: float) -> None:
+        m = difflib.SequenceMatcher(None, _norm(chunks[d[0]].orig[d[1]].text), _norm(chunks[i[0]].rev[i[1]].text))
+        if m.real_quick_ratio() >= threshold and m.quick_ratio() >= threshold:
+            ratio = m.ratio()
+            if ratio >= threshold:
+                candidates.append((ratio, d, i))
+
     for d in dels:
-        a = _norm(chunks[d[0]].orig[d[1]].text)
         for i in ins:
-            m = difflib.SequenceMatcher(None, a, _norm(chunks[i[0]].rev[i[1]].text))
-            if m.real_quick_ratio() >= 0.6 and m.quick_ratio() >= 0.6:
-                ratio = m.ratio()
-                if ratio >= 0.6:
-                    candidates.append((ratio, d, i))
+            consider(d, i, 0.6)
+        for i in ins_u:
+            consider(d, i, 0.8)
+    for d in dels_u:
+        for i in ins:
+            consider(d, i, 0.8)
     candidates.sort(key=lambda c: -c[0])
     used_d: set[tuple[int, int]] = set()
     used_i: set[tuple[int, int]] = set()
@@ -671,16 +747,10 @@ def pair_moved(chunks: list[Chunk]) -> list[Chunk]:
         return chunks
     result: list[Chunk] = []
     for ci, ch in enumerate(chunks):
-        if ch.orig and not ch.rev:
-            rest = [x for k, x in enumerate(ch.orig) if (ci, k) not in used_d]
-            if rest:
-                result.append(Chunk(rest, []))
-        elif ch.rev and not ch.orig:
-            rest = [x for k, x in enumerate(ch.rev) if (ci, k) not in used_i]
-            if rest:
-                result.append(Chunk([], rest))
-        else:
-            result.append(ch)
+        rest_o = [x for k, x in enumerate(ch.orig) if (ci, k) not in used_d]
+        rest_r = [x for k, x in enumerate(ch.rev) if (ci, k) not in used_i]
+        if rest_o or rest_r:
+            result.append(ch if (len(rest_o), len(rest_r)) == (len(ch.orig), len(ch.rev)) else Chunk(rest_o, rest_r))
     result.extend(pairs)
     result.sort(key=lambda ch: ch.orig_line or ch.rev_line)
     return result
@@ -716,6 +786,9 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
         if CAUSAL.search(r):
             review("causal_added", f'Added sentence states a cause: "{first(CAUSAL, r)}". Check that the original '
                    "or material says so.")
+        if count(NEGATION, r) or OBLIGATION_STRONG.search(r) or PERMISSION.search(r):
+            review("added", "Added sentence holds a negation, obligation or permission. Check that the original or "
+                   "material says so.")
         return
     if not r.strip():
         return  # deleted sentences are reviewed in compare()
@@ -729,8 +802,8 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
             parts.append("removed " + ", ".join(removed))
         if added:
             note = ""
-            sources = extra_sources + "\n" + orig_all
-            elsewhere = [n for n in added if numbers(sources).get(n)]
+            source_numbers = _cached_numbers(extra_sources + "\n" + orig_all)
+            elsewhere = [n for n in added if source_numbers.get(n)]
             if elsewhere:
                 verb = "appears" if len(elsewhere) == 1 else "appear"
                 note = f" ({', '.join(elsewhere)} {verb} elsewhere in the original or material)"
@@ -759,6 +832,17 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
     neg_o, neg_r = count(NEGATION, o), count(NEGATION, r)
     if neg_o != neg_r:
         risk("negation", True, f"Number of negations changed: {neg_o} → {neg_r}")
+    else:
+        prof_o, prof_r = negation_profile(o), negation_profile(r)
+        den_o, den_r = denied_words(o), denied_words(r)
+        swapped_o = {w for w in den_o - den_r if re.search(r"\b" + re.escape(w) + r"\b", r, re.IGNORECASE)}
+        swapped_r = {w for w in den_r - den_o if re.search(r"\b" + re.escape(w) + r"\b", o, re.IGNORECASE)}
+        if prof_o != prof_r:
+            gone = ", ".join(sorted((prof_o - prof_r).elements()))
+            new = ", ".join(sorted((prof_r - prof_o).elements()))
+            risk("negation", True, f"Negation changed: {gone} → {new}. Check that the same thing is still denied.")
+        elif swapped_o and swapped_r:
+            risk("negation", True, f'What is denied changed: "not {sorted(swapped_o)[0]}" → "not {sorted(swapped_r)[0]}"')
 
     q_orig = [s for s in ch.orig if _is_question(s.text)]
     q_rev = [s for s in ch.rev if _is_question(s.text)]
@@ -767,7 +851,9 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
         message = f"Number of questions changed: {questions_o} → {questions_r}"
         folded = questions_o > questions_r and len(ch.orig) > questions_o and \
             all(len(s.text.split()) <= 6 for s in q_orig)
-        polite = questions_r > questions_o and REQUEST.search(r) and not REQUEST.search(o)
+        polite = questions_r > questions_o and bool(q_rev) and \
+            bool(re.match(r"\s*(?:could|would|can|will)\s+you\b", q_rev[0].masked, re.IGNORECASE)) and \
+            (bool(REQUEST.search(o)) or _imperative(ch.orig))
         if folded:
             risk("question", False, message + ". A short self-answered question was folded into a statement; "
                  "fine when the answer is kept.")
@@ -778,26 +864,31 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
             risk("question", True, message)
     has_question = questions_o or questions_r
 
-    if not has_question:
-        ho, hr = hedges(o), hedges(r)
+    # Hedges are compared on the statements only, so folding a self-answered question still shows a dropped hedge.
+    o_st = " ".join(x.masked for x in ch.orig if not _is_question(x.text))
+    r_st = " ".join(x.masked for x in ch.rev if not _is_question(x.text))
+    if o_st.strip() and r_st.strip():
+        if count(ABILITY, r_st) >= count(ABILITY, o_st):
+            # "can possibly" -> "can" reduces a stack (SKILL.md); "can" stays as the hedge
+            o_st = re.sub(r"\b(can)\s+(?:possibly|potentially|conceivably|maybe)\b", r"\1", o_st, flags=re.IGNORECASE)
+        ho, hr = hedges(o_st), hedges(r_st)
         lv_o, lv_r = sorted(lv for lv, _ in ho), sorted(lv for lv, _ in hr)
-        words_r = {w.lower() for _, w in hr}
+        list_o, list_r = sorted(w.lower() for _, w in ho), sorted(w.lower() for _, w in hr)
+        set_o, set_r = set(list_o), set(list_r)
+        gone = next((w for _, w in ho if w.lower() not in set_r), ho[0][1] if ho else "")
+        now = next((w for _, w in hr if w.lower() not in set_o), "")
         if len(hr) < len(ho) or (lv_o != lv_r and len(hr) == len(ho) and all(b >= a for a, b in zip(lv_o, lv_r))):
-            gone = next((w for _, w in ho if w.lower() not in words_r), ho[0][1])
-            now = next((w for _, w in hr if w.lower() not in {x.lower() for _, x in ho}), "")
-            if gone.lower() == "may" and ABILITY.search(r) and not ABILITY.search(o):
+            if gone.lower() == "may" and ABILITY.search(r_st) and not ABILITY.search(o_st):
                 risk("certainty", True, '"may" became "can": a possibility or permission now reads as ability')
             else:
                 risk("certainty", True, f'Certainty strengthened: "{gone}" → ' + (f'"{now}"' if now else "a plain statement"))
         elif len(hr) > len(ho) or lv_o != lv_r:
-            wo = next((w for _, w in ho if w.lower() not in words_r), "")
-            wr = next((w for _, w in hr if w.lower() not in {x.lower() for _, x in ho}), "")
+            wo = next((w for _, w in ho if w.lower() not in set_r), "")
             review("certainty_weakened", 'Certainty weakened: ' + (f'"{wo}"' if wo else "a plain statement")
-                   + f' → "{wr}". Check that the original was not more certain.')
-        elif ho and sorted(w.lower() for _, w in ho) != sorted(words_r):
-            wo = next(w for _, w in ho if w.lower() not in words_r)
-            wr = next((w for _, w in hr if w.lower() not in {x.lower() for _, x in ho}), "")
-            review("hedge_changed", f'Hedge changed at the same strength: "{wo}" → "{wr}".')
+                   + f' → "{now}". Check that the original was not more certain.')
+        elif list_o != list_r and gone and now:
+            review("hedge_changed", f'Hedge changed at the same strength: "{gone}" → "{now}".')
+    if not has_question:
         bo, br = count(BOOSTER, o), count(BOOSTER, r)
         if br > bo:
             word = first(BOOSTER, r)
@@ -806,7 +897,8 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
             else:
                 review("booster", f'Certainty word added: "{word}". Do not add guarantees the original lacks.')
 
-    po, pr_ = bool(PERMISSION.search(mask_month_may(o))), bool(PERMISSION.search(mask_month_may(r)))
+    po = bool(PERMISSION.search(NOT_PERMISSION.sub(" ", mask_month_may(o))))
+    pr_ = bool(PERMISSION.search(NOT_PERMISSION.sub(" ", mask_month_may(r))))
     if po != pr_:
         word = first(PERMISSION, o if po else r)
         risk("permission", True, f'Permission {"removed" if po else "added"}: "{word}"')
@@ -826,7 +918,7 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
 
     h_o, h_r = bool(HEARSAY.search(o)), bool(HEARSAY.search(r))
     if h_o != h_r:
-        risk("hearsay", True, f'Hearsay marker {"removed" if h_o else "added"}: "{first(HEARSAY, o if h_o else r)}"')
+        risk("hearsay", True, f'Hearsay marker {"removed" if h_o else "added"}: "{first(HEARSAY, o if h_o else r).strip()}"')
 
     rq_o, rq_r = bool(REQUEST.search(o)), bool(REQUEST.search(r))
     if rq_o and not rq_r:
@@ -853,6 +945,9 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
             (ALL_SCOPE.search(o) and not ALL_SCOPE.search(r) and CHOICE.search(r) and not CHOICE.search(o)):
         risk("scope", True, f'Choice scope changed: "{first(CHOICE, o) or first(ALL_SCOPE, o)}" → '
              f'"{first(CHOICE, r) or first(ALL_SCOPE, r)}"')
+    elif CHOICE.search(o) and not CHOICE.search(r) and len(re.findall(r"\band\b", r, re.IGNORECASE)) > \
+            len(re.findall(r"\band\b", o, re.IGNORECASE)):
+        risk("scope", True, f'Choice scope changed: "{first(CHOICE, o)}" → "and"')
     elif (PARTIAL_DET.search(o) or PARTIAL_ADV.search(o) or MOST_ANY.search(o)) and not STILL_PARTIAL.search(r):
         if count(TOTAL, r) > count(TOTAL, o) and (PARTIAL_DET.search(o) or PARTIAL_ADV.search(o)):
             word = first(PARTIAL_DET, o) or first(PARTIAL_ADV, o)
@@ -891,7 +986,7 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
 
     for m in CONTRAST_DENIED.finditer(o):
         denied = (m.group(1) or m.group(2) or "").lower()
-        if not denied or denied in STOPWORDS:
+        if not denied or denied in STOPWORDS or re.match(r"not\s+(?:just|only|merely|simply)\b", m.group(0), re.IGNORECASE):
             continue
         for s in ch.rev:
             text = s.masked.lower()
@@ -910,20 +1005,45 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
                    "labels and dialogue.")
 
     feelings_o = _list_hits("feelings", o)
+    feelings_all = _cached_feelings(orig_all)
     for word in _list_hits("feelings", r):
-        if word not in feelings_o and word not in _list_hits("feelings", orig_all):
+        if word not in feelings_o and word not in feelings_all:
             review("feeling_added", f'Feeling word added: "{word}". Do not add feelings the original does not state.')
 
     if any(s.kind == "quote" for s in ch.orig + ch.rev):
         review("quote_changed", "Text inside a block quotation changed. Restore it unless it is the writer's own note "
                "rather than a quotation.")
 
+    orig_starts = {x.masked.strip().lstrip("\"'“‘(*_").split(" ")[0].lower() for x in ch.orig}
     for s in ch.rev:
         start = s.masked.strip().lstrip("\"'“‘(*_")
         cm = CONNECTIVE.match(start)
-        if cm:
+        if cm and cm.group(0).split(" ")[0].lower() not in orig_starts:
             review("connection", f'Rewritten sentence starts with "{cm.group(0)}". Check what it connects to.', s.text)
             break
+
+
+SUBJECT_WORDS = {"i", "you", "we", "they", "he", "she", "it", "the", "a", "an", "this", "that", "these", "those",
+                 "our", "your", "my", "their", "his", "her", "its", "there", "here", "everyone", "someone", "nobody"}
+
+
+def _imperative(sentences: list[tx.Sentence]) -> bool:
+    """A sentence that starts with a verb rather than a subject ("Send the report by Friday.")."""
+    for x in sentences:
+        words = re.findall(r"[A-Za-z'’]+", x.masked)
+        if words and words[0].lower() not in SUBJECT_WORDS and not _is_question(x.text):
+            return True
+    return False
+
+
+@functools.lru_cache(maxsize=8)
+def _cached_numbers(text: str) -> Counter[str]:
+    return numbers(text)
+
+
+@functools.lru_cache(maxsize=8)
+def _cached_feelings(text: str) -> list[str]:
+    return _list_hits("feelings", text)
 
 
 def _is_question(text: str) -> bool:
@@ -945,9 +1065,10 @@ def _list_hits(name: str, text: str) -> list[str]:
     return hits
 
 
-def moved_names(chunks: list[Chunk]) -> list[Risk]:
+def moved_names(chunks: list[Chunk], lower_words: Optional[set[str]] = None) -> list[Risk]:
     """Names that left one changed sentence and appeared in another (owners swapped between list items)."""
-    singles = [(ch, set(names(ch.orig[0].masked, True)), set(names(ch.rev[0].masked, True)))
+    lw = lower_words if lower_words is not None else set()
+    singles = [(ch, set(names(ch.orig[0].masked, lower_words=lw)), set(names(ch.rev[0].masked, lower_words=lw)))
                for ch in chunks if len(ch.orig) == 1 and len(ch.rev) == 1]
     result: list[Risk] = []
     for ch, no, nr in singles:
@@ -966,16 +1087,23 @@ def moved_names(chunks: list[Chunk]) -> list[Risk]:
     return result
 
 
-def moved_names_in_lines(changes: list[dict[str, object]]) -> list[Risk]:
-    """The same check on changed lines, for list items whose owner or assignee lines were swapped."""
+ITEM_LINE = re.compile(r"^\s*(?:[-*+]\s|\d+[.)]\s|\|)")
+
+
+def moved_names_in_lines(changes: list[dict[str, object]], lower_words: Optional[set[str]] = None) -> list[Risk]:
+    """The same check on changed list items and table rows, for owners or assignees swapped between items.
+    Only item lines count: re-wrapping a paragraph moves names between lines without moving them between items."""
+    lw = lower_words if lower_words is not None else set()
     pairs: list[tuple[int, int, str, str]] = []
     for c in changes:
         old = str(c["original"]).split("\n") if c["original"] else []
         new = str(c["revised"]).split("\n") if c["revised"] else []
         if len(old) == len(new):
             for k, (a, b) in enumerate(zip(old, new)):
-                pairs.append((int(str(c["orig_line"])) + k, int(str(c["rev_line"])) + k, a, b))
-    info = [(ol, rl, a, b, set(names(tx.mask(a), True)), set(names(tx.mask(b), True))) for ol, rl, a, b in pairs]
+                if ITEM_LINE.match(a) and ITEM_LINE.match(b):
+                    pairs.append((int(str(c["orig_line"])) + k, int(str(c["rev_line"])) + k, a, b))
+    info = [(ol, rl, a, b, set(names(_strip_item(tx.mask(a)), lower_words=lw)),
+             set(names(_strip_item(tx.mask(b)), lower_words=lw))) for ol, rl, a, b in pairs]
     result: list[Risk] = []
     for ol, rl, a, b, no, nr in info:
         moved: list[str] = []
@@ -990,6 +1118,10 @@ def moved_names_in_lines(changes: list[dict[str, object]]) -> list[Risk]:
             result.append(Risk("name_order", True, f'{", ".join(moved)} moved to another line (revised line {target}). '
                                "Check who does what.", ol, rl, a.strip(), b.strip()))
     return result
+
+
+def _strip_item(line: str) -> str:
+    return re.sub(r"^\s*(?:[-*+]\s+|\d+[.)]\s+|\|\s*)", "", line)
 
 
 def added_actors(orig: tx.Document, rev: tx.Document, materials: str, chunks: list[Chunk]) -> list[Review]:
@@ -1034,11 +1166,24 @@ def disappeared_words(orig: tx.Document, rev: tx.Document) -> list[str]:
     return lost
 
 
-def stiffness(orig: tx.Document, rev: tx.Document) -> list[str]:
+def stiffness(orig: tx.Document, rev: tx.Document, chunks: Optional[list[Chunk]] = None) -> list[str]:
     o = " ".join(s.masked for s in orig.sentences)
     r = " ".join(s.masked for s in rev.sentences)
     items: list[str] = []
-    co, cr = len(CONTRACTION.findall(o)), len(CONTRACTION.findall(r))
+    # contractions are counted only in sentences that were kept or rewritten, not in deleted or added ones
+    deleted = {id(x) for ch in chunks or [] if not ch.rev for x in ch.orig}
+    added = {id(x) for ch in chunks or [] if not ch.orig for x in ch.rev}
+    for ch in chunks or []:
+        if ch.orig and ch.rev and len(ch.orig) != len(ch.rev):
+            for x in ch.orig:
+                if all(difflib.SequenceMatcher(None, _norm(x.text), _norm(y.text)).ratio() < 0.5 for y in ch.rev):
+                    deleted.add(id(x))
+            for y in ch.rev:
+                if all(difflib.SequenceMatcher(None, _norm(x.text), _norm(y.text)).ratio() < 0.5 for x in ch.orig):
+                    added.add(id(y))
+    o_kept = " ".join(s.masked for s in orig.sentences if id(s) not in deleted)
+    r_kept = " ".join(s.masked for s in rev.sentences if id(s) not in added)
+    co, cr = len(CONTRACTION.findall(o_kept)), len(CONTRACTION.findall(r_kept))
     if co >= 2 and cr < co / 2:
         items.append(f"Contractions dropped from {co} to {cr}. Check that the rewrite did not make the register stiffer.")
     stiff_o = _list_hits("stiff-words", o)
@@ -1057,6 +1202,9 @@ def energy(orig: tx.Document, rev: tx.Document, doc_type: Optional[str]) -> tupl
         return excl, emoji, heads
     eo, mo, ho = stats(orig)
     er, mr, hr = stats(rev)
+    closing_o = sum(1 for b in orig.blocks if b.kind == "heading" and CLOSING_HEADING.search(b.lines[0].content))
+    closing_r = sum(1 for b in rev.blocks if b.kind == "heading" and CLOSING_HEADING.search(b.lines[0].content))
+    ho, hr = ho - closing_o, hr - closing_r  # removing a repeat-only closing section is reported elsewhere
     items: list[str] = []
     reference: list[str] = []
     if er < eo:
@@ -1082,7 +1230,7 @@ _BUILTIN_GAPS = [
     ("figure", r"\b(?:lay(?:s|ing)?|laid) the (?:foundation|groundwork)\b|\bpav(?:e|es|ed|ing) the way\b|\b(?:silently|quietly) (?:fail|break)\w*"),
     ("effect", r"\b(?:improv|enhanc|boost|increas)\w* (?:the )?(?:reliability|stability|quality|performance|usability|productivity|efficiency)\b|\bseamless(?:ly)?\b"),
     ("degree", r"\b(?:significantly|dramatically|drastically|substantially|vastly|greatly)\b"),
-    ("change", r"\b(?:shortened|sped up|reduced|increased|decreased|lowered|raised)\b"),
+    ("change", r"\b(?:shortened|sped up|reduced|increased|decreased|lowered|raised(?!\s+(?:a|an|the)?\s*(?:concerns?|questions?|issues?|points?)\b))\b"),
 ]
 
 
@@ -1139,7 +1287,8 @@ def material_check(final: tx.Document, materials: str, original: str) -> dict[st
     src_low = source.lower()
     missing_numbers: list[dict[str, object]] = []
     matched: list[dict[str, object]] = []
-    src_lines = [ln for ln in source.split("\n") if ln.strip()]
+    src_lines = [ln for ln in materials.split("\n") if ln.strip()] + \
+        ["(original) " + ln for ln in original.split("\n") if ln.strip()]
     for s in final.sentences:
         for n in numbers(s.masked):
             if not src_numbers.get(n):
@@ -1190,6 +1339,77 @@ def word_diff(a: str, b: str) -> str:
     return "".join(out)
 
 
+def _segment(old_idx: list[int], new_idx: list[int], ai: list[int], bi: list[int], k: int, l_: int
+             ) -> tuple[int, int, int, int]:
+    """Line range (i1, i2, j1, j2) for some non-blank lines; an empty side sits after the previous non-blank line."""
+    if old_idx:
+        i1, i2 = old_idx[0], old_idx[-1] + 1
+    else:
+        i1 = i2 = (ai[k - 1] + 1) if k > 0 else 0
+    if new_idx:
+        j1, j2 = new_idx[0], new_idx[-1] + 1
+    else:
+        j1 = j2 = (bi[l_ - 1] + 1) if l_ > 0 else 0
+    return i1, i2, j1, j2
+
+
+def _pair_lines(a: list[str], b: list[str], oi: list[int], nj: list[int]) -> list[tuple[int, int, int, int]]:
+    """Split a replace block of non-blank lines into segments, pairing similar lines in order (best total similarity).
+
+    Deleting one paragraph then shows as a deletion instead of shifting every later pairing by one."""
+    whole = (oi[0], oi[-1] + 1, nj[0], nj[-1] + 1)
+    if len(oi) <= 1 or len(nj) <= 1 or len(oi) * len(nj) > 10000:  # merges and splits stay one change
+        return [whole]
+    n, m = len(oi), len(nj)
+    sim = [[0.0] * m for _ in range(n)]
+    for x in range(n):
+        for y in range(m):
+            sm = difflib.SequenceMatcher(None, a[oi[x]], b[nj[y]])
+            if sm.real_quick_ratio() >= 0.5 and sm.quick_ratio() >= 0.5:
+                r = sm.ratio()
+                sim[x][y] = r if r >= 0.5 else 0.0
+    score = [[0.0] * (m + 1) for _ in range(n + 1)]
+    for x in range(n - 1, -1, -1):
+        for y in range(m - 1, -1, -1):
+            best = max(score[x + 1][y], score[x][y + 1])
+            if sim[x][y]:
+                best = max(best, sim[x][y] + score[x + 1][y + 1])
+            score[x][y] = best
+    pairs: list[tuple[int, int]] = []
+    x = y = 0
+    while x < n and y < m:
+        if sim[x][y] and score[x][y] == sim[x][y] + score[x + 1][y + 1]:
+            pairs.append((oi[x], nj[y]))
+            x, y = x + 1, y + 1
+        elif score[x + 1][y] >= score[x][y + 1]:
+            x += 1
+        else:
+            y += 1
+    if not pairs:
+        return [whole]
+    segments: list[tuple[int, int, int, int]] = []
+    px, py = 0, 0  # positions in oi / nj
+    for i, j in pairs:
+        x, y = oi.index(i), nj.index(j)
+        if px < x or py < y:
+            old_part, new_part = oi[px:x], nj[py:y]
+            i1 = old_part[0] if old_part else (oi[px - 1] + 1 if px else oi[0])
+            i2 = old_part[-1] + 1 if old_part else i1
+            j1 = new_part[0] if new_part else (nj[py - 1] + 1 if py else nj[0])
+            j2 = new_part[-1] + 1 if new_part else j1
+            segments.append((i1, i2, j1, j2))
+        segments.append((i, i + 1, j, j + 1))
+        px, py = x + 1, y + 1
+    if px < len(oi) or py < len(nj):
+        old_part, new_part = oi[px:], nj[py:]
+        i1 = old_part[0] if old_part else oi[px - 1] + 1
+        i2 = old_part[-1] + 1 if old_part else i1
+        j1 = new_part[0] if new_part else nj[py - 1] + 1
+        j2 = new_part[-1] + 1 if new_part else j1
+        segments.append((i1, i2, j1, j2))
+    return segments
+
+
 def line_changes(a_text: str, b_text: str) -> tuple[list[dict[str, object]], str]:
     a = a_text.split("\n")
     b = b_text.split("\n")
@@ -1199,9 +1419,21 @@ def line_changes(a_text: str, b_text: str) -> tuple[list[dict[str, object]], str
         b.pop()
     changes: list[dict[str, object]] = []
     out: list[str] = []
-    for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(None, a, b, autojunk=False).get_opcodes():
+    # Match non-blank lines only: blank lines between paragraphs would otherwise anchor every paragraph to the one
+    # at the same position, so deleting one paragraph would pair each later paragraph with its neighbor.
+    ai = [i for i, x in enumerate(a) if x.strip()]
+    bi = [j for j, x in enumerate(b) if x.strip()]
+    segments: list[tuple[int, int, int, int]] = []
+    for tag, k1, k2, l1, l2 in difflib.SequenceMatcher(None, [a[i] for i in ai], [b[j] for j in bi],
+                                                       autojunk=False).get_opcodes():
         if tag == "equal":
             continue
+        old_idx, new_idx = ai[k1:k2], bi[l1:l2]
+        if tag == "replace":
+            segments.extend(_pair_lines(a, b, old_idx, new_idx))
+        else:
+            segments.append(_segment(old_idx, new_idx, ai, bi, k1, l1))
+    for i1, i2, j1, j2 in segments:
         old, new = a[i1:i2], b[j1:j2]
         if all(not x.strip() for x in old) and all(not x.strip() for x in new):
             continue
@@ -1234,7 +1466,8 @@ def compare(orig_text: str, rev_text: str, doc_type: Optional[str] = None, reade
     orig_all = " ".join(s.masked for s in orig.sentences)
     for ch in chunks:
         compare_chunk(ch, doc_type, risks, reviews, orig_all, materials)
-    risks.extend(moved_names(chunks))
+    lower_words = lower_word_set(orig_all, " ".join(s.masked for s in rev.sentences), materials)
+    risks.extend(moved_names(chunks, lower_words))
 
     # whole-text checks catch sentences that were deleted, added, split or moved
     o_nums, r_nums = numbers(orig_all), numbers(" ".join(s.masked for s in rev.sentences))
@@ -1280,7 +1513,11 @@ def compare(orig_text: str, rev_text: str, doc_type: Optional[str] = None, reade
 
     oh = [b.lines[0].content.strip() for b in orig.blocks if b.kind == "heading"]
     rh = [b.lines[0].content.strip() for b in rev.blocks if b.kind == "heading"]
-    if len(oh) == len(rh):
+    removed_h = list((Counter(oh) - Counter(rh)).elements())
+    if len(oh) > len(rh) and len(removed_h) == len(oh) - len(rh) and all(CLOSING_HEADING.search(h) for h in removed_h):
+        reviews.append(Review("heading", f'Closing section removed: "{removed_h[0]}". Fine only when the section '
+                              "repeated the body and held no number, condition or next step found nowhere else.", 0, ""))
+    elif len(oh) == len(rh):
         for a, b in zip(oh, rh):
             if a != b:
                 reviews.append(Review("heading", f'Heading changed: "{a}" → "{b}". Check that warnings, conditions '
@@ -1303,7 +1540,7 @@ def compare(orig_text: str, rev_text: str, doc_type: Optional[str] = None, reade
                     reviews.append(Review("stance", "Recommendation: an obligation word was added. Do not turn advice "
                                           "into obligation.", s.line, s.text))
 
-    stiff = stiffness(orig, rev)
+    stiff = stiffness(orig, rev, chunks)
     en_items, en_ref = energy(orig, rev, doc_type)
     gaps: list[Review] = []
     gaps_note = ""
@@ -1314,7 +1551,7 @@ def compare(orig_text: str, rev_text: str, doc_type: Optional[str] = None, reade
         material = material_check(rev, materials, orig_text)
     changes, full = line_changes(orig_text, rev_text)
     reported = {r.message.split(" moved")[0] for r in risks if r.kind == "name_order"}
-    risks.extend(r for r in moved_names_in_lines(changes) if r.message.split(" moved")[0] not in reported)
+    risks.extend(r for r in moved_names_in_lines(changes, lower_words) if r.message.split(" moved")[0] not in reported)
     return DiffResult(changes, risks, reviews, stiff, doc_type in STIFF_REFERENCE_TYPES, en_items, en_ref,
                       gaps, gaps_note, material, full, doc_type, reader, stance, "rewrite", words or tx.Words(),
                       want_fact_gaps and doc_type not in ("essay", "promo"))
@@ -1440,7 +1677,8 @@ def format_sections(result: DiffResult) -> list[str]:
             out.append(f"  line {item['line']}: {item['value']}")
         matched = m["matched_numbers"]
         if matched:
-            out.append("- Matches a material line (shows only that the line has the same value):")
+            out.append("- Matches a material line, or an original line marked (original) (shows only that the line has "
+                       "the same value):")
             for item in matched[:10]:
                 out.append(f"  line {item['line']}: {item['value']}  ← {item['material_line']}")
         lost = m["material_hedges_not_in_final"]

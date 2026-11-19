@@ -43,6 +43,11 @@ Read this when the reader is specified as informed or general (SKILL.md section 
 
 Ask once, before rewriting, only when the answer changes the rewrite (for example, a general reader would need many terms explained) and you can ask. Otherwise proceed without deciding.
 
+- Ask at most once per request, even when there are several drafts.
+- An answer such as "up to you", or no answer, leaves the value undecided; do not ask again.
+- Do not mix questions about facts into this question; they go with your answer after the rewrite (`fact-recovery.md`).
+- For promo, do not ask new fact questions; ask only about claims that look exaggerated (`doc-types/promo.md`).
+
 ## 5. When you do not decide
 
 Apply all of SKILL.md section 1 and no doc-type exemptions. Do not add explanations for any reader, and do not output "Needs an explanation".
@@ -56,8 +61,8 @@ On an inferred type, apply the exemptions in the type's file. On an inferred rea
 | Reader | Terms | Sentence length and omissions |
 |---|---|---|
 | expert | Keep terms, abbreviations and identifiers. Add no explanations and output no "Needs an explanation" | Keep the field's usual omissions. Split a long sentence only when you can name the misreading |
-| informed | Keep general technical and business words. Rephrase or gloss field-only words and internal names only when specified and the original or material explains them; otherwise output "Needs an explanation" | Same as expert |
-| general | Rephrase or gloss unexplained terms only when specified, from the original or material or with an everyday word of the same scope; otherwise output "Needs an explanation" | Section 9 |
+| informed | Keep general technical and business words. Rephrase or gloss field-only words and internal names only when specified and the original or material explains them; otherwise, when the reader was specified, output "Needs an explanation" (on an inferred reader, output nothing; section 6) | Same as expert |
+| general | Rephrase or gloss unexplained terms only when specified, from the original or material or with an everyday word of the same scope; otherwise, when the reader was specified, output "Needs an explanation" (on an inferred reader, output nothing; section 6) | Section 9 |
 
 - In developer documents (reader expert or informed, about software), do not treat sentences whose subject is an identifier ("`scheduler` requeues failed jobs") as personification. Real personification ("the code tells a story") is still fixed. Identifiers are not rephrased even for general readers.
 
@@ -66,8 +71,8 @@ On an inferred type, apply the exemptions in the type's file. On an inferred rea
 | Class | Example (synthetic) | expert | informed | general |
 |---|---|---|---|---|
 | A. Term explained in the original or material | "TTL (how long the cache keeps an entry)" | Keep | Keep | Keep |
-| B. Unexplained field terms and abbreviations | idempotent, p95, depreciation, reorder point | Keep | Keep general technical and business words (API, server, cost of goods). Field-only words: rephrase or gloss only when the material defines them and the reader was specified; otherwise "Needs an explanation" | Rephrase or gloss only when the material defines them and the reader was specified; otherwise "Needs an explanation" |
-| C. Internal names, internal abbreviations, project names | blue env, P1 response, month-end close | Keep | "Needs an explanation" (gloss when the material explains it and the reader was specified) | Same |
+| B. Unexplained field terms and abbreviations | idempotent, p95, depreciation, reorder point | Keep | Keep general technical and business words (API, server, cost of goods). Field-only words: rephrase or gloss only when the material defines them and the reader was specified; otherwise "Needs an explanation" when the reader was specified | Rephrase or gloss only when the material defines them and the reader was specified; otherwise "Needs an explanation" when the reader was specified |
+| C. Internal names, internal abbreviations, project names | blue env, P1 response, month-end close | Keep | When the reader was specified: "Needs an explanation" (or a gloss when the material explains it) | Same |
 | D. Coinages, buzzwords, inflated nouns | "north star", "AI-native", "single pane of glass" | As in SKILL.md "Inflated nouns" | Same | Same |
 | E. Identifiers, code, UI labels, product names, legal terms, numbers with units | `retry_limit`, the **Save** button, PostgreSQL | Keep (including identifier-subject sentences) | Same | Keep; never rephrase; "Needs an explanation" if needed |
 | F. Jargon with an everyday word of the same scope | "onboard" (a user), "sunset" (a product) | Keep | Keep | May use the everyday word of the same scope when specified |
@@ -93,7 +98,7 @@ Never rephrase class E, terms the original defines, words that correspond to a h
 - Up to three, counted separately from the three questions. When there are more, choose headings, the first paragraph and words that recur, and add "N more places".
 - Do not draft an explanation for each term; the writer writes it.
 - Do not output it for expert readers, when the reader is not decided or only inferred, or when the user wants only the text.
-- For internal names in a text for outside readers (when a relationship was specified), you may add "the writer decides whether to explain it or leave it out".
+- For internal names in a text for outside readers (when a relationship and the reader level were specified), you may add "the writer decides whether to explain it or leave it out".
 - Questions for the writer are about places whose meaning is unclear in the original itself; "Needs an explanation" is for places the writer understands but the reader lacks. Do not list the same word in both. When composing, if the material does not explain a term, do not add an explanation; list it.
 
 ## 11. Reader profiles
@@ -107,7 +112,7 @@ Never rephrase class E, terms the original defines, words that correspond to a h
 
 In the check record, the setting is the document type: `Writer: not decided / Reader: general (specified) / Setting: manual (inferred)`. Write "(specified)" or "(inferred)" after each decided value and "not decided" otherwise.
 
-When the user corrects the type or reader after your answer, treat it as a new request: rewrite from the first original and run check with `--new-run` (in the same run, the first line would treat the new findings as a revision and tell you not to change the body). It does not count toward "Revise once only".
+When the user corrects the type or reader after your answer, treat it as a new request: rewrite from the first original and add `--new-run` to the first check run of that request (in the same run, the first line would treat the new findings as a revision and tell you not to change the body). It does not count toward "Revise once only".
 
 ## 13. Rules exempted by type
 

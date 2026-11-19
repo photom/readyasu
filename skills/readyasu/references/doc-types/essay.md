@@ -26,5 +26,5 @@ Lint rules exempted: fragment_run, exclamation, chat_residue (interjections only
 
 | Original | Handling |
 |---|---|
-| The coffee was a symphony of quiet hope. | Ask what the writer meant; rewrite only with words the essay itself gives ("I felt hopeful over coffee" only if the essay says the writer felt hopeful) |
+| The coffee was a symphony of quiet hope. | Keep the sentence and ask what the writer meant, unless the essay itself says what the hope was about; then rewrite with those words, keeping the subject (do not add "I") |
 | I closed the laptop. Done. | Keep |

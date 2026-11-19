@@ -253,3 +253,59 @@ def test_flagged_word_with_longer_form_in_original_is_not_added(tmp_path: Path) 
     fin = write(tmp_path / "f.md", "The retry logic is more robust.\n")
     p = run(["run", "--source", src, "--final", fin, "--state-dir", str(tmp_path / "st"), "--no-words"], tmp_path)
     assert "Flagged words added by the rewrite" not in p.stdout
+
+
+# ---- set 5 review
+
+def test_interleaved_sessions_keep_their_own_runs(tmp_path: Path) -> None:
+    import os
+    src = write(tmp_path / "o.md", "We leverage a robust pipeline.\n")
+    r1 = write(tmp_path / "r1.md", "We use a robust pipeline.\n")
+    r2 = write(tmp_path / "r2.md", "We use a pipeline.\n")
+    st = str(tmp_path / "st")
+
+    def go(session: str, final: str) -> str:
+        env = {**os.environ, "READYASU_SESSION": session}
+        p = subprocess.run([sys.executable, str(CHECK), "run", "--source", src, "--final", final, "--state-dir", st,
+                            "--no-words"], cwd=tmp_path, env=env, capture_output=True, text=True, encoding="utf-8",
+                           check=False)
+        return p.stdout.splitlines()[0]
+
+    go("a", r1)
+    go("b", r1)
+    assert "attempt 2" in go("a", r2)
+
+
+def test_run_id_resumes_with_its_own_revision_count(tmp_path: Path) -> None:
+    src = write(tmp_path / "o.md", "We leverage a robust pipeline.\n")
+    st = str(tmp_path / "st")
+    for text, args in (("We use a robust pipeline.\n", ["--run-id", "old1"]), ("We use a pipeline.\n", ["--run-id", "old1"]),
+                       ("We use a robust pipeline.\n", ["--new-run"])):
+        fin = write(tmp_path / "f.md", text)
+        run(["run", "--source", src, "--final", fin, "--state-dir", st, "--no-words", *args], tmp_path)
+    fin = write(tmp_path / "f.md", "We run a pipeline.\n")
+    p = run(["run", "--source", src, "--final", fin, "--state-dir", st, "--no-words", "--run-id", "old1"], tmp_path)
+    assert "exceeds the one-revision rule" in p.stdout.splitlines()[0]
+
+
+def test_invalid_run_id_in_index_is_ignored(tmp_path: Path) -> None:
+    import json as _json
+    sys.path.insert(0, str(SCRIPTS))
+    import readyasu_text as tx
+    src = write(tmp_path / "o.md", "Hello there.\n")
+    fin = write(tmp_path / "f.md", "Hello.\n")
+    idx = tmp_path / "st" / "index" / "by-source"
+    idx.mkdir(parents=True)
+    (idx / f"{tx.sha256_text('Hello there.' + chr(10))}.json").write_text(
+        _json.dumps({"run": "../../escape", "cwd": str(tmp_path), "updated_ts": 9e9}), encoding="utf-8")
+    p = run(["run", "--source", src, "--final", fin, "--state-dir", str(tmp_path / "st"), "--no-words"], tmp_path)
+    assert p.returncode == 0 and not (tmp_path / "escape").exists()
+
+
+def test_json_splits_kept_and_added_words(tmp_path: Path) -> None:
+    src = write(tmp_path / "o.md", "We use the tool to check logs.\n")
+    fin = write(tmp_path / "f.md", "We leverage the tool to delve into logs.\n")
+    p = run(["run", "--source", src, "--final", fin, "--state-dir", str(tmp_path / "st"), "--no-words", "--json"],
+            tmp_path)
+    data = json.loads(p.stdout)
+    assert data["flagged_words_kept"] == [] and set(data["flagged_words_added"]) == {"leverage", "delve"}

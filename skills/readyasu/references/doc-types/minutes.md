@@ -6,7 +6,7 @@ Lint rules exempted: bold_label_list, excess_list, fragment_run
 ## 1. Normal forms (do not change)
 
 - Labels and values (`**Date**: May 9`, `Attendees: ...`), short fragments ("Decided: ship on Friday").
-- Headings for agenda items, decisions and action items. Do not change these headings.
+- Headings for agenda items, decisions and action items. Do not change these headings. When such a heading holds only filler ("Overall, a productive meeting"), keep the heading and the sentence with its inflated words toned down, and ask the writer whether anything belongs there; do not invent items.
 - Owner names next to action items.
 
 ## 2. Still fix

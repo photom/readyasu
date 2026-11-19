@@ -30,7 +30,7 @@ Rewrite events and technical operations described with a metaphor into plain wor
 | skyrocket | "sales skyrocketed" | "rose sharply" with the number if given. |
 | elevate | "elevate your writing" | "improve", or say what changes. |
 | bridge the gap | "bridges the gap between design and code" | Say what connects to what ("generates code from design files"). |
-| silently fail / quietly break | "the job silently fails" | "fails without an error message" only when the mechanism is clear; otherwise "fails without anyone noticing". Keep the breadth of "silently": do not claim there is no log if the original does not say so. |
+| quietly break / silently brought down | "a misconfiguration quietly broke the export" | Write what was missing only when the text says it ("without an error message", "without an alert"); otherwise keep the original. Keep "fails silently" / "silently fails" in technical text: it is an established term. Do not write "without anyone noticing" unless the text says nobody noticed. |
 
 ---
 
@@ -61,7 +61,7 @@ Words that appear far more often in AI text than in human text of the same kind.
 | Word | Example | Candidates |
 |---|---|---|
 | delve, tapestry, testament | "a testament to the team's dedication" | "shows the team's dedication", or state the evidence. |
-| pivotal, crucial, vital, paramount | "plays a pivotal role" | "is central to", "matters for", or say what depends on it. Keep "crucial" when the original says it is required. |
+| pivotal, crucial, vital, paramount | "plays a pivotal role" | "is central to", or say what depends on it. Keep "crucial" when the original says it is required. |
 | seamless(ly) | "seamless integration" | Say what the user does not have to do ("works without extra configuration"), only from the original. |
 | robust | "a robust solution" | Say what it withstands. Keep "robust" in statistics and control engineering. |
 | leverage (verb) | "leverage our expertise" | "use". Keep the financial noun. |
@@ -81,7 +81,7 @@ Words that appear far more often in AI text than in human text of the same kind.
 
 ## 4. Inflated words for ordinary experiences
 
-Do not describe small personal experiences or routine technical choices with grand words: "profound", "transformative", "epiphany", "masterpiece", "symphony", "odyssey", "saga", "quest", "magic", "alchemy", "elegant dance". "Removing the noise of daily life revealed the tool's true essence" → "Away from the usual rush, the tool's real strengths became clear." (Keep the original's subject: do not add "I" when the original has none.) Do not add proper nouns or big lessons that the original does not have.
+Do not describe small personal experiences or routine technical choices with grand words: "profound", "transformative", "epiphany", "masterpiece", "symphony", "odyssey", "saga", "quest", "magic", "alchemy", "elegant dance". "Removing the noise of daily life revealed the tool's true essence" → "Away from the usual rush, it became clear what the tool really is." (Keep the original's subject: do not add "I" when the original has none.) Do not add proper nouns or big lessons that the original does not have.
 
 ---
 
