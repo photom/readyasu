@@ -72,7 +72,7 @@ def _rx(pattern: str) -> re.Pattern[str]:
     return re.compile(pattern, re.IGNORECASE)
 
 
-NUMBER = re.compile(r"(?<![\w.$€£¥#])(?P<prefix>(?:[A-Z]{1,2})?[$€£¥]|#|[QqVv](?=\d))?(?P<num>\d+(?:,\d{3})*(?:[.:]\d+)*)"
+NUMBER = re.compile(r"(?<![\w.$€£¥#])(?P<prefix>(?:[A-Z]{1,2})?[$€£¥]|#|[QqVv](?=\d)|[Pp](?=\d{2}))?(?P<num>\d+(?:,\d{3})*(?:[.:]\d+)*)"
                     r"(?P<suffix>%|[kKmMbB](?![A-Za-z])|(?:st|nd|rd|th)\b)?")
 NUMBER_WORDS = {
     "zero": "0", "one": "1", "two": "2", "three": "3", "four": "4", "five": "5", "six": "6", "seven": "7",
@@ -102,7 +102,8 @@ PERMISSION = _rx(r"\b(?:you|users?|they|we|customers?|members?)\s+may\b|\b(?:all
                  r"|\b(?:is|are)\s+permitted\b|\bfeel\s+free\s+to\b|\b(?:it['’]s|it\s+is)\s+(?:fine|okay|ok|acceptable)\s+to\b"
                  r"|\boptional(?:ly)?\b|\bmay\s+be\s+(?:omitted|skipped|left|used|included|ignored|removed)\b"
                  r"|\bno\s+need\s+to\b|\b(?:don['’]t|do\s+not|doesn['’]t|does\s+not)\s+(?:have|need)\s+to\b"
-                 r"|\b(?:is|are)\s+not\s+required\b|\bnot\s+mandatory\b")
+                 r"|\b(?:is|are)\s+not\s+required\b|\b(?:is|are)n['’]t\s+required\b|\bn['’]t\s+mandatory\b|\bnot\s+mandatory\b"
+                 r"|\b\w+n['’]t\s+(?:have|need)\s+to\b|\b(?:will|should|would)\s+not\s+(?:have|need)\s+to\b")
 OBLIGATION_STRONG = _rx(r"\b(?:must|shall|mandatory|required|requires?)\b|\b(?:have|has|had)\s+to\b|\bneeds?\s+to\b"
                         r"|(?<!\bno\s)\bneeds?\s+(?!to\b|for\b)(?=[\w$€£])"
                         r"|\bis\s+obligated\b")
@@ -171,7 +172,8 @@ CONDITION = _rx(r"\b(?:if|unless|until|till|whenever|when|while|after|before|as\
                 r"|as\s+long\s+as|in\s+case|except\s+(?:when|if)|at\s+launch|at\s+first|initially|for\s+now"
                 r"|for\s+the\s+time\s+being|temporarily)\b"
                 r"|(?<!\bat\s)\bonce\b(?!\s+(?:a|an|per|every|more|again|or|and)\b)")
-NOT_CONDITION = _rx(r"\b(?:check|see|ask(?:s|ed)?|know|wonder(?:ing)?|determine|verify|tell|find\s+out|sure|unsure|decide|"
+NOT_CONDITION = _rx(r"\b(?:a|for\s+a|after\s+a|in\s+a|quite\s+a|little)\s+while\b|\bbefore(?=\s*(?:[.!?,;)]|$))"
+                    r"|\b(?:check|see|ask(?:s|ed)?|know|wonder(?:ing)?|determine|verify|tell|find\s+out|sure|unsure|decide|"
                     r"confirm)\s+if\b|\bas\s+if\b|\bwhen\s+(?=(?:is|are|was|were|do|does|did|will|would|can|could|should)\s+"
                     r"(?:the|it|we|you|they|this|that|our|your)\b)")
 NOT_PERMISSION = _rx(r"\bfeel\s+free\s+to\s+(?:reach\s+out|contact|ask|get\s+in\s+touch|let\s+(?:me|us)\s+know|ping|email|"
@@ -181,8 +183,8 @@ STOCK_MARKERS = _rx(r"\bit\s+should\s+be\s+noted\s+that\b|\bit\s+(?:is|['’]s)\
                     r"|\b(?:that\s+said|having\s+said\s+that|that\s+being\s+said|easier\s+said\s+than\s+done|needless\s+to\s+say)\b"
                     r"|\bafter\s+all\b|\bbefore\s+we\s+(?:begin|dive\s+in|start)\b")
 # Negated obligations are not obligations ("you don't have to", "not required").
-NEG_OBLIGATION = _rx(r"\b(?:don['’]t|doesn['’]t|didn['’]t|do\s+not|does\s+not|did\s+not|not|no|never)\s+(?:have\s+to|has\s+to|"
-                     r"need\s+to|needs?|required|requires?)\b")
+NEG_OBLIGATION = _rx(r"(?:\b\w+n['’]t|\b(?:do|does|did|is|are|was|were|will|would|should)\s+not|\bnot|\bno|\bnever|\bneedn['’]t)"
+                     r"\s+(?:have\s+to|has\s+to|need\s+to|needs?|required|requires?|mandatory)\b")
 # Wording that is not a hedge: requests and "would like".
 NOT_HEDGE = _rx(r"\b(?:could|would|can|will)\s+you\b|\bwould\s+(?:like|love|appreciate|prefer|be\s+grateful|be\s+happy|mind)\b"
                 r"|\bcould\s+not\b")
@@ -325,7 +327,7 @@ def number_key(m: re.Match[str]) -> str:
     if suffix in ("st", "nd", "rd", "th"):
         suffix = ""
     num = m.group("num").replace(",", "")
-    if prefix not in ("v", "q") and re.fullmatch(r"\d+\.\d*?0+", num):
+    if prefix not in ("v", "q", "p") and re.fullmatch(r"\d+\.\d*?0+", num):
         num = num.rstrip("0").rstrip(".")  # "1.0" is 1 and "0.50" is 0.5
     return prefix + num + suffix
 
@@ -430,7 +432,8 @@ def hedges(text: str) -> list[tuple[int, str]]:
     last_end = -100
     for start, end, level, word in spans:
         gap = text[last_end:start] if last_end >= 0 else ""
-        clause_stack = bool(found) and bool(re.match(r"(?:it\s+)?(?:seems?|seemed|appears?|appeared)(?:\s+(?:that|like))?$",
+        clause_stack = bool(found) and bool(re.match(r"(?:it\s+)?(?:seems?|seemed|appears?|appeared)(?:\s+(?:that|like))?$|it(?:\s+is|['’]s)\s+possible$"
+                                                     r"|there(?:\s+is|['’]s)\s+a\s+chance$|looks?\s+like$|perhaps$|maybe$",
                                                      found[-1][1], re.IGNORECASE)) and len(gap) <= 40 and \
             not re.search(r"[,;:.!?]|\b(?:and|but|or|so|because|although)\b", gap)
         if found and (_stack_gap(gap) or clause_stack):
@@ -684,7 +687,7 @@ def align(orig: tx.Document, rev: tx.Document) -> list[Chunk]:
                 for k in range(len(o)):
                     chunks.append(Chunk([o[k]], [r[k]]))
                 continue
-        if tag == "replace" and len(o) > 1 and len(r) > 1:
+        if tag == "replace" and (len(o) > 1 or len(r) > 1):
             chunks.extend(_split_chunk(o, r))
             continue
         chunks.append(Chunk(list(o), list(r)))
@@ -757,7 +760,10 @@ def _attach_leftovers(chunks: list[Chunk]) -> list[Chunk]:
             else:
                 merged = Chunk(pair.orig, pair.rev + ch.rev if nb < k else ch.rev + pair.rev)
             ratio = _chunk_ratio(merged)
-            if ratio > _chunk_ratio(pair) and _leftover_overlap(ch, pair) >= 1 and (best is None or ratio > best[0]):
+            left = content_words(ch.orig_text if ch.orig else ch.rev_text)
+            overlap = _leftover_overlap(ch, pair)
+            joins = not left or (ratio > _chunk_ratio(pair) and overlap >= 1) or (overlap >= 1 and overlap >= len(left) / 2)
+            if joins and (best is None or ratio > best[0]):
                 best = (ratio, nb, merged)
         if best is None:
             k += 1
@@ -805,6 +811,7 @@ def attach_adjacent(chunks: list[Chunk], orig: tx.Document, rev: tx.Document) ->
             else:
                 merged = Chunk(ch.orig + pair.orig, pair.rev) if side_o else Chunk(pair.orig, ch.rev + pair.rev)
             ratio = _chunk_ratio(merged) if adjacent else 0.0
+            base = _chunk_ratio(pair) if adjacent else 1.0
             # or: most of the leftover's content words are words the neighbor gained (or lost)
             left = content_words(ch.orig_text if side_o else ch.rev_text)
             gained = (content_words(pair.rev_text) - content_words(pair.orig_text)) if side_o else \
@@ -812,14 +819,15 @@ def attach_adjacent(chunks: list[Chunk], orig: tx.Document, rev: tx.Document) ->
             overlap = len(left & gained)
             moved_in = overlap >= 2 and overlap >= len(left) / 2
             score = ratio + (1.0 if moved_in else 0.0)
-            if ((ratio > _chunk_ratio(pair) and overlap >= 1) or moved_in) and (best is None or score > best[0]):
+            if ((ratio > base and overlap >= 1) or moved_in) and (best is None or score > best[0]):
                 best = (score, nb, merged)
         if best is None:
             k += 1
             continue
         result[best[1]] = best[2]
         del result[k]
-        k = 0 if best[1] < k else k
+        if best[1] < k:
+            k -= 1
     result.sort(key=lambda c: c.orig_line or c.rev_line)
     return result
 
@@ -1041,7 +1049,7 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
     po = bool(po_m)
     pr_ = bool(PERMISSION.search(NOT_PERMISSION.sub(" ", mask_month_may(r))))
     if po and not pr_ and po_m is not None and po_m.group(0).lower().endswith(" may") and \
-            re.search(r"\b(?:might|could)\b", r, re.IGNORECASE):
+            re.search(r"\b(?:may|might|could)\b", r, re.IGNORECASE):
         pass  # "Users may see a delay" -> "Users might see a delay": a possibility, compared as a hedge
     elif po != pr_:
         word = first(PERMISSION, o if po else r)
@@ -1231,9 +1239,12 @@ def _cached_feelings(text: str) -> list[str]:
 
 def _sentence_names(sentences: list[tx.Sentence], proper: set[str]) -> set[str]:
     """Names in sentences: capitalized words after the first word, plus a first word that is capitalized
-    in the middle of some sentence elsewhere (so "Several" or "Feel" at the start is not a name)."""
+    in the middle of some sentence elsewhere (so "Several" or "Feel" at the start is not a name). Headings
+    (often in Title Case) are left out."""
     found: set[str] = set()
     for x in sentences:
+        if x.kind == "heading":
+            continue
         found |= set(names(x.masked))
         first = names(x.masked, include_initial=True)[:1]
         if first and first[0] in proper:
@@ -1637,8 +1648,14 @@ def _pair_lines(a: list[str], b: list[str], oi: list[int], nj: list[int]) -> lis
         return [whole]
     n, m = len(oi), len(nj)
     sim = [[0.0] * m for _ in range(n)]
+    o_words = [set(a[i].lower().split()) for i in oi]
+    n_words = [set(b[j].lower().split()) for j in nj]
     for x in range(n):
-        for y in range(m):
+        # rank lines by shared words (cheap), then measure only the top few exactly
+        overlap = [(len(o_words[x] & n_words[y]) / (len(o_words[x] | n_words[y]) or 1), y) for y in range(m)]
+        for share, y in sorted(overlap, reverse=True)[:3]:
+            if share < 0.25:
+                break
             sm = difflib.SequenceMatcher(None, a[oi[x]], b[nj[y]])
             if sm.real_quick_ratio() >= 0.5 and sm.quick_ratio() >= 0.5:
                 r = sm.ratio()
@@ -1771,8 +1788,11 @@ def compare(orig_text: str, rev_text: str, doc_type: Optional[str] = None, reade
     for ch in chunks:
         if ch.orig and not ch.rev:
             text = ch.show_orig()
-            if NEGATION.search(ch.orig_text) or CERTAINTY[0][1].search(ch.orig_text) or OBLIGATION_STRONG.search(ch.orig_text):
-                reviews.append(Review("deleted", "Deleted sentence held a negation, hedge or obligation. Check that "
+            t = ch.orig_text
+            if NEGATION.search(t) or hedges(t) or OBLIGATION_STRONG.search(t) or conditions(t) or LIMITER.search(t) or \
+                    PERMISSION.search(t) or HEARSAY.search(t) or STATUS.search(t):
+                reviews.append(Review("deleted", "Deleted sentence held a negation, hedge, obligation, permission, condition, "
+                                      "limit, hearsay or status word. Check that "
                                       "nothing appears only here, and that its content does not come back elsewhere "
                                       f"with a different negation or hedge. (original line {ch.orig_line})", 0, text))
 

@@ -616,3 +616,41 @@ def test_name_replaced_in_a_sentence() -> None:
     o = "Dana is the owner. The budget was approved by Dana. Lee reviewed it.\n"
     r = "Dana is the owner. The budget was approved by Lee. Lee reviewed it.\n"
     assert "name" in kinds(o, r)
+
+
+@pytest.mark.parametrize(("orig", "rev"), [
+    ("1. **Slower responses**: Peak latency exceeded 3 seconds.\n2. **Security**: Passwords are hashed with bcrypt.\n",
+     "1. Responses slowed down, and peak latency exceeded 3 seconds.\n2. For security, passwords are hashed with bcrypt.\n"),
+    ("## The North Star\n\nText.\n", "## Onboarding goal\n\nText.\n"),
+    ("## Results\n\nThe pilot reduced support tickets by 25% over six weeks, a truly remarkable result.\n\n## Conclusion\n\n"
+     "Overall, the pilot cut tickets by 25%.\n", "## Results\n\nThe pilot reduced support tickets by 25% over six weeks.\n"),
+    ("Do not run the migration during business hours. It locks the users table. To sum up, never run it during "
+     "business hours.\n", "Do not run the migration during business hours, because it locks the users table.\n"),
+    ("A manager's approval isn't required for changes under $500.\n",
+     "A manager's approval is not required for changes under $500.\n"),
+    ("You won't need to restart.\n", "You will not need to restart.\n"),
+    ("It is possible that the job might hang.\n", "The job might hang.\n"),
+    ("Perhaps we could ship on Friday.\n", "We could ship on Friday.\n"),
+    ("The migration took a while, but it finished without errors.\n",
+     "The migration took a long time, but it finished without errors.\n"),
+    ("It has happened before.\n", "It has happened in the past.\n"),
+    ("You may see a warning about an unsigned driver during the install.\n",
+     "A warning about an unsigned driver may appear during the install.\n"),
+])
+def test_set7_diff_review_harmless(orig: str, rev: str) -> None:
+    assert kinds(orig, rev) == []
+
+
+@pytest.mark.parametrize(("orig", "rev", "kind"), [
+    ("Track p95 and p99 latency on the dashboard.\n", "Track p50 latency on the dashboard.\n", "number"),
+    ("The p95 latency improved after the fix.\n", "The p50 latency improved after the fix.\n", "number"),
+    ("Send the invoice to Maria. Maria handles billing questions.\n",
+     "Send the invoice to Tom. Maria handles billing questions.\n", "name"),
+])
+def test_set7_diff_review_counted(orig: str, rev: str, kind: str) -> None:
+    assert kind in kinds(orig, rev)
+
+
+def test_deleted_condition_sentence_gets_a_review() -> None:
+    reviews = review_kinds("Restart the worker. Do this only if the queue is empty.\n", "Restart the worker.\n")
+    assert "deleted" in reviews

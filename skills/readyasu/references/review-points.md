@@ -69,7 +69,7 @@ Some forms are not caught. Compare sentences without findings against your note 
 | feeling_added | A feeling word appeared that the original lacks. Do not add feelings, even in essays |
 | connection | A rewritten sentence starts with a connective or "this/it". Say what it connects to; fix or ask |
 | actor_added | A role (team, manager, we, you...) or a name appeared that is in neither the original nor the material. Remove invented actors, owners and recipients |
-| deleted | A deleted sentence held a negation, hedge or obligation. Check that nothing appears only there |
+| deleted | A deleted sentence held a negation, hedge, obligation, permission, condition, limit (only), hearsay or status word. Check that nothing appears only there, and that its content does not come back elsewhere with a different negation or hedge |
 | added | An added sentence holds a negation, obligation or permission. Check that the original or material says so |
 | words_gone | Content words that no longer appear anywhere. Check that no fact went with them |
 | heading | A heading changed or the number of headings changed, or a closing section at the end ("Conclusion", "Final thoughts"; not in pr or minutes, whose headings stay) was removed. Check the warnings, conditions and roles it held; a closing section may go only when it repeated the body |
