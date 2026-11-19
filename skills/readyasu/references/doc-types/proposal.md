@@ -18,6 +18,7 @@ Lint rules exempted: none
 ## 3. Length and omissions
 
 - Keep every option, including rejected ones, and every cost figure.
+- When revising, do not restructure the proposal or move the conclusion forward.
 
 ## 4. Examples (synthetic)
 

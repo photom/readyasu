@@ -22,14 +22,14 @@ Rewrite events and technical operations described with a metaphor into plain wor
 | dive into, deep dive | "Let's dive into", "a deep dive into" | Delete the announcement or write "This section explains". "Deep dive" as a fixed meeting name stays. |
 | delve | "delve into the details" | "look at", "examine", "go through". |
 | weave | "weaves together data from" | "combines", "merges". |
-| fuel | "fuels innovation" | Say what it makes possible, or "drives" only if a causal claim is in the original. |
+| fuel | "fuels innovation" | Say what it makes possible, or "drives" only if a causal claim is in the original, only from the original or material; otherwise keep and ask. |
 | tame | "tame your inbox" | "reduce", "sort", "control" as the original supports. |
 | shine | "where X truly shines" | "where X works best", "X is most useful when". Drop the intensifier "truly" unless the emphasis carries meaning. |
 | kill, crush, nail | "kill the bottleneck", "crush your goals" | "remove", "fix", "meet". Keep "kill a process" (a technical term). |
 | empower | "empowers teams to" | "lets teams", "allows teams to". Keep the formal sense of granting legal power. |
 | skyrocket | "sales skyrocketed" | "rose sharply" with the number if given. |
 | elevate | "elevate your writing" | "improve", or say what changes. |
-| bridge the gap | "bridges the gap between design and code" | Say what connects to what ("generates code from design files"). |
+| bridge the gap | "bridges the gap between design and code" | Say what connects to what ("generates code from design files"), only from the original or material; otherwise keep and ask. |
 | quietly break / silently brought down | "a misconfiguration quietly broke the export" | Write what was missing only when the text says it ("without an error message", "without an alert"); otherwise keep the original. Keep "fails silently" / "silently fails" in technical text: it is an established term. Do not write "without anyone noticing" unless the text says nobody noticed. |
 
 ---
@@ -63,7 +63,7 @@ Words that appear far more often in AI text than in human text of the same kind.
 | delve, tapestry, testament | "a testament to the team's dedication" | "shows the team's dedication", or state the evidence. |
 | pivotal, crucial, vital, paramount | "plays a pivotal role" | Say what depends on it, only from the original; otherwise keep and ask. Keep "crucial" when the original says it is required. |
 | seamless(ly) | "seamless integration" | Say what the user does not have to do ("works without extra configuration"), only from the original. |
-| robust | "a robust solution" | Say what it withstands. Keep "robust" in statistics and control engineering. |
+| robust | "a robust solution" | Say what it withstands, only from the original or material; otherwise keep and ask. Keep "robust" in statistics and control engineering. |
 | leverage (verb) | "leverage our expertise" | "use". Keep the financial noun. |
 | realm, landscape, sphere | "in the realm of AI", "the evolving landscape" | Usually delete: "in AI". Keep "threat landscape" if the field uses it. |
 | embark, journey | "embark on a journey" | "start". Keep literal journeys. |
@@ -72,7 +72,7 @@ Words that appear far more often in AI text than in human text of the same kind.
 | intricate, nuanced, multifaceted | "an intricate interplay" | Name the parts, only from the original or material; otherwise keep and ask. |
 | holistic, comprehensive | "a holistic approach" | Say what it covers, only from the original or material; otherwise keep and ask. |
 | ever-evolving, fast-paced, cutting-edge, state-of-the-art | "in today's fast-paced world" | Delete the opener. Keep "state of the art" in research papers comparing with prior results. |
-| game-changer, revolutionary, groundbreaking | "a game-changing feature" | State the change. In promo, keep energy but ask about unsupported claims. |
+| game-changer, revolutionary, groundbreaking | "a game-changing feature" | State the change, only from the original or material; otherwise keep and ask. In promo, keep energy but ask about unsupported claims. |
 | boast | "the app boasts a clean UI" | "has". |
 | meticulous(ly) | "meticulously crafted" | Say what care was taken, only from the original or material; otherwise keep and ask. |
 | synergy, alignment (as goal), stakeholders (as everyone) | "drive alignment across stakeholders" | Name the people and what they agree on, only from the original or material; otherwise keep and ask. Keep "stakeholders" when it is the organization's term. |
@@ -95,7 +95,7 @@ Do not describe small personal experiences or routine technical choices with gra
 | valuable insights, actionable insights | "provides valuable insights" | Say what the reader learns, only from the original or material; otherwise keep and ask. |
 | best practices | "follow best practices" | Name the practice if the original does; otherwise keep. |
 | optimize, streamline, enhance | "streamline your process" | Say which step got shorter or what changed, only from the original or material; otherwise keep and ask. |
-| empower, enable | "enables teams to scale" | Say what teams can now do. |
+| empower, enable | "enables teams to scale" | Say what teams can now do, only from the original or material; otherwise keep and ask. |
 
 ---
 

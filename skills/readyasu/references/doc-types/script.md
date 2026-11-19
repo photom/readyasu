@@ -20,7 +20,8 @@ Directions that state feelings the scene does not show are kept; ask only when t
 
 ## 3. Length and omissions
 
-- Keep every line, its speaker and order.
+- Keep every line, its speaker and order. Do not merge or split lines, and do not apply prose rules (filling in subjects, sentence length, making metaphors concrete) to dialogue.
+- Do not fill facts from the conversation or files, and do not ask fact questions (fact-recovery.md section 6).
 
 ## 4. Examples (synthetic)
 

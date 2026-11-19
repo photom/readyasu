@@ -17,7 +17,7 @@ Lint rules exempted: none
 
 ## 3. Length and omissions
 
-- Keep every clause, number and cross-reference.
+- Keep every clause, number and cross-reference. Keep the number, order and numbering of clauses; do not split or join clauses.
 
 ## 4. Examples (synthetic)
 

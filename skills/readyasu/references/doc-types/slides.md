@@ -7,7 +7,7 @@ Also not reported in slides: "key takeaways" (a summary slide) and "thank you fo
 ## 1. Normal forms (do not change)
 
 - Short fragments, one idea per line, headings that state the point.
-- Notes to the requester before or after the slides ("the numbers below are placeholders"): keep them as they are; they are not chat residue.
+- Notes to the requester before or after the slides (an explanation of the structure, a note that values or examples are placeholders, a correction, an offer to make more: "Here's a draft of the deck:", "Let me know if you'd like speaker notes."): they are not slide content. Do not revise them and keep them as they are; they are not chat residue (slop-catalog.md section 6), and lint does not report them in slides. The writer removes them if they are not needed. Ask under "Questions for the writer" about anything in them you need to confirm.
 - Labels and values, "Three reasons" with three bullets, "Why now?" headings, a summary slide.
 - Slide separators (`---`) and speaker notes.
 

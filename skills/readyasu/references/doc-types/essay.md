@@ -21,7 +21,7 @@ Lint rules exempted: fragment_run, exclamation, chat_residue (interjections only
 
 ## 3. Length and omissions
 
-- Keep the paragraphing and the ending.
+- Keep the paragraphing and the ending (except a stock moral deleted under section 2).
 
 ## 4. Examples (synthetic)
 
