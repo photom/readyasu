@@ -1099,7 +1099,7 @@ def test_writers_own_revision_and_draft_sentences(text: str, doc_type: str | Non
 
 def test_here_is_a_draft_with_a_colon_is_still_residue() -> None:
     assert [f.match for f in findings("Here's a draft:\n\nThe plan is to ship.\n", "pr")
-            if f.rule == "chat_residue"] == ["Here's a draft:"]
+            if f.rule == "chat_residue"] == ["Here's a draft"]
     assert "chat_residue" not in rules("Hi Ana,\n\nHere's a draft:\n\n- one\n", "mail")
 
 
@@ -1239,3 +1239,223 @@ def test_many_dashes_in_one_block_are_linear() -> None:
         first, last = (f.message.split('"')[1] for f in (result.findings[0], result.findings[-1]))
         assert first.startswith("a — b") and first.endswith("…")
         assert last.startswith("…") and last.endswith("a — b")
+
+
+# ---------------------------------------------------------------- set 9 lint review
+
+
+def residue(text: str, doc_type: str | None = None) -> list[str]:
+    return [f.match for f in findings(text, doc_type) if f.rule == "chat_residue"]
+
+
+@pytest.mark.parametrize("rule_line", ["---", "***", "___", "- - -"])
+def test_preamble_before_a_rule_and_a_mail(rule_line: str) -> None:
+    text = f"Here's a sincere apology note you can send to your team:\n\n{rule_line}\n\nSubject: An apology\n\nHi all,\n"
+    assert residue(text) == ["Here's a sincere apology note you can send"]
+    text = f"Here's a polished version of your email:\n\n{rule_line}\n\nHi Sam,\n\nThanks.\n"
+    assert residue(text, "mail") == ["Here's a polished version"]  # a mail follows: reported in mail too
+    # Before a rule and a list, a revision lead-in in mail is still exempt.
+    assert residue(f"Here is the revised version of the agenda:\n\n{rule_line}\n\n- Budget\n", "mail") == []
+
+
+@pytest.mark.parametrize(("lead", "match"), [
+    ("Here's your revised email:", "Here's your revised email"),
+    ("Here's the revised email:", "Here's the revised email"),
+    ("Here's an updated version of your email:", "Here's an updated version"),
+    ("Here's a simplified version:", "Here's a simplified version"),
+    ("Here's a condensed version:", "Here's a condensed version"),
+    ("Here's a reworked version:", "Here's a reworked version"),
+    ("Here's a friendlier version:", "Here's a friendlier version"),
+    ("Here's the corrected text:", "Here's the corrected text"),
+    ("Here's a draft email:", "Here's a draft email"),
+    ("Here's a draft reply:", "Here's a draft reply"),
+    ("Here's a possible response:", "Here's a possible response"),
+    ("Here's a draft email to your landlord:", "Here's a draft email"),
+    ("Here's a draft:", "Here's a draft"),
+    ("Here's a draft you can send:", "Here's a draft you can send"),
+    ("Here's the updated invitation:", "Here's the updated invitation"),
+])
+def test_revision_lead_ins_and_mail_offers_before_a_greeting(lead: str, match: str) -> None:
+    text = f"{lead}\n\nDear Mr. Patel,\n\nThank you for your patience.\n"
+    for doc_type in (None, "mail", "pr"):
+        assert residue(text, doc_type) == [match], (lead, doc_type)
+
+
+@pytest.mark.parametrize(("text", "doc_type"), [
+    # Documentation lead-ins and the writer's own sentences.
+    ("Here are the options you can use with `x`:\n\n- `-v`: verbose\n", None),
+    ("Here are the updated numbers:\n\n| Q | Revenue |\n|---|---|\n| Q3 | 4.2 |\n", "pr"),
+    ("Here's the updated schedule:\n\n- Monday: kickoff\n", None),
+    ("Here's a draft reply:\n\nThe plan is to ship on Friday.\n", "pr"),  # no mail follows
+    ("Here's a draft email to the team:\n\n```\nfoo\n```\n", "manual"),  # a mail noun alone needs a greeting
+    ("Here's a sample email:\n\nDear customer,\n\nThanks.\n", "manual"),  # an example in a support guide
+    ("Here is the email template you can copy for outage notices:\n\n```text\nHi all,\n```\n", "manual"),
+    ("Here is the email template you can copy for outage notices:\n\nHi all,\n\nWe are down.\n", "manual"),
+    ("Here is the message you can use to test the webhook:\n\n```json\n{}\n```\n", None),
+    ("Here's the updated email address:\n\nsupport at example dot com\n", "pr"),
+    ("Hi Ana,\n\nHere's a draft email:\n\nDear Mr. Patel,\n", "mail"),  # after the writer's greeting
+])
+def test_lead_ins_that_are_not_preambles_set9(text: str, doc_type: str | None) -> None:
+    assert residue(text, doc_type) == []
+
+
+def test_here_is_a_draft_follows_the_preamble_rules() -> None:
+    # "Here's a draft:" moved from closing-courtesies.txt to the pattern: reported in mail when a mail follows.
+    text = "Here's a draft:\n\nDear Mr. Patel,\n\nThanks.\n"
+    assert residue(text, "mail") == ["Here's a draft"]
+    result = lint.lint("Here's a draft:\n\nThe plan is to ship.\n", "mail")
+    assert "chat_residue" not in [f.rule for f in result.findings]
+    assert [f.match for f in result.exempted if f.rule == "chat_residue"] == ["Here's a draft"]
+    assert all("here's a draft" not in e.phrase.lower() for e in tx.load_list("closing-courtesies"))
+
+
+def test_interjection_preamble_with_more_sentences_before_the_colon() -> None:
+    text = ("Sure — here's a draft you can send to your landlord. It's polite but firm, and it documents the issue "
+            "clearly:\n\n---\n\nSubject: Heating\n\nDear Mr. Okafor,\n")
+    assert residue(text) == ["Sure — here's a draft you can send"]
+    text = ("Certainly! Here's a polished version of your email that keeps your main points but sounds a bit more "
+            "professional and concise:\n\n---\n\nHi Dana,\n")
+    assert residue(text, "mail") == ["Certainly! Here's a polished version"]
+
+
+@pytest.mark.parametrize(("text", "match"), [
+    ("This isn't a tool. It's not a framework. It's a mindset.\n", "It's not a framework. It's"),
+    ("It's not about speed. It's not about cost. It's about trust.\n", "It's not about cost. It's"),
+    ("We didn't build a tool. We didn't build a framework. We built a culture.\n",
+     "We didn't build a framework. We built"),
+])
+def test_chained_two_sentence_contrasts(text: str, match: str) -> None:
+    assert [f.match for f in findings(text) if f.rule == "negative_contrast"] == [match]
+
+
+def test_two_chained_contrasts_are_both_reported() -> None:
+    text = "It isn't a tool. It's a mindset. It isn't a phase. It's a movement.\n"
+    assert [f.match for f in findings(text) if f.rule == "negative_contrast"] == [
+        "It isn't a tool. It's", "It isn't a phase. It's"]
+
+
+@pytest.mark.parametrize("text", [
+    "Remote work isn't a perk. It's a paradigm shift.\n",
+    "Ledgerly Flow isn't just another accounting tool. It's a complete rethinking of how you work.\n",
+    "Good design isn't decoration. It's communication.\n",
+    "What we need isn't more meetings. It's fewer, better ones.\n",
+    "Most teams don't need Kubernetes. They need a single server.\n",
+])
+def test_two_sentence_contrast_with_a_noun_phrase_subject(text: str) -> None:
+    assert "negative_contrast" in rules(text)
+
+
+@pytest.mark.parametrize("text", [
+    "Let's not overthink it. It's a config change.\n",
+    "That's not all. It's also cheap.\n",
+    "In March we didn't ship. We shipped in April.\n",
+    "Your original subscription isn't affected. It's active until October 29, 2025.\n",
+    "The old token isn't valid. It's expired since Monday.\n",
+    "The flag isn't enabled. It's disabled by default.\n",
+])
+def test_two_sentence_contrast_status_and_other_subjects(text: str) -> None:
+    assert "negative_contrast" not in rules(text)
+
+
+def test_todays_opener_needs_modifiers_and_the_noun_to_end_the_phrase() -> None:
+    assert "stock_phrase" not in rules("In today's call we reviewed the business plan for Q3.\n")
+    assert "stock_phrase" not in rules("In today's standup Priya reviewed market data.\n")
+    for text in ("In today's rapidly evolving healthcare landscape, teams ship.\n",
+                 "In today's fast-paced digital landscape, the way we work has changed.\n",
+                 "In today's cloud-native world, apps are distributed.\n",
+                 "Small firms struggle in today's competitive market.\n",
+                 "*In today's digital world*, we ship.\n",
+                 "| Opener | \"In today's rapidly evolving healthcare landscape\" |\n"):
+        assert "stock_phrase" in rules(text), text
+
+
+@pytest.mark.parametrize("text", [
+    "In this policy:\n\n(a) \"Hybrid working\" means working from home;\n\n(b) \"Office\" means the site.\n",
+    "The tenant must:\n\na) pay rent on time;\n\nb) keep the flat clean.\n",
+    "Exceptions:\n\n(i) medical leave;\n\n(ii) jury duty.\n",
+    "The steps are:\n\n(1) apply;\n\n(2) wait.\n",
+])
+def test_decorative_colon_before_lettered_paragraphs(text: str) -> None:
+    assert "decorative_colon" not in rules(text)
+
+
+def test_decorative_colon_before_an_ordinary_paragraph_is_still_reported() -> None:
+    assert "decorative_colon" in rules("Consider this:\n\nA plain paragraph (a) with letters.\n")
+
+
+def test_pathological_names_and_end_marks_are_linear() -> None:
+    import time
+    for text in ("A." * 20000 + "\n", "A-" * 20000 + "\n", "C+" * 20000 + "\n", "Foo-" * 10000 + "\n",
+                 "." * 40000 + "a\n", "!" * 40000 + "a\n"):
+        start = time.monotonic()
+        lint.lint(text)
+        assert time.monotonic() - start < 2, text[:6]
+    assert "negative_contrast" in rules("React isn't a framework; it's a library.\n")
+    assert "negative_contrast" in rules("(React isn't a framework; it's a library.)\n")
+
+
+@pytest.mark.parametrize("text", [
+    "`-l`, `--level` LEVEL — show only records at LEVEL or above.\n",
+    "`-m`, `--match` KEY=PATTERN — keep records whose field KEY matches.\n",
+    "`--fields` LIST — comma-separated fields to print.\n",
+    "- `--color` [WHEN] — colorize the output.\n",
+    "- `--out` <path> — write to a file.\n",
+    "- `--files` FILE... — the inputs.\n",
+])
+def test_em_dash_after_an_option_with_a_placeholder(text: str) -> None:
+    assert "em_dash" not in rules(text)
+
+
+def test_em_dash_after_a_word_that_is_not_a_placeholder_is_reported() -> None:
+    assert rules("`retry()` now waits — it was too eager.\n") == ["em_dash"]
+    assert rules("LEVEL — the level to show.\n") == ["em_dash"]  # no option before it
+
+
+def test_em_dash_on_a_man_page_name_line() -> None:
+    text = "# logsift(1)\n\n## NAME\n\nlogsift — filter and summarize structured log files\n\n## DESCRIPTION\n\n" \
+        "It reads logs — and writes them.\n"
+    assert [(f.line, f.rule) for f in findings(text)] == [(9, "em_dash")]
+    assert "em_dash" not in rules("## NAME\n\ngrep, egrep — print lines that match patterns\n")
+    assert rules("## Name\n\nThe tool reads logs — and writes them.\n") == ["em_dash"]
+    assert rules("## Usage\n\nlogsift — filter log files\n") == ["em_dash"]
+
+
+@pytest.mark.parametrize("text", [
+    "- Grace: confirm Spark operator compatibility with data team — Fri 8 Mar\n",
+    "- Ivo: estimate egress savings from region move — next meeting\n",
+    "- Ben: snapshot then delete unattached EBS volumes — this week\n",
+    "- Sun-hee + Grace: compare on-call pay with other groups — before HR meeting\n",
+    "- Fix the flaky alert — Marco\n",
+    "- Fix the flaky alert — @marco, @ana\n",
+    "- Rotate the keys — by 2024-03-08\n",
+    "Platform team weekly — Tue 5 Mar 2024, 10:00–10:45\nAttendees: Grace, Ivo\n",
+    "On-call handoff — wk 46 (Nov 11–18)\nFrom: dmitri\n",
+    "## Sprint review — Fri 8 Mar\n",
+])
+def test_em_dash_before_a_date_due_time_or_owner_tag(text: str) -> None:
+    assert "em_dash" not in rules(text)
+
+
+@pytest.mark.parametrize("text", [
+    "We finally shipped the new parser — last week.\n",  # a sentence, not a title line
+    "The parser failed. We fixed it — this week\n",  # a sentence ends before the dash
+    "The team agreed to revisit the plan — next week\nwe will decide who owns it.\n",  # a wrapped sentence
+    "Intro line.\nThe team agreed to revisit the plan — next week\n",  # not the first line of the paragraph
+    "- We rebuilt the parser — it was too slow\n",
+    "- We rebuilt the parser — and it is fast now\n",
+])
+def test_em_dash_before_ordinary_words_is_still_reported(text: str) -> None:
+    assert "em_dash" in rules(text)
+
+
+def test_more_than_just_message_and_list_messages_are_clean() -> None:
+    import re
+    got = [f for f in findings("It is more than just a tool.\n") if f.rule == "stock_phrase"]
+    assert [f.message for f in got] == [
+        'Stock phrase "more than just": say what more it is, only from the original; otherwise keep and ask '
+        "(deleting it reverses the claim). Keep any fact that appears only here."]
+    for rule, name, _types in lint.LIST_RULES:
+        for entry in tx.load_list(name):
+            message = lint._list_message(rule, entry.phrase, entry.note or lint.RULES[rule][1])
+            assert not re.search(r"\.\.|[;:,]\.|\s\.", message), message
+            assert message.count("(") == message.count(")"), message

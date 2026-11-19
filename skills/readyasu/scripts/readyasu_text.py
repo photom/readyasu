@@ -52,7 +52,8 @@ def read_text(name: str, stdin_text: Optional[str] = None) -> str:
             data = decode(raw, "standard input")
     else:
         path = Path(name)
-        if not path.is_file():
+        # Not is_file(): a named pipe ("<(printf 'x')", /dev/stdin) is read like a file.
+        if not path.exists() or path.is_dir():
             raise InputError(f"Cannot open {name}: not a file.")
         try:
             raw = path.read_bytes()
@@ -382,6 +383,10 @@ def classify(text: str) -> list[Line]:
     quote_fence_indent = 0
     quote_para = False  # the previous line is paragraph text inside a block quote
     raw_html_end: Optional[str] = None  # the closing tag of an open <pre>, <script>, <style> or <textarea> block
+    comment_block = False  # the open HTML comment started its line (an HTML block), not inside a paragraph
+    # prev_kind is "html" after a line of an HTML block that runs to a blank line (<div>, <p>, a tag alone), whose
+    # indented lines still belong to the block, and "html_end" after the line that ends a <pre>, <script>, <style>
+    # or <textarea> block or an HTML comment, after which an indented line is code.
     prev_kind = "blank"
     for index, raw in enumerate(raw_lines):
         no = index + 1
@@ -402,7 +407,7 @@ def classify(text: str) -> list[Line]:
             lines.append(Line(no, raw, "html" if closing else "code"))
             if closing:
                 raw_html_end = None
-                prev_kind = "html"
+                prev_kind = "html_end"
             continue
         if not in_html_comment and lines and lines[-1].kind in ("para", "list", "heading", "table") \
                 and _opens_comment(lines[-1].content):
@@ -411,6 +416,9 @@ def classify(text: str) -> list[Line]:
             lines.append(Line(no, raw, "html"))
             if "-->" in raw:
                 in_html_comment = False
+                if comment_block:
+                    prev_kind = "html_end"
+                    comment_block = False
             quote_para = False
             continue
         indent = _indent(raw)
@@ -458,15 +466,20 @@ def classify(text: str) -> list[Line]:
             lines.append(Line(no, raw, "html"))
             if "-->" not in stripped[4:]:
                 in_html_comment = True
+                comment_block = True
+            else:
+                prev_kind = "html_end"
             continue
         if not stripped:
             lines.append(Line(no, raw, "blank"))
             prev_kind = "blank"
             continue
-        if raw.startswith(("    ", "\t")) and (prev_kind in ("blank", "code", "fence", "heading", "rule", "html") or (
+        if raw.startswith(("    ", "\t")) and (
+                prev_kind in ("blank", "code", "fence", "heading", "rule", "html_end") or (
                 prev_kind == "table" and "|" not in stripped)):
-            # Indented code cannot interrupt a paragraph, but it may follow a heading, a rule, a table or an HTML
-            # block directly. It needs four columns more than the content of the list item it is in.
+            # Indented code cannot interrupt a paragraph, but it may follow a heading, a rule, a table, or the end of
+            # a <pre> block or an HTML comment directly; after <div> or <p> the indented line is part of the HTML
+            # block. It needs four columns more than the content of the list item it is in.
             _close_items(items, indent)
             if not items or indent >= items[-1] + 4:
                 lines.append(Line(no, raw, "code"))
@@ -499,14 +512,24 @@ def classify(text: str) -> list[Line]:
             lines.append(Line(no, raw, "table", raw.strip()))
             prev_kind = "table"
             continue
-        if _HTML_BLOCK.match(raw) or (prev_kind not in ("para", "list") and not lazy_quote
-                                      and _HTML_ALONE.match(raw)):
+        # Inside a list item, an HTML block may be indented up to three columns past the item's content.
+        html_line = raw
+        if items:
+            inner = next((column for column in reversed(items) if column <= indent), 0)
+            if inner:
+                html_line = " " * (indent - inner) + raw.lstrip()
+        if _HTML_BLOCK.match(html_line) or (prev_kind not in ("para", "list") and not lazy_quote
+                                            and _HTML_ALONE.match(html_line)):
             _close_items(items, indent)
             lines.append(Line(no, raw, "html"))
             prev_kind = "html"
-            rm = _RAW_HTML.match(raw)
-            if rm and f"</{rm.group(1).lower()}>" not in raw[rm.end():].lower():
-                raw_html_end = f"</{rm.group(1).lower()}>"
+            rm = _RAW_HTML.match(html_line)
+            if rm:
+                end_tag = f"</{rm.group(1).lower()}>"
+                if end_tag in html_line[rm.end():].lower():
+                    prev_kind = "html_end"  # "<pre>one line</pre>"
+                else:
+                    raw_html_end = end_tag
             continue
         lm = _LIST.match(raw)
         marker = lm.group(2) if lm else ""
@@ -639,8 +662,9 @@ _SENTENCE_STARTERS = {
     "since", "because", "although", "finally", "first", "today", "here", "not", "only", "even", "still", "yet",
     "thus", "instead", "meanwhile", "later", "let", "please", "do", "is", "are", "was", "were", "see", "use",
 }
-# The end mark may be followed by an emoji with no space ("Shipped!🎉").
-_BOUNDARY = re.compile(r"([.!?]+|\.\.\.|…)([\"'”’)\]*_]*)(\s+|$|(?=[" + _EMOJI_CLASS + "]))")
+# The end mark may be followed by an emoji with no space ("Shipped!🎉"). A run of marks is matched only from its
+# start and only whole, so a long run ("....a") is scanned once, not once per mark.
+_BOUNDARY = re.compile(r"((?<![.!?])[.!?]+(?![.!?])|…)([\"'”’)\]*_]*)(\s+|$|(?=[" + _EMOJI_CLASS + "]))")
 _OPENERS = re.compile(r"\s*[\"'“‘(\[*_]*")
 _NEXT_WORD = re.compile(r"[\"'“‘(\[*_]*([^\W\d_][\w'’-]*)(\.?)")
 _NONSPACE = re.compile(r"\S")

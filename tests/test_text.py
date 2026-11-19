@@ -445,8 +445,13 @@ def test_indented_code_after_a_heading_rule_table_or_html() -> None:
     assert kinds("Title\n=====\n    make deploy\n") == ["heading", "rule", "code"]
     assert kinds("| a | b |\n|---|---|\n| 1 | 2 |\n    make deploy\n") == ["table", "table", "table", "code"]
     assert kinds("| a | b |\n|---|---|\n    1 | 2\n") == ["table", "table", "table"]  # a row, not code
-    assert kinds("<div>\n    make deploy\n") == ["html", "code"]
+    assert kinds("<pre>x</pre>\n    make deploy\n") == ["html", "code"]
+    assert kinds("<pre>\na\n</pre>\n    make deploy\n") == ["html", "code", "html", "code"]
+    assert kinds("<!-- note -->\n    make deploy\n") == ["html", "code"]
+    assert kinds("Text.\n<!--\nnote\n-->\n    make deploy\n") == ["para", "html", "html", "html", "code"]
     assert kinds("Text here.\n    still the paragraph\n") == ["para", "para"]  # cannot interrupt a paragraph
+    # A comment inside a paragraph does not end it.
+    assert kinds("Text <!-- note\nmore -->\n    still the paragraph\n") == ["para", "html", "para"]
 
 
 def test_pre_script_and_style_blocks_are_not_prose() -> None:
@@ -478,3 +483,61 @@ def test_emoji_with_and_without_the_emoji_selector() -> None:
     # Every emoji code point below U+1F000 is one emoji when U+FE0F follows it.
     for cp in tx._BMP_EMOJI:
         assert tx.emoji_in(chr(cp) + vs) == [chr(cp) + vs], hex(cp)
+
+
+# ---------------------------------------------------------------- set 9 lint review
+
+
+def test_indented_text_inside_an_html_block_is_text() -> None:
+    # <div>, <p> and <details> blocks run to a blank line, so an indented line in them is text, not code.
+    for tag in ('<p align="center">', "<div>", "<details>"):
+        for pad in ("  ", "    "):
+            text = f"{tag}\n{pad}A seamless, robust tile proxy written in Go.\n</{tag[1:].split()[0].rstrip('>')}>\n"
+            assert kinds(text) == ["html", "para", "html"], text
+            assert [s.text for s in tx.parse(text).sentences] == ["A seamless, robust tile proxy written in Go."]
+
+
+def test_pre_block_indented_inside_a_list_item() -> None:
+    text = "1. Example:\n\n    <pre>\n    We leverage a robust engine\n    </pre>\n"
+    assert kinds(text) == ["list", "blank", "html", "code", "html"]
+    assert [s.text for s in tx.parse(text).sentences] == ["Example:"]
+    text = "- Example:\n\n   <div>\n   Text.\n   </div>\n"
+    assert kinds(text) == ["list", "blank", "html", "para", "html"]
+    # Four columns past the item's content is indented code, as before.
+    assert kinds("- Example:\n\n      <pre>\n      x\n") == ["list", "blank", "code", "code"]
+
+
+def test_long_runs_of_end_marks_are_linear() -> None:
+    import time
+    for text in ("." * 40000 + "a", "!" * 40000 + "a", "?!" * 20000 + "x", "…" * 40000 + "a"):
+        start = time.monotonic()
+        assert spans(text) == [text]
+        assert time.monotonic() - start < 1, text[:4]
+    assert spans("Wait... What? Really?! Yes!!! OK.") == ["Wait...", "What?", "Really?!", "Yes!!!", "OK."]
+    assert spans("Done.. next one. Then…") == ["Done.. next one.", "Then…"]
+
+
+def test_read_text_accepts_a_named_pipe(tmp_path) -> None:  # noqa: ANN001
+    import os
+    import threading
+
+    import pytest
+    if not hasattr(os, "mkfifo"):
+        pytest.skip("no named pipes on this platform")
+    fifo = tmp_path / "pipe"
+    os.mkfifo(fifo)
+
+    def write() -> None:
+        with fifo.open("w", encoding="utf-8") as out:
+            out.write("Piped text.\r\n")
+
+    writer = threading.Thread(target=write)
+    writer.start()
+    try:
+        assert tx.read_text(str(fifo)) == "Piped text.\n"
+    finally:
+        writer.join(5)
+    # Folders and missing files are still refused with the same message.
+    for name in (str(tmp_path), str(tmp_path / "missing.md")):
+        with pytest.raises(tx.InputError, match="not a file"):
+            tx.read_text(name)
