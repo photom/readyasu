@@ -86,22 +86,67 @@ def sha256_text(text: str) -> str:
 
 # ---------------------------------------------------------------- masking
 
-_INLINE_CODE = re.compile(r"(`+)(?!`)(.+?)(?<!`)\1(?!`)", re.DOTALL)
+_TICKS = re.compile(r"`+")
 # GitHub autolinks do not end with punctuation or emphasis markers (*, _, ~).
 _URL = re.compile(r"(?<![A-Za-z0-9_.-])(?:https?://|ftp://|www\.)[^\s<>()\[\]]+[^\s<>()\[\].,;:!?'\"*_~]")
 _AUTOLINK = re.compile(r"<(?:https?://|mailto:)[^>\s]+>")
 _LINK_DEST = re.compile(r"\]\((?:[^()\s]|\([^()\s]*\))*(?:\s+\"[^\"]*\")?\)")
-# Code spans and HTML comments: whichever starts first wins, so `<!--` in code is code.
-_CODE_OR_COMMENT = re.compile(_INLINE_CODE.pattern + r"|<!--.*?(?:-->|\Z)", re.DOTALL)
 _HTML_TAG = re.compile(r"</?[A-Za-z][A-Za-z0-9-]*(?:\s[^<>]*)?/?>")
 # The lookbehind keeps the scan linear on long dotted tokens.
 _EMAIL = re.compile(r"(?<![\w.+-])[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b")
 
 
+def code_spans(text: str, comments: bool = True) -> list[tuple[int, int, str]]:
+    """Inline code ("code") and HTML comments ("html", only if comments is True), in order.
+
+    As in CommonMark, a run of backticks opens a code span that ends at the next run of the same length; a run
+    with no such partner is literal text. Whichever starts first wins, so `<!--` in code is code and a backtick
+    inside a comment opens nothing. An unclosed comment runs to the end of the text. Linear time.
+    """
+    runs = [(m.start(), m.end()) for m in _TICKS.finditer(text)] if "`" in text else []
+    by_length: dict[int, list[int]] = {}
+    for k, (s, e) in enumerate(runs):
+        by_length.setdefault(e - s, []).append(k)
+    pointer = dict.fromkeys(by_length, 0)
+    comments = comments and "<!--" in text
+    spans: list[tuple[int, int, str]] = []
+    pos = 0
+    k = 0
+    comment = text.find("<!--") if comments else -1
+    while True:
+        while k < len(runs) and runs[k][0] < pos:
+            k += 1
+        if comment >= 0 and comment < pos:
+            comment = text.find("<!--", pos)
+        if k < len(runs) and (comment < 0 or runs[k][0] < comment):
+            s, e = runs[k]
+            same = by_length[e - s]
+            p = pointer[e - s]
+            while p < len(same) and same[p] <= k:
+                p += 1
+            pointer[e - s] = p
+            if p < len(same):
+                spans.append((s, runs[same[p]][1], "code"))
+                pos = runs[same[p]][1]
+            else:
+                pos = e
+            k += 1
+        elif comment >= 0:
+            close = text.find("-->", comment + 4)
+            end = len(text) if close < 0 else close + 3
+            spans.append((comment, end, "html"))
+            pos = end
+        else:
+            return spans
+
+
 def protected_spans(text: str) -> list[tuple[int, int, str]]:
     """Spans that must not change: inline code, URLs, autolinks, link targets, e-mail, HTML tags and comments."""
-    spans: list[tuple[int, int, str]] = []
+    spans = code_spans(text)
     taken = [False] * (len(text) + 1)
+    for start, end, _kind in spans:
+        for i in range(start, end):
+            taken[i] = True
 
     def add(pattern: re.Pattern[str], kind: str) -> None:
         for m in pattern.finditer(text):
@@ -109,9 +154,8 @@ def protected_spans(text: str) -> list[tuple[int, int, str]]:
                 continue
             for i in range(m.start(), m.end()):
                 taken[i] = True
-            spans.append((m.start(), m.end(), "html" if m.group(0).startswith("<!--") else kind))
+            spans.append((m.start(), m.end(), kind))
 
-    add(_CODE_OR_COMMENT if "<!--" in text else _INLINE_CODE, "code")
     add(_AUTOLINK, "url")
     add(_LINK_DEST, "url")
     add(_URL, "url")
@@ -138,12 +182,14 @@ def mask(text: str, fill: str = " ") -> str:
 
 _FENCE = re.compile(r"^( {0,3})(`{3,}|~{3,})(.*)$")
 _LIST_FENCE = re.compile(r"^([ \t]{0,12})(`{3,}|~{3,})(.*)$")
-_EMOJI_CLASS = "\U0001F000-\U0001FAFF\u2600-\u27BF\u2B00-\u2BFF\u231A\u231B\u23E9-\u23FA"
-# A callout starts with [!TYPE] or a label (**Note:**, *Tip:*, Warning:), optionally after an emoji.
+_EMOJI_CLASS = "\U0001F000-\U0001FAFF\u2600-\u27BF\u2B00-\u2BFF\u231A\u231B\u23E9-\u23FA\u2139"
+_CALLOUT_EMOJI = "(?:[" + _EMOJI_CLASS + "]\uFE0F?\\s*)?"
+# A callout starts with [!TYPE] or a label (**Note:**, *Tip:*, Warning:), optionally after an emoji, which may
+# also sit inside the emphasis (**⚠️ Warning:**).
 _CALLOUT = re.compile(
-    r"^\s*(?:[" + _EMOJI_CLASS + "]\uFE0F?\\s*)?"
-    r"(?:\[![A-Za-z]+\]|(?:\*\*|__|\*|_)?(?:note|warning|tip|important|caution|info|danger|attention)"
-    r"\b[^\n]{0,3}?(?::|\*\*|__|\*|_))", re.IGNORECASE)
+    r"^\s*" + _CALLOUT_EMOJI +
+    r"(?:\[![A-Za-z]+\]|(?:\*\*|__|\*|_)?" + _CALLOUT_EMOJI +
+    r"(?:note|warning|tip|important|caution|info|danger|attention)\b[^\n]{0,3}?(?::|\*\*|__|\*|_))", re.IGNORECASE)
 _HEADING = re.compile(r"^ {0,3}(#{1,6})(?:[ \t]+(.*))?$")
 _LIST = re.compile(r"^(\s*)([-*+]|\d{1,9}[.)])(?:[ \t]+(?:\[[ xX]\][ \t]+)?|$)")
 _QUOTE = re.compile(r"^ {0,3}>")
@@ -160,7 +206,6 @@ _HTML_BLOCK = re.compile(
     r"iframe|legend|li|link|main|menu|menuitem|nav|noframes|ol|optgroup|option|p|param|pre|script|search|section|"
     r"style|summary|table|tbody|td|textarea|tfoot|th|thead|title|tr|track|ul)(?=[\s/>]|$)", re.IGNORECASE)
 _HTML_ALONE = re.compile(r"^ {0,3}(?:<[A-Za-z][A-Za-z0-9-]*(?:\s[^<>]*)?/?>|</[A-Za-z][A-Za-z0-9-]*\s*>)\s*$")
-_CLOSED_COMMENT = re.compile(r"<!--.*?-->")
 
 
 @dataclass
@@ -239,14 +284,48 @@ def _opens_comment(text: str) -> bool:
     """True if text starts an HTML comment that does not close on the same line (outside inline code)."""
     if "<!--" not in text:
         return False
-    probe = _INLINE_CODE.sub(lambda m: " " * len(m.group(0)), text)
-    return "<!--" in _CLOSED_COMMENT.sub(" ", probe)
+    return any(kind == "html" and text.find("-->", start + 4, end) < 0 for start, end, kind in code_spans(text))
 
 
 def _closes_fence(text: str, fence: str, indent: int) -> bool:
     m = _LIST_FENCE.match(text)
     return bool(m and m.group(2)[0] == fence[0] and len(m.group(2)) >= len(fence)
                 and not m.group(3).strip() and len(m.group(1).expandtabs(4)) <= indent + 3)
+
+
+_YAML_KEY = re.compile(r"^\s*(?:#|-(?:\s|$)|[^\s:#][^:]*:(?:\s|$))")
+_TOML_KEY = re.compile(r"^\s*(?:#|\[|[\w\"'.-]+\s*=)")
+
+
+def _front_matter_end(raw_lines: list[str]) -> int:
+    """Index of the line that closes front matter starting on line 1, or -1.
+
+    Front matter needs a closing line and a second line that is a key, a comment or (YAML) a list item, so a
+    document that starts with a thematic break ("---" then a blank line or a paragraph) is not swallowed.
+    """
+    if len(raw_lines) < 2:
+        return -1
+    first = raw_lines[0].strip()
+    if first not in ("---", "+++"):
+        return -1
+    key = _YAML_KEY if first == "---" else _TOML_KEY
+    if not key.match(raw_lines[1]) and raw_lines[1].strip() != first:
+        return -1
+    ends = ("---", "...") if first == "---" else ("+++",)
+    for index in range(1, len(raw_lines)):
+        if raw_lines[index].strip() in ends:
+            return index
+    return -1
+
+
+def _indent(raw: str) -> int:
+    return len(raw[:len(raw) - len(raw.lstrip())].expandtabs(4))
+
+
+def _close_items(items: list[int], indent: int) -> None:
+    """End the open list items whose content starts to the right of indent."""
+    while items and items[-1] > indent:
+        items.pop()
 
 
 def classify(text: str) -> list[Line]:
@@ -258,9 +337,8 @@ def classify(text: str) -> list[Line]:
     in_fence: Optional[str] = None
     fence_indent = 0
     in_html_comment = False
-    front_end: tuple[str, ...] = ()
-    in_list = False
-    item_indent = 0
+    front_end = _front_matter_end(raw_lines)
+    items: list[int] = []  # content columns of the open list items, outermost first
     quote_fence: Optional[str] = None
     quote_fence_indent = 0
     quote_para = False  # the previous line is paragraph text inside a block quote
@@ -268,20 +346,15 @@ def classify(text: str) -> list[Line]:
     for index, raw in enumerate(raw_lines):
         no = index + 1
         stripped = raw.strip()
-        if index == 0 and stripped in ("---", "+++"):
-            front_end = ("---", "...") if stripped == "---" else ("+++",)
+        if index <= front_end:
             lines.append(Line(no, raw, "front"))
-            continue
-        if front_end:
-            lines.append(Line(no, raw, "front"))
-            if stripped in front_end:
-                front_end = ()
             continue
         if in_fence is not None:
             lines.append(Line(no, raw, "code"))
             if _closes_fence(raw, in_fence, fence_indent):
                 lines[-1].kind = "fence"
                 in_fence = None
+                prev_kind = "fence"
             continue
         if not in_html_comment and lines and lines[-1].kind in ("para", "list", "heading", "table") \
                 and _opens_comment(lines[-1].content):
@@ -292,7 +365,11 @@ def classify(text: str) -> list[Line]:
                 in_html_comment = False
             quote_para = False
             continue
+        indent = _indent(raw)
+        # The previous line is paragraph text in a list item, so this line may continue it lazily.
+        lazy_item = bool(items) and prev_kind in ("list", "para")
         if _QUOTE.match(raw):
+            _close_items(items, indent)
             content = _QUOTE_PREFIX.sub("", raw, count=1)
             prev_kind = "quote"
             if quote_fence is not None:
@@ -315,8 +392,9 @@ def classify(text: str) -> list[Line]:
         quote_fence = None  # a fence inside a block quote ends with the quote
         lazy_quote = quote_para and prev_kind == "quote"
         quote_para = False
-        m = _FENCE.match(raw) or (_LIST_FENCE.match(raw) if in_list else None)
+        m = _FENCE.match(raw) or (_LIST_FENCE.match(raw) if items else None)
         if m and not ("`" in m.group(3) and m.group(2)[0] == "`"):
+            _close_items(items, indent)
             in_fence = m.group(2)
             fence_indent = len(m.group(1).expandtabs(4))
             lines.append(Line(no, raw, "fence"))
@@ -331,9 +409,10 @@ def classify(text: str) -> list[Line]:
             lines.append(Line(no, raw, "blank"))
             prev_kind = "blank"
             continue
-        if raw.startswith(("    ", "\t")) and prev_kind in ("blank", "code"):
-            indent = len(raw[:len(raw) - len(raw.lstrip())].expandtabs(4))
-            if not in_list or indent >= item_indent + 4:
+        if raw.startswith(("    ", "\t")) and prev_kind in ("blank", "code", "fence"):
+            # Indented code needs four columns more than the content of the list item it is in.
+            _close_items(items, indent)
+            if not items or indent >= items[-1] + 4:
                 lines.append(Line(no, raw, "code"))
                 prev_kind = "code"
                 continue
@@ -345,19 +424,20 @@ def classify(text: str) -> list[Line]:
             prev_kind = "rule"
             continue
         if _RULE.match(raw):
+            _close_items(items, indent)
             lines.append(Line(no, raw, "rule"))
             prev_kind = "rule"
-            in_list = False
             continue
         hm = _HEADING.match(raw)
         if hm:
+            _close_items(items, indent)
             content, offset = _heading_parts(raw, hm)
             lines.append(Line(no, raw, "heading", content, offset, level=len(hm.group(1))))
             prev_kind = "heading"
-            in_list = False
             continue
         if stripped.startswith("|") or (prev_kind == "table" and "|" in stripped) or \
                 (prev_kind == "para" and "|" in raw and _TABLE_SEP.match(raw)):
+            _close_items(items, indent)
             if prev_kind == "para" and lines and _TABLE_SEP.match(raw):
                 lines[-1].kind = "table"
             lines.append(Line(no, raw, "table", raw.strip()))
@@ -365,16 +445,17 @@ def classify(text: str) -> list[Line]:
             continue
         if _HTML_BLOCK.match(raw) or (prev_kind not in ("para", "list") and not lazy_quote
                                       and _HTML_ALONE.match(raw)):
+            _close_items(items, indent)
             lines.append(Line(no, raw, "html"))
             prev_kind = "html"
             continue
         lm = _LIST.match(raw)
         if lm:
+            _close_items(items, indent)
             content = raw[lm.end():]
             lines.append(Line(no, raw, "list", content, lm.end()))
             prev_kind = "list"
-            in_list = True
-            item_indent = _content_indent(raw, lm)
+            items.append(_content_indent(raw, lm))
             continue
         if lazy_quote:
             # CommonMark lazy continuation: an unprefixed line continues the quoted paragraph.
@@ -382,12 +463,13 @@ def classify(text: str) -> list[Line]:
             prev_kind = "quote"
             quote_para = True
             continue
-        cont = in_list and prev_kind in ("list", "para")  # lazy or indented continuation of a list item
+        # Text in a list item: a lazy continuation line of its paragraph, or a line indented at least as far as
+        # the item's content (a later paragraph of the item, after a blank line or a fence).
+        if not lazy_item:
+            _close_items(items, indent)
         line = Line(no, raw, "para", raw.lstrip(), len(raw) - len(raw.lstrip()))
-        line.continuation = cont
+        line.continuation = bool(items)
         lines.append(line)
-        if not cont:
-            in_list = False
         prev_kind = "para"
     for line in lines:
         if line.kind == "table":

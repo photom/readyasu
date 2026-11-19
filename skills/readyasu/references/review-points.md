@@ -110,10 +110,10 @@ Every changed line pair, not shortened. `~` lines show word-level changes as `[-
 |---|---|---|
 | `bold_unrendered` | error | Markdown will show the asterisks. Fix the markup: no space inside `**text**`; add a space after a closing `**` that follows punctuation and precedes a letter (`**Note:** This`). A lone `**` (the only one in the paragraph, as in `**kwargs`) is info: add the closing `**` if bold was meant, or put code in backticks. `**` between letters or digits (`2**3`) is not reported |
 | `emoji` | warn | Remove decoration; keep emoji that carry meaning (a status icon in a table the reader needs). Exempt in promo and mail |
-| `em_dash` | warn | Replace clause-splicing dashes with punctuation that keeps the scope; split into two sentences when a reason or condition would reach farther. Keep in fiction narration and dialogue, quotations, ranges and code. Not reported in the document title (the first level-1 heading), for a dash that is a whole table cell, after a time or date that starts a line or item (`09:12 — Config change`), or before a field label (`— Owner: Marco`) |
-| `chat_residue` | warn | Assistant chat left in a document: delete. In mail, courtesies, offers and closings (`closing-courtesies.txt`) are not reported; the writer's own sign-off stays. Interjections such as "Sure!" and "Of course!" (`chat-interjections.txt`) are not reported in essay, script and mail, or inside double quotation marks |
+| `em_dash` | warn | Replace clause-splicing dashes with punctuation that keeps the scope; split into two sentences when a reason or condition would reach farther. Keep in fiction narration and dialogue, quotations, ranges and code. Not reported in the document title (the first level-1 heading), for a dash that is a whole table cell, after a time, date or version (or a range of them) that starts a line or item (`09:12 — Config change`, `10:00–10:15 — Status`, `Version 2.1 — Effective January 1`), before a field label (`— Owner: Marco`), or on a line that only names the author under a quotation (`— Jeff Atwood`) |
+| `chat_residue` | warn | Assistant chat left in a document: delete. In mail, courtesies, offers and closings (`closing-courtesies.txt`, including "I hope this helps") are not reported; the writer's own sign-off stays. Interjections such as "Sure!" and "Of course!" (`chat-interjections.txt`) are reported only where they start a sentence, and not in essay, script and mail, or inside double quotation marks |
 | `stock_phrase` | warn | Openers, signposts and closers that announce instead of saying. Delete, and keep any fact that appears only there |
-| `hedge_stack` | warn | Use one hedge of the same strength. Never remove the hedge entirely |
+| `hedge_stack` | warn | Use one hedge of the same strength. Never remove the hedge entirely. After "it seems" or "it appears", "could" counts only as a possibility (`could be`, `could have`), not as an ability (`the attacker could read any file`) |
 | `heading_colon` | warn | Remove the colon from the heading (also inside emphasis, as in `## **Benefits:**`) |
 | `bold_label_list` | warn | SKILL.md "Bold and labels": keep labels for values, fold summary labels into the sentence, remove the bold. Exempt in minutes and slides |
 | `heavy_bold` | warn | Keep bold only for what readers must not miss |
@@ -122,7 +122,7 @@ Every changed line pair, not shortened. `~` lines show word-level changes as `[-
 | `metaphor_verb` | info | slop-catalog.md section 1. Say what changed; do not replace with a vague benefit. Not exempted in any type; each doc-type file says which uses to keep |
 | `intensifier` | info | SKILL.md "Wordiness, zombie nouns and stock vocabulary": delete when stacked, on an absolute, or in technical and formal text |
 | `jargon` | info | domains/business.md section 3 |
-| `negative_contrast` | info | SKILL.md "Self-labeling and negative contrast" and rephrase-test.md section 3. Keep negations that correct a likely misreading |
+| `negative_contrast` | info | SKILL.md "Self-labeling and negative contrast" and rephrase-test.md section 3. Keep negations that correct a likely misreading. A concession (`not tested, but it shipped`) is not reported, and the two-sentence form needs the same subject and verb (`It isn't a tool. It's a mindset.`) |
 | `personification` | info | SKILL.md "Metaphorical verbs and personification". Keep obvious functions and identifier subjects in developer documents |
 | `self_answered_question` | info | Fold into a statement. Exempt in slides, promo and script |
 | `fragment_run` | info | Write subject and verb when the original gives them. Exempt in minutes, slides, essay, promo and script |
@@ -130,7 +130,7 @@ Every changed line pair, not shortened. `~` lines show word-level changes as `[-
 | `closing_summary` | info | Delete a closing section that only repeats; keep new information, next steps and requested summaries. Exempt in slides |
 | `excess_list` | info | Turn reasons and conditions back into sentences where a list splits one argument; keep parallel lists. Exempt in pr, incident, minutes, manual and slides |
 | `exclamation` | info | Keep only where the type and writer use them. Exempt in essay, promo, mail and script |
-| `sentence_start_repeat` | info | Vary only where it reads as a pattern; keep parallel steps |
+| `sentence_start_repeat` | info | Vary only where it reads as a pattern; keep parallel steps. Numbered clauses (`3.1`, `3.2`) do not count |
 | `decorative_colon` | info | Remove the colon or finish the sentence |
 | `project_term` | info | A word from `.readyasu-words/flag.txt` or `flag-patterns.txt`. Rewrite the sentence, not just the word; the replacement after "→" is the project's preferred term |
 

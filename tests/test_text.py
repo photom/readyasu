@@ -256,3 +256,63 @@ def test_text_helpers_are_linear() -> None:
         tx.parse(text)
         tx.split_sentences(text)
         assert time.monotonic() - start < 2, text[:20]
+
+
+# ---------------------------------------------------------------- set 5 lint review
+
+
+def test_later_paragraphs_of_a_list_item_are_prose() -> None:
+    text = ("1. Open the settings page.\n\n    Pick the region closest to your users.\n\n"
+            "    This step leverages a robust cache.\n\n2. Save.\n")
+    doc = tx.parse(text)
+    assert kinds(text) == ["list", "blank", "para", "blank", "para", "blank", "list"]
+    assert [ln.continuation for ln in doc.lines if ln.kind == "para"] == [True, True]
+    assert any("leverages" in s.text for s in doc.sentences)
+    tabbed = "1. Open it.\n\n\tPick one.\n\n\tThis step leverages it.\n"
+    assert kinds(tabbed) == ["list", "blank", "para", "blank", "para"]
+    assert kinds("- a\n  - b\n\n  outer para\n\n      code\n") == ["list", "list", "blank", "para", "blank", "code"]
+    assert kinds("- a\n\n    para\n\ntop\n\n    code\n") == ["list", "blank", "para", "blank", "para", "blank", "code"]
+
+
+def test_fence_after_a_paragraph_inside_a_list_item() -> None:
+    text = ("1. Install the tool:\n    ~~~\n    npm i\n    ~~~\n    Then start it:\n    ~~~\n"
+            "    npm start -- --robust # leverage\n    ~~~\n2. Done.\n")
+    doc = tx.parse(text)
+    assert kinds(text) == ["list", "fence", "code", "fence", "para", "fence", "code", "fence", "list"]
+    assert not any("leverage" in s.text for s in doc.sentences)
+
+
+def test_front_matter_needs_a_closing_line_and_a_key() -> None:
+    assert kinds("---\n\nWe leverage robust tooling.\n") == ["rule", "blank", "para"]
+    assert kinds("---\nIntro text here.\n") == ["rule", "para"]
+    assert kinds("---\ntitle: x\nNo closing line.\n")[0] == "rule"
+    assert kinds("---\ntitle: x\n---\nBody.\n") == ["front", "front", "front", "para"]
+    assert kinds("---\n# comment\n...\nBody.\n") == ["front", "front", "front", "para"]
+    assert kinds("+++\n\nBody.\n+++\n")[0] != "front"
+
+
+def test_code_spans_pair_runs_of_equal_length() -> None:
+    assert tx.code_spans("a `code` b") == [(2, 8, "code")]
+    assert tx.code_spans("``` foo ``") == []  # no closing run of three: literal
+    assert tx.code_spans("a `` ` `` b") == [(2, 9, "code")]
+    assert tx.code_spans("<!-- ` --> text `code`") == [(0, 10, "html"), (16, 22, "code")]
+    assert tx.code_spans("`<!--` x") == [(0, 6, "code")]
+    assert tx.code_spans("x <!-- open") == [(2, 11, "html")]
+    assert tx.code_spans("x <!-- open", comments=False) == []
+
+
+def test_unpaired_backtick_runs_are_linear() -> None:
+    import time
+    text = " ".join("`" * m for m in range(1, 280)) + " x"
+    start = time.monotonic()
+    for _ in range(5):
+        tx.mask(text)
+        tx.parse(text)
+    assert time.monotonic() - start < 1
+    assert tx.mask(text) == text
+
+
+def test_callout_with_emoji_inside_the_label() -> None:
+    for text in ("> **⚠️ Warning:** This leverages a lock.\n", "> ℹ️ **Note:** Text.\n", "> **ℹ️ Note:** Text.\n",
+                 "> _💡 Tip:_ Text.\n"):
+        assert [b.kind for b in tx.parse(text).blocks] == ["callout"], text

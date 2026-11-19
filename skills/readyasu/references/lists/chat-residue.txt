@@ -1,10 +1,17 @@
 # Assistant chat left in a document. Reported in every document type.
-# Offers and courtesies that are normal in mail are in closing-courtesies.txt;
-# interjections that are normal in dialogue are in chat-interjections.txt.
-i hope this helps	delete
-hope this helps	delete
-as an ai	delete
-as a language model	delete
+# Offers, courtesies and closings that are normal in mail (including "I hope this helps") are in
+# closing-courtesies.txt; interjections that are normal in dialogue are in chat-interjections.txt.
+# The "as an AI" entries need the first-person clause after them, so "As an AI researcher, I ..." and
+# "We use GPT-2 as a language model for rescoring" are not reported.
+as an ai language model, i	delete
+as an ai language model i	delete
+as an ai language model, my	delete
+as an ai, i	delete
+as an ai, my	delete
+as an ai assistant, i	delete
+as an ai model, i	delete
+as a language model, i	delete
+as a large language model, i	delete
 here's a revised version	delete
 here is a revised version	delete
 here's the revised version	delete

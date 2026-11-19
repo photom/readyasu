@@ -75,7 +75,7 @@ def test_doc_type_exemptions() -> None:
 
 
 def test_mail_exempts_courtesies_only() -> None:
-    text = "Let me know if you have any questions. I hope this helps.\n"
+    text = "Let me know if you have any questions. I hope this helps. Here's the revised version of the plan.\n"
     got = rules(text, "mail")
     assert got.count("chat_residue") == 1
 
@@ -363,3 +363,236 @@ def test_long_hard_wrapped_text_is_fast() -> None:
     result = lint.lint(text)
     assert time.monotonic() - start < 5
     assert len(result.findings) > 1000
+
+
+# ---------------------------------------------------------------- set 5 lint review
+
+
+def located(text: str, doc_type: str | None = None) -> list[tuple[str, int, int, str]]:
+    return [(f.rule, f.line, f.col, f.match) for f in findings(text, doc_type)]
+
+
+def test_second_paragraph_of_a_list_item_is_checked() -> None:
+    text = ("1. Open the settings page.\n\n    Pick the region closest to your users.\n\n"
+            "    This step leverages a robust cache — it is seamless.\n\n2. Save.\n")
+    got = [(rule, line) for rule, line, _col, _m in located(text)]
+    assert got == [("ai_vocabulary", 5), ("ai_vocabulary", 5), ("em_dash", 5), ("ai_vocabulary", 5)]
+
+
+def test_fence_after_list_paragraph_is_not_prose() -> None:
+    text = ("1. Install the tool:\n    ~~~\n    npm i\n    ~~~\n    Then start it:\n    ~~~\n"
+            "    npm start -- --robust # leverage\n    ~~~\n2. Done.\n")
+    assert findings(text) == []
+
+
+@pytest.mark.parametrize("text", [
+    "As an AI researcher, I have reviewed the paper.\n",
+    "We use GPT-2 as a language model for rescoring.\n",
+    "The firm positions itself as an AI company.\n",
+    "Hope this helps clarify the timeline.\n",
+])
+def test_chat_residue_not_in_ordinary_prose(text: str) -> None:
+    assert "chat_residue" not in rules(text, "mail")
+    if text.startswith("Hope"):
+        assert "chat_residue" in rules(text)  # still residue in a document
+    else:
+        assert "chat_residue" not in rules(text)
+
+
+@pytest.mark.parametrize("text", [
+    "As an AI, I don't have personal opinions.\n",
+    "As a large language model, I cannot browse the web.\n",
+    "As an AI language model I cannot browse.\n",
+])
+def test_ai_disclaimers_still_caught(text: str) -> None:
+    assert "chat_residue" in rules(text, "mail")
+
+
+def test_hope_this_helps_is_a_courtesy() -> None:
+    result = lint.lint("Thanks for the notes. I hope this helps!\n", "mail")
+    assert "chat_residue" not in [f.rule for f in result.findings]
+    assert [f.match for f in result.exempted if f.rule == "chat_residue"] == ["I hope this helps"]
+    assert "chat_residue" in rules("I hope this helps!\n")
+
+
+def test_dash_position_is_the_dash(tmp_path, capsys) -> None:  # noqa: ANN001
+    import json
+    path = tmp_path / "a.md"
+    path.write_text("We changed the cache\n— and the latency dropped.\n\nWe changed it — and it worked.\n"
+                    "\nWe tried -- and failed.\n", encoding="utf-8")
+    lint.main([str(path), "--json", "--no-words"])
+    data = json.loads(capsys.readouterr().out)
+    assert [(f["line"], f["col"], f["match"]) for f in data["findings"] if f["rule"] == "em_dash"] == [
+        (2, 1, "—"), (4, 15, "—"), (6, 10, "--")]
+
+
+@pytest.mark.parametrize("text", [
+    "The best code is no code at all.\n— Jeff Atwood\n",
+    '"Simplicity is prerequisite for reliability."\n— Edsger W. Dijkstra, 1975\n',
+])
+def test_attribution_under_a_quotation(text: str) -> None:
+    assert "em_dash" not in rules(text)
+
+
+@pytest.mark.parametrize("text", [
+    "We tried everything.\n— Then It Worked Again.\n",
+    "We changed the cache\n— Jeff noticed it.\n",
+])
+def test_dash_line_that_is_not_an_attribution(text: str) -> None:
+    assert "em_dash" in rules(text)
+
+
+@pytest.mark.parametrize("text", [
+    "It is faster, that is for sure!\n",
+    "The answer, of course! was no.\n",
+    "This is a great question to ask your vendor.\n",
+    "This is a\ngreat question to ask your vendor.\n",
+    "| Q | A |\n|---|---|\n| Faster? | Yes, for sure! |\n",
+])
+def test_interjections_mid_sentence(text: str) -> None:
+    assert "chat_residue" not in rules(text)
+
+
+@pytest.mark.parametrize("text", [
+    "Great question! Here is the answer.\n",
+    "We shipped it. Of course! It worked.\n",
+    "**Certainly!** Here is the plan.\n",
+    "Sam asked about pricing\nGreat question! We will follow up.\n",
+    "Hey there! Welcome to the guide.\n",
+    "| Reply | Action |\n|---|---|\n| Sure! I will send it. | Delete |\n",
+])
+def test_interjections_at_a_sentence_start(text: str) -> None:
+    assert "chat_residue" in rules(text)
+    assert "chat_residue" not in rules(text, "script")
+
+
+def test_interjection_list_comment_matches_behavior() -> None:
+    header = [ln for ln in (tx.LISTS_DIR / "chat-interjections.txt").read_text(encoding="utf-8").splitlines()
+              if ln.startswith("#")]
+    assert "double quotation marks" in " ".join(header)
+    assert "chat_residue" not in rules('"Sure!" she said.\n')
+    assert "chat_residue" in rules("'Sure!' she said.\n")  # single quotes are not treated as dialogue
+
+
+@pytest.mark.parametrize("text", [
+    "1. 10:00–10:15 — Status updates\n",
+    "2. 10:15 - 10:45 — Roadmap review\n",
+    "3. 10:45 to 11:00 — Questions\n",
+    "5. Dec 3–5 — Offsite\n",
+    "- 14:00–15:00 — Review meeting\n",
+    "- 10:00 – 10:15 — Standup\n",
+    "Version 2.1 — Effective January 1, 2027\n",
+    "Last updated: March 2026 — Draft\n",
+    "- v2.1 — Rewrote the parser\n",
+])
+def test_em_dash_after_time_range_or_version(text: str) -> None:
+    assert "em_dash" not in rules(text)
+
+
+def test_em_dash_after_mid_line_range_still_checked() -> None:
+    assert "em_dash" in rules("We met at 10:00–10:15 — it was short.\n")
+
+
+@pytest.mark.parametrize("text", [
+    "This is not a bug, but a feature.\n",
+    "It is not a tool but a mindset.\n",
+    "Observability is not a tool, but a mindset.\n",
+    "This isn't a bug, but rather a feature.\n",
+    "This is not about blame, but about learning.\n",
+])
+def test_negative_contrast_not_x_but_y(text: str) -> None:
+    assert rules(text) == ["negative_contrast"]
+
+
+@pytest.mark.parametrize("text", [
+    "It is not a big change, but it fixes the crash.\n",
+    "The fix was not tested, but it shipped.\n",
+    "It is not the default but can be enabled.\n",
+    "I didn't get the invite. We need to resend it before Friday.\n",
+    "We don't have the budget this quarter. We need approval from finance first.\n",
+    "It isn't ready. We are still testing it.\n",
+])
+def test_negative_contrast_concessions_and_unrelated_sentences(text: str) -> None:
+    assert "negative_contrast" not in rules(text)
+
+
+@pytest.mark.parametrize("text", [
+    "The fix isn't a hack. It's a proper solution.\n",
+    "They don't sell software. They sell trust.\n",
+])
+def test_negative_contrast_two_sentences_same_subject(text: str) -> None:
+    assert "negative_contrast" in rules(text)
+
+
+@pytest.mark.parametrize("text", [
+    "It appears that the attacker could read any file on the server.\n",
+    "It seems nobody could reproduce the bug on macOS.\n",
+    "It seems no one could have known.\n",
+    "It appears the release slipped to May.\n",
+])
+def test_hedge_stack_ability_could(text: str) -> None:
+    assert "hedge_stack" not in rules(text)
+
+
+def test_hedge_stack_possibility_could() -> None:
+    assert "hedge_stack" in rules("It seems the job could have failed.\n")
+    assert "hedge_stack" in rules("It appears the cache could be stale.\n")
+
+
+def test_exempt_finding_does_not_hide_a_kept_one(tmp_path) -> None:  # noqa: ANN001
+    (tmp_path / "flag.txt").write_text("let me know if\n", encoding="utf-8")
+    words = tx.load_words(str(tmp_path), False)
+    result = lint.lint("Let me know if you have any questions.\n", "mail", None, words)
+    assert [(f.rule, f.match) for f in result.findings] == [("project_term", "Let me know if")]
+    assert [f.rule for f in result.exempted] == ["chat_residue"]
+
+
+def test_unclosed_front_matter_is_checked() -> None:
+    got = rules("---\n\nWe leverage robust tooling — seamlessly.\n")
+    assert "em_dash" in got and got.count("ai_vocabulary") == 3
+
+
+def test_unpaired_backticks_are_fast() -> None:
+    import time
+    text = " ".join("`" * m for m in range(1, 280)) + " x\n"
+    start = time.monotonic()
+    lint.lint(text)
+    assert time.monotonic() - start < 1
+
+
+@pytest.mark.parametrize("text", [
+    "The new dashboard feels faster after the fix.\n",
+    "The agent will happily walk you through the setup.\n",
+])
+def test_personification_perception_and_people(text: str) -> None:
+    assert "personification" not in rules(text)
+
+
+@pytest.mark.parametrize("text", [
+    "The tool will happily refuse to start.\n",
+    "The system carefully remembers every deadline.\n",
+    "The function seemed to resent being woken up.\n",
+    "The monitor tirelessly watches over your services.\n",
+    "The service never forgets a deadline.\n",
+])
+def test_personification_more_forms(text: str) -> None:
+    assert "personification" in rules(text)
+
+
+def test_tame_and_happy_closers() -> None:
+    assert [f.match for f in findings("We tamed the cold-start beast.\n")] == ["tamed the"]
+    assert "chat_residue" in rules("Happy monitoring!\n")
+    assert "chat_residue" not in rules("Happy monitoring!\n", "mail")
+    assert "chat_residue" not in rules("We sell the Happy Hacking Keyboard.\n")
+
+
+def test_callout_with_emoji_inside_bold_is_checked() -> None:
+    got = rules("> **⚠️ Warning:** This leverages a robust lock — seamlessly.\n")
+    assert "ai_vocabulary" in got and "em_dash" in got
+    assert "ai_vocabulary" in rules("> ℹ️ **Note:** We leverage it.\n")
+
+
+def test_numbered_clauses_are_not_a_repeated_start() -> None:
+    text = ("3.1 The Supplier shall deliver the goods.\n3.2 The Supplier shall invoice monthly.\n"
+            "3.3 The Supplier shall report defects.\n")
+    assert "sentence_start_repeat" not in rules(text, "formal")
