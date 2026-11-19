@@ -890,7 +890,7 @@ def pair_moved(chunks: list[Chunk]) -> list[Chunk]:
 
 def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews: list[Review],
                   orig_all: str, extra_sources: str, proper_names: Optional[set[str]] = None, rev_all: str = "") -> None:
-    o, r = STOCK_MARKERS.sub(" ", ch.orig_text), STOCK_MARKERS.sub(" ", ch.rev_text)
+    o, r = STOCK_MARKERS.sub(" ", _unemphasize(ch.orig_text)), STOCK_MARKERS.sub(" ", _unemphasize(ch.rev_text))
     so, sr = ch.show_orig(), ch.show_rev()
 
     def risk(kind: str, counted: bool, message: str) -> None:
@@ -1009,8 +1009,8 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
     has_question = questions_o or questions_r
 
     # Hedges are compared on the statements only, so folding a self-answered question still shows a dropped hedge.
-    o_st = " ".join(x.masked for x in ch.orig if not _is_question(x.text))
-    r_st = " ".join(x.masked for x in ch.rev if not _is_question(x.text))
+    o_st = STOCK_MARKERS.sub(" ", _unemphasize(" ".join(x.masked for x in ch.orig if not _is_question(x.text))))
+    r_st = STOCK_MARKERS.sub(" ", _unemphasize(" ".join(x.masked for x in ch.rev if not _is_question(x.text))))
     if o_st.strip() and r_st.strip():
         if PERMISSION.search(o_st) and PERMISSION.search(r_st):
             # a permission "may" on both sides ("You may include" -> "You are allowed to include") is not a hedge
@@ -1255,6 +1255,12 @@ def _sentence_names(sentences: list[tx.Sentence], proper: set[str]) -> set[str]:
 def _quantifier(word: str) -> str:
     w = re.sub(r"\s+", " ", word.lower())
     return "all" if w in ("all", "every", "each") else w
+
+
+def _unemphasize(text: str) -> str:
+    """Emphasis underscores ("_not_", "__may__") become spaces so that marker words inside them are seen;
+    underscores inside snake_case names stay. The length is unchanged."""
+    return re.sub(r"(?<!\w)_+|_+(?!\w)", lambda m: " " * len(m.group(0)), text)
 
 
 def _is_question(text: str) -> bool:

@@ -654,3 +654,8 @@ def test_set7_diff_review_counted(orig: str, rev: str, kind: str) -> None:
 def test_deleted_condition_sentence_gets_a_review() -> None:
     reviews = review_kinds("Restart the worker. Do this only if the queue is empty.\n", "Restart the worker.\n")
     assert "deleted" in reviews
+
+
+def test_markers_inside_underscore_emphasis_are_seen() -> None:
+    assert "negation" in kinds("The job does _not_ retry.\n", "The job retries.\n")
+    assert "certainty" in kinds("The fix __may__ help.\n", "The fix helps.\n")
