@@ -16,7 +16,7 @@ The lint and diff scripts read these files. One phrase per line; an optional TAB
 | ai-vocabulary.txt | ai_vocabulary ("key takeaways" not reported for `--doc-type slides`) | info |
 | stock-phrases.txt | stock_phrase | warn |
 | chat-residue.txt | chat_residue (AI disclaimers such as "As an AI language model, I"; an assistant's preamble before a drafted or revised text is found by a pattern in `readyasu_lint.py`, see review-points.md section 3) | warn |
-| closing-courtesies.txt | chat_residue (courtesies, offers and closings such as "I hope this helps" and "Happy coding"; not reported for `--doc-type mail`; "thank you for your attention" also not for slides and script; "Here's a draft:" is found by the preamble pattern, which reports it in mail too when a drafted mail follows) | warn |
+| closing-courtesies.txt | chat_residue (courtesies, offers and closings such as "I hope this helps" and "Happy coding"; not reported for `--doc-type mail`, except an offer about the drafted mail after its sign-off or a thematic break ("Let me know if you'd like me to adjust the tone"); "thank you for your attention" also not for slides and script; "Here's a draft:" is found by the preamble pattern, which reports it in mail too when a drafted mail follows) | warn |
 | chat-interjections.txt | chat_residue (Sure!, Of course!, Hey there; reported only at the start of a block, a table cell, a sentence or a capitalized line; not reported for `--doc-type` essay, mail or script, or inside double quotation marks) | warn |
 | wordy-phrases.txt | wordy_phrase | info |
 | metaphor-verbs.txt | metaphor_verb | info |
