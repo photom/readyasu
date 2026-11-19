@@ -5,16 +5,16 @@ The lint and diff scripts read these files. One phrase per line; an optional TAB
 - Matching ignores case. A space matches any run of whitespace, including a line break inside a paragraph.
 - A word ending with `*` matches any word ending (`delv*` matches delve, delves, delving, delved).
 - An apostrophe matches both ' and ’.
-- Matches inside code and URLs are ignored. Block quotations are ignored too, except callouts (`> **Note:**`, `> [!WARNING]`, `> 💡 **Tip:**`, `> *Note:*`), which are the writer's own text.
-- When matches overlap, lint reports one of them: the more severe one, then a project word, then the longer phrase ("plays a crucial role" rather than "crucial" inside it).
+- Matches inside code and URLs are ignored. Block quotations are ignored too, except callouts (`> **Note:**`, `> [!WARNING]`, `> 💡 **Tip:**`, `> **⚠️ Warning:**`, `> *Note:*`), which are the writer's own text.
+- When matches overlap, lint reports one of them: the more severe one, then a project word, then the longer phrase ("plays a crucial role" rather than "crucial" inside it). A match exempted by `--doc-type` does not hide an overlapping match that is reported.
 
 | File | Rule | Severity |
 |---|---|---|
 | ai-vocabulary.txt | ai_vocabulary | info |
 | stock-phrases.txt | stock_phrase | warn |
 | chat-residue.txt | chat_residue | warn |
-| closing-courtesies.txt | chat_residue (courtesies, offers and closings; not reported for `--doc-type mail`) | warn |
-| chat-interjections.txt | chat_residue (Sure!, Of course!; not reported for `--doc-type` essay, mail or script, or inside double quotation marks) | warn |
+| closing-courtesies.txt | chat_residue (courtesies, offers and closings such as "I hope this helps" and "Happy coding"; not reported for `--doc-type mail`) | warn |
+| chat-interjections.txt | chat_residue (Sure!, Of course!, Hey there; reported only at the start of a block, a table cell, a sentence or a capitalized line; not reported for `--doc-type` essay, mail or script, or inside double quotation marks) | warn |
 | wordy-phrases.txt | wordy_phrase | info |
 | metaphor-verbs.txt | metaphor_verb | info |
 | intensifiers.txt | intensifier | info |

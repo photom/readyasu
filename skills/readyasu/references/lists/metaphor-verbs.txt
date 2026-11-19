@@ -18,6 +18,10 @@ fuelled	say what it made possible
 fueling	say what it makes possible
 fuelling	say what it makes possible
 tam* your	"reduce", "sort", "control"
+tame the	"reduce", "sort", "control"
+tames the	"reduces", "sorts", "controls"
+tamed the	"reduced", "sorted", "controlled"
+taming the	"reducing", "sorting", "controlling"
 skyrocket*	"rose sharply" with the number if given
 bridg* the gap	say what connects to what
 pav* the way	say what becomes possible

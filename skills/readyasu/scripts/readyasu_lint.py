@@ -13,6 +13,7 @@ sys.dont_write_bytecode = True
 
 import argparse
 import bisect
+import itertools
 import json
 import re
 import unicodedata
@@ -87,8 +88,9 @@ LIST_RULES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     ("intensifier", "intensifiers", ()),
     ("jargon", "jargon", ()),
 )
-LIST_LABELS = {"closing-courtesies": "courtesies and offers", "chat-interjections": "interjections"}
-# Lists whose matches inside double quotation marks are dialogue, not residue.
+LIST_LABELS = {"closing-courtesies": "courtesies, offers and closings", "chat-interjections": "interjections"}
+# Lists whose matches inside double quotation marks are dialogue, not residue, and that are reported only at the
+# start of a sentence ("Of course! Here is ..." but not "The answer, of course! was ...").
 QUOTE_EXEMPT_LISTS = ("chat-interjections",)
 LIST_RULE_NAMES = frozenset(rule for rule, _name, _types in LIST_RULES) | {"project_term"}
 
@@ -115,7 +117,7 @@ def _partial_help() -> str:
 
 HELP_EPILOG = """Rules exempted by --doc-type:
 """ + "\n".join(f"  {k:<9} {', '.join(v) if v else 'none'}" for k, v in EXEMPT.items()) + "\n" + _partial_help() + """
-  Interjections inside double quotation marks are not reported in any type.
+  Interjections are reported only where they start a sentence, and never inside double quotation marks.
 Exempted findings do not count toward the review findings, --strict or --fail-on.
 
 Exit codes:
@@ -214,6 +216,30 @@ def _scan(pattern: re.Pattern[str], key: str, text: str, low: Optional[str]) -> 
             pos = low.find(key, pos + 1)
 
 
+def _starts_sentence(text: str, pos: int) -> bool:
+    """True if text[pos:] starts the block, a table cell, a sentence (after . ! ? : or …) or a line with a capital.
+
+    Opening quotes, brackets and emphasis markers before pos are skipped.
+    """
+    i = pos
+    while i > 0 and text[i - 1] in "\"'“‘([*_":
+        i -= 1
+    if i == 0:
+        return True
+    j = i
+    while j > 0 and text[j - 1].isspace():
+        j -= 1
+    if j == i:
+        return False
+    if j == 0:
+        return True
+    if "\n" in text[j:i] and text[pos:pos + 1].isupper():
+        return True
+    while j > 0 and text[j - 1] in "\"'”’)]*_":
+        j -= 1
+    return j > 0 and text[j - 1] in ".!?:…|"
+
+
 def _in_quotes(text: str, start: int, end: int) -> bool:
     """True if text[start:end] sits between double quotation marks in the same block."""
     before, after = text[:start], text[end:]
@@ -227,10 +253,12 @@ def _in_quotes(text: str, start: int, end: int) -> bool:
 _HEDGE_STACK = re.compile(
     r"\b(?:may|might|could|can|would)\s+(?:potentially|possibly|perhaps|conceivably|maybe)\b"
     r"|\b(?:possibly|perhaps|maybe)\s+(?:may|might|could)\b"
-    # "it seems ... may": within one clause, and not ability ("could not").
+    # "it seems ... may": within one clause. "could" only as a possibility ("could be", "could have"), not an
+    # ability ("the attacker could read any file"), and not after nobody, no one or none.
     r"|\bit\s+(?:seems|appears)\s+(?:that\s+)?"
-    r"(?:(?!\b(?:but|and|or|so|yet|because|although|though|while|whereas|if|when|unless)\b)[^.;:,!?\n]){0,40}?"
-    r"\b(?:might|may|could(?!\s+not\b))\s+(?:possibly|potentially|perhaps)?"
+    r"(?:(?!\b(?:but|and|or|so|yet|because|although|though|while|whereas|if|when|unless|nobody|no\s+one|none)\b)"
+    r"[^.;:,!?\n]){0,40}?"
+    r"\b(?:might|(?-i:may)|could(?=\s+(?:be|have|potentially|possibly)\b))(?:\s+(?:possibly|potentially|perhaps)\b)?"
     r"|\b(?:likely|probably)\s+(?:may|might|could)\b"
     r"|\bmight\s+(?:likely|probably)\b",
     re.IGNORECASE)
@@ -243,28 +271,80 @@ _NEG_CONTRAST = (
         r"it|this|that|these|they|which|he|she)" + _NEG_BE + r"\s+"
         r"(?:just\s+|only\s+|merely\s+|simply\s+|about\s+)?[^.;:!?\n]{1,80}?[,;—–]\s*"
         r"(?:it|this|that|they|he|she)(?:['’]s|\s+is|\s+was|\s+are|\s+were|['’]re)\b", re.IGNORECASE),
-    re.compile(
-        r"(?:^|(?<=[.!?]\s))(?:It|This|That|They|We|I|You|The\s+\w+(?:\s+\w+)?|What\s+\w+\s+\w+)"
-        r"(?:\s+(?:isn['’]t|is\s+not|wasn['’]t|was\s+not|aren['’]t|are\s+not|weren['’]t|doesn['’]t|don['’]t|"
-        r"didn['’]t)|['’]s\s+not|['’]re\s+not)\b"
-        r"[^.!?\n]{0,80}\.\s+(?:It|This|That|They|We|You)(?:['’]s|\s+is|\s+was|\s+are|\s+were|['’]re|\s+needed|\s+need)\b"),
     re.compile(r"\bnot\s+(?:just|only|merely|simply)\b[^.;!?\n]{1,60}?,?\s*\bbut\s+(?:also\s+)?", re.IGNORECASE),
+    # "This is not a bug, but a feature." Only a noun phrase on both sides: "It is not a big change, but it fixes
+    # the crash" and "The fix was not tested, but ..." are concessions.
+    re.compile(
+        r"(?:\b(?:is|was|are|were)\s+not|\b(?:isn|wasn|aren|weren)['’]t|['’](?:s|re)\s+not)\s+"
+        r"(?:a|an|the|about)\s+[^.;:!?,\n]{1,40}?,?\s+but\s+(?:rather\s+)?"
+        r"(?!(?:it|we|they|he|she|i|you|there|this|that|these|those|can|could|will|would|should|may|might|must|"
+        r"has|have|had|is|are|was|were|does|do|did|not|also|still)\b)\w",
+        re.IGNORECASE),
     re.compile(r"\b(?:doesn['’]t|don['’]t|didn['’]t|does\s+not|do\s+not|isn['’]t|aren['’]t)\s+(?:just|only|merely|simply)\s+"
                r"[^.;:!?\n]{1,60}?[,;—–]\s*(?:it|they|this|we|he|she)\b", re.IGNORECASE),
     re.compile(r"\b(?:isn['’]t|is\s+not)\s+(?:just\s+|really\s+)?about\b[^.;!?\n]{1,60}?[.;,—–]\s*"
                r"(?:it['’]s|it\s+is)\s+about\b", re.IGNORECASE),
 )
 
+# Two sentences: "It isn't a tool. It's a philosophy." / "We didn't need a new tool. We needed a shared way."
+# The second sentence has the same subject and the same verb (a form of "be", or the verb that was denied); the
+# checks are in _two_sentence_contrast.
+_NEG_TWO = re.compile(
+    r"(?:^|(?<=[.!?]\s))(?P<s1>It|This|That|They|These|Those|We|I|You|The\s+\w+(?:\s+\w+)?|What\s+\w+\s+\w+)"
+    r"(?:\s+(?:isn['’]t|is\s+not|wasn['’]t|was\s+not|aren['’]t|are\s+not|weren['’]t|were\s+not|am\s+not)|"
+    r"['’](?:s|re|m)\s+not"
+    r"|\s+(?:doesn['’]t|don['’]t|didn['’]t|does\s+not|do\s+not|did\s+not)\s+(?P<v1>[a-z]+))\b"
+    r"[^.!?\n]{0,80}\.\s+(?P<s2>It|This|That|They|These|Those|We|I|You)"
+    r"(?:(?P<be2>['’]s|\s+is|\s+was|\s+are|\s+were|['’]re|['’]m|\s+am)|\s+(?P<v2>[a-z]+))\b")
+_SUBJECT_GROUPS = ({"it", "this", "that"}, {"they", "these", "those"}, {"we"}, {"i"}, {"you"})
+
+
+def _same_subject(first: str, second: str) -> bool:
+    a, b = first.lower(), second.lower()
+    if a.startswith(("the ", "what ")):  # "The fix isn't ... It's ...", "The tools aren't ... They're ..."
+        return b in ("it", "this", "that", "they", "these", "those")
+    return any(a in group and b in group for group in _SUBJECT_GROUPS)
+
+
+def _verb_forms(verb: str) -> set[str]:
+    v = verb.lower()
+    forms = {v, v + "s", v + "es", v + "ed", v + "d", v + "ing"}
+    if v.endswith("e"):
+        forms.add(v[:-1] + "ing")
+    if v.endswith("y"):
+        forms |= {v[:-1] + "ies", v[:-1] + "ied"}
+    return forms
+
+
+def _two_sentence_contrast(text: str) -> Iterator[re.Match[str]]:
+    for m in _NEG_TWO.finditer(text):
+        if not _same_subject(m.group("s1"), m.group("s2")):
+            continue
+        if m.group("v1") is None and m.group("be2") is not None:
+            yield m
+        elif m.group("v1") is not None and m.group("v2") is not None \
+                and m.group("v2").lower() in _verb_forms(m.group("v1")):
+            yield m
+
+
+# Software and documents only: people (an agent, an assistant) may want, remember and do things happily.
 _PERSON_SUBJECT = (r"(?:code|codebase|data|dataset|tool|system|function|method|class|logs?|architecture|design|"
                    r"framework|api|metrics?|numbers|graph|chart|compiler|tests?|errors?|repository|repo|pipeline|"
-                   r"model|algorithm|database|schema|spreadsheet|dashboard|platform|app|application|script)")
+                   r"model|algorithm|database|schema|spreadsheet|dashboard|platform|app|application|script|"
+                   r"service|server|daemon|scheduler|linter|cache|engine|library|plugin|bot|monitor|software|"
+                   r"program|cli|sdk|workflow)")
+# "feels" is left out: "The dashboard feels faster" is perception, not a feeling.
 _PERSON_VERB = (r"(?:tells?(?:\s+a\s+story)?|speaks?(?:\s+volumes)?|whispers?|screams?|sings?|knows?|wants?|loves?|"
-                r"hates?|cares?|believes?|remembers?|forgets?|understands?|feels?|thinks?|refuses?|insists?|begs?|"
-                r"cries|craves?|longs?|dreams?|deserves?|demands?|breathes?|yearns?|gladly|happily|"
+                r"hates?|cares?|believes?|remembers?|forgets?|understands?|thinks?|refuses?|insists?|begs?|"
+                r"cries|craves?|longs?|dreams?|deserves?|demands?|breathes?|yearns?|resents?|watch(?:es)?\s+over|"
+                r"gladly|happily|tirelessly|patiently|eagerly|cheerfully|"
                 r"has\s+a\s+(?:story|mind\s+of\s+its\s+own)|is\s+(?:happy|unhappy|angry|eager|reluctant))")
+_PERSON_ADVERB = (r"(?:itself|quietly|silently|now|always|really|never|carefully|faithfully|dutifully|lovingly|"
+                  r"gladly|happily|tirelessly|patiently|eagerly|cheerfully)")
 _PERSONIFICATION = re.compile(
     r"\b(?:the|this|that|your|our|its|each|every|my)\s+(?:\w+\s+)?" + _PERSON_SUBJECT +
-    r"\s+(?:itself\s+|quietly\s+|silently\s+|now\s+|always\s+|really\s+)?" + _PERSON_VERB + r"\b",
+    r"\s+(?:(?:will|would)\s+)?(?:" + _PERSON_ADVERB + r"\s+)?"
+    r"(?:(?:seems?|seemed|appears?|appeared)\s+to\s+)?" + _PERSON_VERB + r"\b",
     re.IGNORECASE)
 
 _SELF_Q = re.compile(
@@ -292,7 +372,13 @@ _CLOSING = re.compile(
 _DASHES = re.compile(r"(?<=\S)\s*—\s*(?=\S)|\s–\s|\s--\s|―")
 _RANGE_DASH = re.compile(r"\d\s*[—–]\s*\d")
 _DASH_ONLY = "—–―-"
-# A time or date at the start of a line, before a dash: "09:12 — Config change rolled out".
+# An attribution under a quotation: a line that is only a dash and a name ("— Jeff Atwood", "— Plato, Republic").
+_NAME_WORD = r"(?:[A-Z]\.|[A-Z][\w'’-]+)"
+_ATTRIBUTION = re.compile(
+    r"(?:—|―|–|--)[ \t]*" + _NAME_WORD + r"(?:[ \t]+(?:" + _NAME_WORD + r"|de|van|von|der|da|di|du|la|le|bin|al))*"
+    r"(?:,[ \t]*[A-Z0-9*_“\"][^\n]{0,60})?[ \t]*(?:\n|$)")
+# A time, date or version at the start of a line, before a dash: "09:12 — Config change rolled out",
+# "10:00–10:15 — Status updates", "Version 2.1 — Effective January 1, 2027".
 _MONTH = (r"(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sept?(?:ember)?|"
           r"oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?")
 _WEEKDAY = r"(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tues?|wed|thu(?:rs?)?|fri|sat|sun)\.?"
@@ -302,7 +388,14 @@ _DATE = (r"\d{4}-\d{1,2}-\d{1,2}(?:T\d{1,2}:\d{2}(?::\d{2})?Z?)?|\d{1,2}/\d{1,2}
          + r"(?:\s+\d{4})?|" + _MONTH + r"\s+\d{4}|" + _WEEKDAY + r"|(?:19|20)\d{2}|q[1-4](?:\s+\d{4})?|"
          r"(?:day|week|sprint|phase)\s+\d+|t\s*[+-]\s*\d+\s*(?:min|m|h|d|s)?")
 _ZONE = r"(?:\s*\(?(?:utc|gmt|[a-z]{1,3}[sd]?t)(?:\s*[+-]\s*\d{1,2}(?::?\d{2})?)?\)?)?"
-_STAMP = re.compile(r"^[\s*_\[(]*(?:(?:" + _TIME + "|" + _DATE + r")" + _ZONE + r"[\s,]*)+[*_\])]*\s*$", re.IGNORECASE)
+_VERSION = r"(?:version|revision|rev\.?|release|v)\s*\d+(?:\.\d+)*[a-z]?"
+_STAMP_LABEL = (r"(?:(?:effective|updated|last\s+updated|last\s+revised|revised|published|released|issued|dated?)"
+                r"(?:\s+on)?:?\s+)?")
+_ONE_STAMP = r"(?:" + _STAMP_LABEL + r"(?:" + _TIME + "|" + _DATE + r")" + _ZONE + "|" + _VERSION + r")"
+_RANGE_END = r"(?:(?:" + _TIME + "|" + _DATE + r")" + _ZONE + r"|\d{1,2}(?:st|nd|rd|th)?)"  # "Dec 3–5"
+_STAMP = re.compile(r"^[\s*_\[(]*(?:" + _ONE_STAMP + r"[\s,]*)+"
+                    r"(?:(?:[-–—]|to\b)\s*" + _RANGE_END + r"[\s,]*(?:" + _ONE_STAMP + r"[\s,]*)*)?"
+                    r"[*_\])]*\s*$", re.IGNORECASE)
 # A field label after a dash: "Fix the alert — Owner: Marco Ruiz — Due: Dec 5".
 _FIELD_AFTER = re.compile(r"\s*[*_]*[A-Z][\w/&-]*(?:[ \t]+[\w/&-]+){0,2}[*_]*:[*_]*(?:\s|$)")
 # A paragraph that is only an image or display math still follows a colon.
@@ -316,11 +409,24 @@ _STOP_STARTS = {"the", "a", "an"}
 
 
 def _after_timestamp(text: str, pos: int) -> bool:
-    """True if the text from the start of the line to pos is only a time or date."""
-    start = text.rfind("\n", max(0, pos - 41), pos) + 1
-    if start == 0 and pos > 40:
+    """True if the text from the start of the line to pos is only a time, date or version (or a range of them)."""
+    start = text.rfind("\n", max(0, pos - 61), pos) + 1
+    if start == 0 and pos > 60:
         return False
     return bool(_STAMP.match(text, start, pos))
+
+
+def _attribution(text: str, pos: int) -> bool:
+    """True if the dash at pos starts a line that names the author of the sentence above it ("— Jeff Atwood")."""
+    start = pos
+    while start > 0 and text[start - 1] in " \t":
+        start -= 1
+    if start == 0 or text[start - 1] != "\n":
+        return False
+    j = start - 1
+    while j > 0 and text[j - 1].isspace():
+        j -= 1
+    return j > 0 and text[j - 1] in ".!?\"”’)*_" and bool(_ATTRIBUTION.match(text, pos))
 
 
 def _empty_cell(text: str, start: int, end: int) -> bool:
@@ -457,7 +563,8 @@ def lint(text: str, doc_type: Optional[str] = None, reader: Optional[str] = None
                     shown = plain[m.start():m.end()]
                     if words.allowed(shown):
                         continue
-                    if name in QUOTE_EXEMPT_LISTS and _in_quotes(plain, m.start(), m.end()):
+                    if name in QUOTE_EXEMPT_LISTS and (_in_quotes(plain, m.start(), m.end())
+                                                       or not _starts_sentence(masked, m.start())):
                         continue
                     note = entry.note or RULES[rule][1]
                     add(rule, m.start(), m.end(), _list_message(rule, shown, note), types)
@@ -482,18 +589,21 @@ def lint(text: str, doc_type: Optional[str] = None, reader: Optional[str] = None
                     continue
                 if block.kind == "table" and _empty_cell(masked, m.start(), m.end()):
                     continue
-                if _after_timestamp(masked, m.start()) or _FIELD_AFTER.match(masked, m.end()):
-                    continue  # timeline entries and "— Owner: ..." fields
-                add("em_dash", m.start(), m.end(),
+                # Report the dash itself, not the space or line break before it.
+                ds = m.start() + len(m.group(0)) - len(m.group(0).lstrip())
+                de = ds + (2 if masked.startswith("--", ds) else 1)
+                if _after_timestamp(masked, ds) or _FIELD_AFTER.match(masked, m.end()) or _attribution(masked, ds):
+                    continue  # timeline entries, "— Owner: ..." fields and "— Jeff Atwood" under a quotation
+                add("em_dash", ds, de,
                     "Dash used to splice or insert a clause. Use a comma, colon, parentheses or a period that keeps "
                     "the same scope (keep ranges, quotations and fiction dialogue).")
         if block.kind != "heading":
-            for pattern in _NEG_CONTRAST:
-                for m in pattern.finditer(masked):
-                    shown = _show(plain[m.start():m.end()])
-                    add("negative_contrast", m.start(), m.end(),
-                        f'Negative contrast "{tx.display_width_cut(shown, 70)}". Remove the denied part only if '
-                        "the claim stays the same; keep it when it corrects a likely misreading.")
+            for m in itertools.chain(*(pattern.finditer(masked) for pattern in _NEG_CONTRAST),
+                                     _two_sentence_contrast(masked)):
+                shown = _show(plain[m.start():m.end()])
+                add("negative_contrast", m.start(), m.end(),
+                    f'Negative contrast "{tx.display_width_cut(shown, 70)}". Remove the denied part only if '
+                    "the claim stays the same; keep it when it corrects a likely misreading.")
         for m in _PERSONIFICATION.finditer(masked):
             add("personification", m.start(), m.end(),
                 f'"{_show(plain[m.start():m.end()])}" gives a tool or idea a will or feelings. Say what it does, '
@@ -543,9 +653,8 @@ def lint(text: str, doc_type: Optional[str] = None, reader: Optional[str] = None
                 _fragment_runs(doc, masked, plain, spans, locate, bi, found)
 
     _block_rules(doc, found)
-    found = _dedupe(found)
-    found.sort(key=lambda f: (f.line, f.col, SEVERITY_ORDER[f.severity], f.rule))
 
+    # Split before removing overlaps, so that an exempted finding does not hide a reported one.
     exempt = set(EXEMPT.get(doc_type or "", ()))
     kept: list[Finding] = []
     exempted: list[Finding] = []
@@ -554,7 +663,11 @@ def lint(text: str, doc_type: Optional[str] = None, reader: Optional[str] = None
             exempted.append(f)
         else:
             kept.append(f)
-    return LintResult(kept, exempted, doc_type, reader, words)
+
+    def order(f: Finding) -> tuple[int, int, int, str]:
+        return (f.line, f.col, SEVERITY_ORDER[f.severity], f.rule)
+
+    return LintResult(sorted(_dedupe(kept), key=order), sorted(_dedupe(exempted), key=order), doc_type, reader, words)
 
 
 def _list_message(rule: str, match: str, note: str) -> str:
@@ -704,6 +817,8 @@ def _block_rules(doc: tx.Document, found: list[Finding]) -> None:
             continue
         m = _WORD.match(sent.masked.strip().lstrip("\"'“‘(*_"))
         w = m.group(0) if m else ""
+        if w[:1].isdigit():
+            w = ""  # numbered clauses ("3.1 ...", "3.2 ...") and figures are not a repeated word
         if w and w.lower() not in _STOP_STARTS and w.lower() == prev_word.lower():
             current.append(sent)
         else:

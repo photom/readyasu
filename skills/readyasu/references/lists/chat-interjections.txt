@@ -1,7 +1,11 @@
 # Chat interjections: residue when they answer a request, normal in dialogue and mail.
-# Not reported for --doc-type script, essay or mail, or inside quotation marks.
+# Reported only at the start of a block, a table cell, a line or a sentence (after . ! ? or :), so "faster, that is
+# for sure!" and "a great question to ask your vendor" are not. Not reported for --doc-type script,
+# essay or mail, or inside double quotation marks ("..." or “...”); single quotation marks are not
+# treated as dialogue, because ' and ’ are also apostrophes.
 great question	delete if it answers a request; keep in dialogue
 certainly!	delete if it answers a request; keep in dialogue
 absolutely!	delete if it answers a request; keep in dialogue
 sure!	delete if it answers a request; keep in dialogue
 of course!	delete if it answers a request; keep in dialogue
+hey there	delete if it opens a document; keep in dialogue
