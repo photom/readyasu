@@ -22,6 +22,7 @@ happy testing!	delete from documents
 happy exploring!	delete from documents
 happy learning!	delete from documents
 happy writing!	delete from documents
+happy restoring!	delete from documents
 here's a draft	delete from documents
 here is a draft	delete from documents
 i'd be happy to help	delete from documents

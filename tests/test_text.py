@@ -371,3 +371,52 @@ def test_excerpt_centers_on_the_column() -> None:
     assert len(shown) <= 162
     assert tx.excerpt("short line", 3) == "short line"
     assert tx.excerpt("x" * 300, 1).startswith("x") and tx.excerpt("x" * 300, 300).endswith("x")
+
+
+# ---------------------------------------------------------------- set 7 lint review
+
+
+def test_wrapped_number_inside_a_list_item_continues_the_item() -> None:
+    text = "- The company was founded in\n  1998. It now employs 50 people.\n"
+    assert kinds(text) == ["list", "para"]
+    doc = tx.parse(text)
+    assert len(doc.blocks) == 1
+    assert [s.text for s in doc.sentences] == ["The company was founded in 1998.", "It now employs 50 people."]
+    assert kinds("1. Revenue grew in\n   2024. Costs fell 3%.\n") == ["list", "para"]
+    assert kinds("- Founded in\n1998. It grew.\n") == ["list", "para"]  # a lazy line
+    assert kinds("- a\n  2. b\n") == ["list", "para"]  # a nested ordered list must start at 1 to interrupt
+    # Sibling items and nested lists that may interrupt still start items.
+    assert kinds("1. a\n2. b\n") == ["list", "list"]
+    assert kinds("1. a\n   1. x\n   2. y\n3. b\n") == ["list"] * 4
+    assert kinds("- a\n  - b\n- c\n") == ["list"] * 3
+    assert kinds("- a\n  1. b\n") == ["list", "list"]
+    assert kinds("1. a\n   more\n2. b\n") == ["list", "para", "list"]
+
+
+def test_phrase_regex_sees_through_underscore_emphasis() -> None:
+    import re
+    pattern = re.compile(tx.phrase_regex("seamless"), re.I)
+    for text in ("_seamless_", "__seamless__", "___seamless___", "(_seamless_)"):
+        assert pattern.search(text).group(0) == "seamless", text
+    for text in ("enable_seamless_mode", "seamless_mode", "x_seamless", "x__seamless", "fast-seamless"):
+        assert not pattern.search(text), text
+    star = re.compile(tx.phrase_regex("delv*"), re.I)
+    assert star.search("We _delved_ in").group(0) == "delved"
+    assert not star.search("delve_mode") and not star.search("undelve")
+
+
+def test_emoji_after_the_end_mark_stays_with_the_sentence() -> None:
+    assert spans("We shipped v2! 🎉 Thanks to everyone.") == ["We shipped v2! 🎉", "Thanks to everyone."]
+    assert spans("Happy restoring! 🎉") == ["Happy restoring! 🎉"]
+    assert spans("Done!🎉 Next step.") == ["Done!🎉", "Next step."]
+    assert spans("Wow! 🎉 🎉 It works.") == ["Wow! 🎉 🎉", "It works."]
+    assert spans("Done! 🎉 and more.") == ["Done! 🎉 and more."]  # no sentence start after the emoji
+    assert spans("Done! → Next.") == ["Done! → Next."]  # an arrow is not an emoji
+
+
+def test_abbreviation_after_a_number_ends_a_sentence_before_a_starter() -> None:
+    assert spans("The p95 is 450 ms. It was 300 ms last week.") == ["The p95 is 450 ms.", "It was 300 ms last week."]
+    assert spans("Meet at 5 p.m. The room is booked.") == ["Meet at 5 p.m.", "The room is booked."]
+    assert spans("It took 450ms. The rest was fast.") == ["It took 450ms.", "The rest was fast."]
+    assert spans("Meet at 5 p.m. Smith will join.") == ["Meet at 5 p.m. Smith will join."]
+    assert spans("Ms. Lee agreed. See No. 5 for details.") == ["Ms. Lee agreed.", "See No. 5 for details."]

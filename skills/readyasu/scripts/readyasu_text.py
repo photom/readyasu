@@ -351,6 +351,16 @@ def _close_items(items: list[int], indent: int) -> None:
         items.pop()
 
 
+def _starts_new_list(items: list[int], markers: list[str], indent: int, kind: str) -> bool:
+    """True if a list marker at indent would open a new list rather than add an item to an open one.
+
+    The marker is a sibling of the outermost open item whose content starts to the right of indent, if both have
+    the same type (the bullet character, or "." or ")" after a number); otherwise it opens a nested or new list.
+    """
+    kept = sum(1 for column in items if column <= indent)
+    return kept == len(items) or markers[kept] != kind
+
+
 def classify(text: str) -> list[Line]:
     """Classify each line of a Markdown document."""
     raw_lines = text.split("\n")
@@ -362,6 +372,9 @@ def classify(text: str) -> list[Line]:
     in_html_comment = False
     front_end = _front_matter_end(raw_lines)
     items: list[int] = []  # content columns of the open list items, outermost first
+    # The marker type of each open item: the bullet character, or "." or ")" for an ordered item. Only the first
+    # len(items) entries are current (items shrink in _close_items).
+    markers: list[str] = []
     quote_fence: Optional[str] = None
     quote_fence_indent = 0
     quote_para = False  # the previous line is paragraph text inside a block quote
@@ -479,18 +492,24 @@ def classify(text: str) -> list[Line]:
             prev_kind = "html"
             continue
         lm = _LIST.match(raw)
-        if lm and prev_kind == "para" and not items:
-            # CommonMark: a list interrupts a paragraph only with a bullet or "1." and some text, so a wrapped line
-            # that starts with "1998. It now employs" continues the paragraph.
-            marker = lm.group(2)
+        marker = lm.group(2) if lm else ""
+        marker_kind = marker[-1] if marker[:1].isdigit() else marker
+        del markers[len(items):]
+        if lm and ((prev_kind == "para" and not items) or (
+                lazy_item and lines[-1].content.strip() and _starts_new_list(items, markers, indent, marker_kind))):
+            # CommonMark: the first item of a list interrupts a paragraph only with a bullet or "1." and some text,
+            # so a wrapped line that starts with "1998. It now employs" continues the paragraph, also inside a list
+            # item. A sibling item ("1. a" then "2. b") is not a first item.
             if not raw[lm.end():].strip() or (marker[0].isdigit() and int(marker[:-1]) != 1):
                 lm = None
         if lm:
             _close_items(items, indent)
+            del markers[len(items):]
             content = raw[lm.end():]
             lines.append(Line(no, raw, "list", content, lm.end()))
             prev_kind = "list"
             items.append(_content_indent(raw, lm))
+            markers.append(marker_kind)
             continue
         if lazy_quote:
             # CommonMark lazy continuation: an unprefixed line continues the quoted paragraph.
@@ -594,10 +613,36 @@ _SENTENCE_STARTERS = {
     "since", "because", "although", "finally", "first", "today", "here", "not", "only", "even", "still", "yet",
     "thus", "instead", "meanwhile", "later", "let", "please", "do", "is", "are", "was", "were", "see", "use",
 }
-_BOUNDARY = re.compile(r"([.!?]+|\.\.\.|…)([\"'”’)\]*_]*)(\s+|$)")
+# The end mark may be followed by an emoji with no space ("Shipped!🎉").
+_BOUNDARY = re.compile(r"([.!?]+|\.\.\.|…)([\"'”’)\]*_]*)(\s+|$|(?=[" + _EMOJI_CLASS + "]))")
 _OPENERS = re.compile(r"\s*[\"'“‘(\[*_]*")
 _NEXT_WORD = re.compile(r"[\"'“‘(\[*_]*([^\W\d_][\w'’-]*)(\.?)")
 _NONSPACE = re.compile(r"\S")
+
+
+def _emoji_run_end(text: str, pos: int) -> int:
+    """The end of the emoji (with spaces or tabs between them) that start at pos, or pos if there are none."""
+    end = pos
+    while True:
+        i = end
+        while i < len(text) and text[i] in " \t":
+            i += 1
+        m = _EMOJI_CLUSTER.match(text, i)
+        if not m or not (m.group(0)[0] in "#*0123456789" or is_emoji(m.group(0)[0])):
+            return end
+        end = m.end()
+
+
+def _after_number(text: str, word_start: int, next_pos: int) -> bool:
+    """True for "450 ms. It was" and "at 5 p.m. The room": an abbreviation right after a number, then a
+    capitalized word that usually starts a sentence."""
+    i = word_start
+    if i > 0 and text[i - 1] == " ":
+        i -= 1
+    if i == 0 or not text[i - 1].isdigit():
+        return False
+    m = _NEXT_WORD.match(text, next_pos)
+    return bool(m) and m.group(1)[0].isupper() and m.group(1).lower() in _SENTENCE_STARTERS
 
 
 def _starts_sentence(text: str, pos: int) -> bool:
@@ -641,6 +686,15 @@ def split_sentences(text: str) -> list[tuple[int, int]]:
         if not _NONSPACE.search(text, start, m.start()):
             continue
         at_end = m.end() >= len(text)
+        run = _emoji_run_end(text, end)
+        if run > end:
+            # Emoji after the end mark belong to the sentence ("We shipped v2! 🎉 Thanks to everyone."), if the
+            # text after them starts a sentence or ends.
+            nxt = _NONSPACE.search(text, run)
+            if nxt is None or _starts_sentence(text, run) or "\n" in text[run:nxt.start()]:
+                spans.append((start, run))
+                start = run
+                continue
         if not at_end and not _starts_sentence(text, m.end()) and "\n" not in m.group(3):
             continue
         if punct == "." and not at_end:
@@ -648,7 +702,8 @@ def split_sentences(text: str) -> list[tuple[int, int]]:
             following = text[m.end():m.end() + 1]
             if word:
                 low = word.lower()
-                if low in _ABBREVIATIONS or (low in _NUMBER_ABBREVIATIONS and following.isdigit()):
+                if (low in _ABBREVIATIONS or (low in _NUMBER_ABBREVIATIONS and following.isdigit())) \
+                        and not _after_number(text, m.start() - len(word), m.end()):
                     continue
                 if len(word) == 1 and word.isupper() and _is_initial(text, m.end()):
                     continue
@@ -711,6 +766,11 @@ def parse(text: str) -> Document:
 
 
 _APOSTROPHE = re.compile(r"\\?['’]")
+# Word boundaries that see through underscore emphasis: "_seamless_" and "__leverage__" match, but a word inside
+# a snake_case_name does not (an underscore with a letter or digit on its other side joins two words). A hyphen
+# joins words too ("fast-paced").
+WORD_LEAD = r"(?<![^\W_])(?<![^\W_]_)(?<![^\W_]__)(?<![^\W_]___)(?<!-)"
+WORD_TAIL = r"(?!_*[^\W_])(?!-)"
 
 
 def phrase_regex(phrase: str) -> str:
@@ -722,13 +782,13 @@ def phrase_regex(phrase: str) -> str:
         core = word[:-1] if star else word
         piece = _APOSTROPHE.sub("['’]", re.escape(core))  # one pass, so ’ and ' both work
         if star:
-            piece += r"[\w’'-]*"
+            piece += r"(?:[^\W_]|['’-])*"
         parts.append(piece)
     body = r"\s+".join(parts)
-    lead = r"(?<![\w-])" if words and re.match(r"\w", words[0]) else ""
-    tail = r"(?![\w-])" if words and re.search(r"[\w]$", words[-1]) else ""
-    if words and words[-1].endswith("*"):
-        tail = ""
+    lead = WORD_LEAD if words and re.match(r"\w", words[0]) else ""
+    tail = r"(?!_*[^\W_])" if words and words[-1].endswith("*") else ""
+    if not tail and words and re.search(r"\w$", words[-1]):
+        tail = WORD_TAIL
     return lead + body + tail
 
 
