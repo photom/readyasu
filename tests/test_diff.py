@@ -59,10 +59,11 @@ def test_contrast_reversal_not_counted() -> None:
     assert "contrast_reversed" in got
 
 
-def test_protected_change_reported_not_counted() -> None:
+def test_protected_change_counted_when_code_changes() -> None:
     result = diff.compare("Run `make test`.\n", "Run `make check`.\n")
-    assert any(r.kind == "protected" and not r.counted for r in result.risks)
-    assert result.counted == 0
+    assert any(r.kind == "code" and r.counted for r in result.risks)
+    added = diff.compare("Run the tests.\n", "Run the tests with `make test`.\n")
+    assert any(r.kind == "protected" and not r.counted for r in added.risks) and added.counted == 0
 
 
 def test_added_sentence_with_commitment() -> None:
@@ -753,3 +754,71 @@ def test_two_scope_changes_both_count() -> None:
 
 def test_time_zone_after_pm() -> None:
     assert "number" in kinds("The call is at 3 p.m. PST.\n", "The call is at 3 p.m. EST.\n")
+
+
+# ---- set 9 review
+
+@pytest.mark.parametrize(("orig", "rev", "kind"), [
+    ("Pass rates rose by approximately 41% [2].\n", "Pass rates rose by 41%.\n", "approximation"),
+    ("We saw approximately 41% fewer flakes across 3 suites.\n", "We saw 41% fewer flakes across 4 suites.\n",
+     "approximation"),
+    ("Set `retention_days = 30` in the config.\n", "Set `retention_days = 7` in the config.\n", "code"),
+    ("Per Priya, the fix shipped.\n", "The fix shipped.\n", "hearsay"),
+    ("The job runs once per minute.\n", "The job runs once per second.\n", "number"),
+    ("Tokens expire after an hour.\n", "Tokens expire after a minute.\n", "number"),
+    ("Health checks run every few seconds.\n", "Health checks run every few minutes.\n", "number"),
+    ("Windows support is currently experimental.\n", "Windows support is experimental.\n", "condition"),
+    ("Backups run on Tuesdays and Saturdays.\n", "Backups run on Tuesdays and Sundays.\n", "number"),
+])
+def test_set9_meaning_changes_are_counted(orig: str, rev: str, kind: str) -> None:
+    assert kind in kinds(orig, rev)
+
+
+@pytest.mark.parametrize(("orig", "rev"), [
+    ("The service handles 200 requests per second.\n", "The service handles 200 requests every second.\n"),
+    ("Quotas are set per user.\n", "Quotas apply to each user.\n"),
+    ("We need your approval by Friday, June 12, so that transfers can be finalized before the July planning cycle. "
+     "Please approve the budget and the two internal transfers.\n",
+     "Could you approve the budget and the two internal transfers by Friday, June 12? We need your approval by then "
+     "so that transfers can be finalized before the July planning cycle.\n"),
+    ("Wait a second before retrying.\n", "Pause briefly before retrying.\n"),
+    ("In today's fast-paced world, our tool helps teams ship.\n", "Our tool helps teams ship.\n"),
+    ("At the end of the day, the fix works.\n", "The fix works.\n"),
+])
+def test_set9_harmless_rewrites(orig: str, rev: str) -> None:
+    assert kinds(orig, rev) == []
+
+
+def test_citation_counts_once() -> None:
+    assert kinds("Flakiness rose (Smith, 2020).\n", "Flakiness rose.\n") == ["citation"]
+
+
+@pytest.mark.parametrize(("orig", "rev", "kind"), [
+    ("We must rotate the signing keys every 90 days.\n", "Signing keys are rotated every 90 days.\n", "obligation"),
+    ("You must enable two-factor authentication before you deploy.\n",
+     "Two-factor authentication is enabled before you deploy.\n", "obligation"),
+    ("In production, debug logging is disabled.\n", "Debug logging is disabled.\n", "condition"),
+    ("On weekends, support responds within 4 hours.\n", "Support responds within 4 hours.\n", "condition"),
+    ("Attendees: Dana Kim, Lee Park.\n\nDana: send the notes by Friday.\n\nLee: update the docs by Monday.\n",
+     "Attendees: Dana Kim, Lee Park.\n\nLee: send the notes by Friday.\n\nDana: update the docs by Monday.\n", "name"),
+])
+def test_set9_diff_review_counted(orig: str, rev: str, kind: str) -> None:
+    assert kind in kinds(orig, rev)
+
+
+@pytest.mark.parametrize(("orig", "rev"), [
+    ("The plan costs $10 per month.\n", "The plan costs $10 a month.\n"),
+    ("The company provides one laptop per employee.\n", "The company provides one laptop for each employee.\n"),
+    ("On a daily basis, the job exports 5,000 rows.\n", "The job exports 5,000 rows daily.\n"),
+    ("If you have questions, please don't hesitate to contact me.\n", "If you have questions, please contact me.\n"),
+    ("We launched the feature a month ago.\n", "We launched the feature last month.\n"),
+    ("The free plan includes 3 projects. The Pro plan includes 20 projects. The Team plan has no limit.\n",
+     "The free plan includes 3 projects, the Pro plan 20, and the Team plan has no limit.\n"),
+    ("Customers reportedly saw errors after the deploy.\n", "Customers say they saw errors after the deploy.\n"),
+])
+def test_set9_diff_review_harmless(orig: str, rev: str) -> None:
+    assert kinds(orig, rev) == []
+
+
+def test_owner_swap_counts_once_per_name() -> None:
+    assert kinds("- Owner: Dana\n- Reviewer: Lee\n", "- Owner: Lee\n- Reviewer: Dana\n").count("name_order") == 2

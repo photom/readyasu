@@ -32,3 +32,4 @@ happy to help!	delete from documents
 let me know if you'd like	delete from documents
 would you like me to	delete from documents
 i hope this email finds you well	a greeting in mail (not reported there); elsewhere delete
+happy syncing!	delete in documents

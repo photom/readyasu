@@ -44,10 +44,12 @@ look no further	delete
 without further ado	delete
 needless to say	delete, or say it
 it goes without saying	delete, or say it
-more than just	say what more it is, from the original; otherwise keep and ask (deleting it reverses the claim), only from the original; otherwise keep and ask
+more than just	say what more it is, only from the original; otherwise keep and ask (deleting it reverses the claim)
 stands as a	"is"
 serves as a	"is" only when the thing really is one; otherwise keep
 a wide range of	keep only if the list is not given
 perfect storm	name the causes the text gives, only from the original; otherwise keep and ask
 simply put	delete; say the point
 put simply	delete; say the point
+moving forward,	delete, or say when
+let's be clear	delete; say the point

@@ -342,6 +342,7 @@ def cmd_run(args: argparse.Namespace) -> int:
 
     status = "partial" if problems else ("unrecorded" if args.no_record else "executed")
     record_error = ""
+    other_run: Optional[tuple[str, str]] = None
     run_id = ""
     attempt = 0
     revisions = 0
@@ -370,6 +371,8 @@ def cmd_run(args: argparse.Namespace) -> int:
             if args.run_id:
                 run_id = args.run_id
             elif args.new_run or not previous.get("run") or age > RUN_WINDOW_SECONDS or previous.get("cwd") != cwd:
+                if previous.get("run") and previous.get("cwd") != cwd and age <= RUN_WINDOW_SECONDS and not args.new_run:
+                    other_run = (str(previous["run"]), str(previous.get("cwd")))
                 run_id = new_run_id()
             else:
                 run_id = str(previous["run"])
@@ -439,6 +442,9 @@ def cmd_run(args: argparse.Namespace) -> int:
                  "such folder; then follow the first line of that output.")
     else:
         first = first_line(status, attempt, revisions, same_as_previous, args, problems, folder, meaning_risk)
+        if other_run:
+            first += (f" (A run of the same original from another folder exists: {other_run[0]} in {other_run[1]}. If this "
+                      f"is a revision of it, run the command from that folder or add --run-id {other_run[0]}.)")
     kept_added = split_kept_added(lint_final, lint_orig, original, material_text)
     if args.json:
         out = {"format": 1, "tool": TOOL, "version": __version__, "status": status, "first_line": first,
@@ -546,8 +552,8 @@ def format_run(first: str, status_line: str, mode: str, checks: list[str], recor
             out.append("Flagged words kept: " + ", ".join(kept)
                        + " (reread these sentences; ask the writer or give the reason under \"AI-like wording kept\")")
         if added:
-            out.append("Flagged words added by the rewrite: " + ", ".join(added) + " (do not add them; restore the "
-                       "original wording)")
+            fix = "restore the original wording" if original_text else "use the plain word"
+            out.append("Flagged words added by the rewrite: " + ", ".join(added) + f" (do not add them; {fix})")
     out.append("When you add the report sections after the body, write their headings exactly as in SKILL.md section 3.")
     out.append("Read the sections below in full; do not cut the output.")
     out.append("")

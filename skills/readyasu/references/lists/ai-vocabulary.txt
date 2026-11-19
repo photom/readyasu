@@ -71,4 +71,6 @@ noteworthy	say what is notable, only from the original; otherwise keep and ask
 embark on a journey	"start"
 your journey	keep literal journeys; otherwise "process", "time"
 the journey of	keep literal journeys; otherwise "process", "time"
-catastrophic	say what happened; keep it when it is the organization's defined severity level, only from the original; otherwise keep and ask
+catastrophic	say what happened, only from the original; otherwise keep and ask; keep it when it is the organization's defined severity level
+journey	say what happened; keep for literal travel
+profound	say what changed, only from the original; otherwise keep and ask

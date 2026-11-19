@@ -333,3 +333,15 @@ def test_compose_lists_composer_words_as_added(tmp_path: Path) -> None:
     fin = write(tmp_path / "f.md", "We leverage a seamless backup process that keeps backups for 30 days.\n")
     p = run(["run", "--material", mat, "--final", fin, "--state-dir", str(tmp_path / "st"), "--no-words"], tmp_path)
     assert "Flagged words kept" not in p.stdout and "Flagged words added by the rewrite" in p.stdout
+
+
+def test_first_line_mentions_a_run_from_another_folder(tmp_path: Path) -> None:
+    src = write(tmp_path / "o.md", "We leverage a robust pipeline.\n")
+    fin = write(tmp_path / "f.md", "We use a robust pipeline.\n")
+    st = str(tmp_path / "st")
+    run(["run", "--source", src, "--final", fin, "--state-dir", st, "--no-words"], tmp_path)
+    other = tmp_path / "other"
+    other.mkdir()
+    write(tmp_path / "f.md", "We use a pipeline.\n")
+    p = run(["run", "--source", src, "--final", fin, "--state-dir", st, "--no-words"], other)
+    assert "from another folder exists" in p.stdout.splitlines()[0]

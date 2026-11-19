@@ -41,7 +41,7 @@ When there is no gap, no conflict, and the draft is not yours, do not read furth
 
 Fill only when all of these hold. When unsure, do not fill.
 
-1. The gap is content hidden by a metaphor or exaggeration, or a missing element the sentence needs (who, what, by when, under which condition, compared with what, unit). Vague quantities, times and parties ("several", "soon", "some users"), "TBD" and "under investigation", details left out of a summary, closing resolutions, and the experiences and feelings in essays are not gaps. Do not fill them and do not ask about them, except in the one case at the end of section 5.
+1. The gap is content hidden by a metaphor or exaggeration, or a missing element the sentence needs (who, what, by when, under which condition, compared with what, unit). Vague quantities, times and parties ("several", "soon", "some users"), "TBD" and "under investigation", details left out of a summary, closing resolutions, and the experiences and feelings in essays are not gaps. Do not fill them and do not ask about them, except in the one case at the end of section 5. A degree word without a value ("improved significantly") is a gap only when a source gives the value; otherwise leave it and do not ask, except in reports whose readers act on that value.
 2. A source has a sentence with the same claim. A matching value is not enough: the value and what it is the value of (target, condition, time) must be in the same or the adjacent sentence. If the source's scope (file, environment, plan, version) is narrower than the draft's sentence, ask instead. Fill an actor only when the source sentence has that person as the subject of the same action (do not turn the person who reported something into the person who did it or owns it). Do not add names of people the original lacks, even when the material has them (not even on a speaker line in minutes), except a name the writer gives in answer to your question for an internal document (section 6).
 3. You can write it at the same strength. "Might", "planned" and "probably" stay at that strength. Use command output only when you can scope it ("in that run").
 4. The fact may go to the destination (section 5), and the source line holds no credentials, internal hostnames or e-mail addresses.
@@ -101,12 +101,14 @@ Facts that must not go into the body or the questions, even with a source:
 | Kind | Known to be internal | External or unknown |
 |---|---|---|
 | Credentials (passwords, API keys, tokens, connection strings, private keys) | Never | Never |
-| Personal data (names, e-mail addresses, phone numbers, user IDs) | Only a name the original already has, when the material names that person in the same role. No names the original lacks, not even on a speaker line in minutes | Never |
+| Personal data (names, e-mail addresses, phone numbers, user IDs) | Only a name the original already has, when the material names that person in the same role. No names the original lacks, not even on a speaker line in minutes, except a name the writer gives in answer to your question (section 6) | Never |
 | Internal setup (internal hostnames, IP addresses, server paths, internal URLs, ticket numbers) | Only when the original already has one of the same kind | Never |
-| Unpublished figures and dates (revenue, costs, customer counts, prices, release dates, number of affected users) | Only when the original has a value of the same kind, the sentence asks for the value, and the wording is not vague | Never, except a value the writer gave in answer to your question |
+| Unpublished figures and dates (revenue, costs, customer counts, prices, release dates, number of affected users) | Only when the original has a value of the same kind, the sentence asks for the value, and the wording is not vague | Never |
 | Customer and partner names | Only when the original already names a partner | Never |
 | Security details (reproduction steps, configuration weaknesses) | Only when the original has details of the same kind | Never |
 | Names inside the repository (file names, function names, configuration keys, error codes) | Allowed | Only when the original names things from the same repository |
+
+The rows on unpublished figures do not apply to a value the writer gave in answer to your question (both columns).
 
 When you leave a fact out, keep the original wording. Only when readers need the fact to act, say so without giving the value: "The material names the owner, but the document looks external, so the name was not added."
 
@@ -125,10 +127,10 @@ The one exception: when a missing or vague owner, deadline or request target cou
 
 | Situation | Fill or correct | Questions | "Fact check" |
 |---|---|---|---|
-| essay | No (corrections of your own values still apply) | No fact questions | Only corrections of your own values |
-| formal, paper | No | Only about gaps whose content is not in the context; gaps the context fills go under "Facts that could be filled" | Yes |
-| promo | No | Only about claims that look exaggerated (doc-types/promo.md) | Yes |
-| Only the text (nothing on the topic in the conversation; a one-shot run without material) | No | Only where readers cannot act, or where a claim needs a value the text does not give (up to three) | Omit when there is no gap (section 1); when you ask, start it with "Sources checked: None (received the text only)" |
+| essay | No fills from the conversation or files (corrections of your own values, and from material or answers the user handed you, still apply) | No fact questions | Only corrections |
+| formal, paper | No fills from the conversation or files (corrections of your own values, and from material or answers the user handed you, still apply) | Only about gaps whose content is not in the context; gaps the context fills go under "Facts that could be filled" | Yes |
+| promo | No fills from the conversation or files (corrections of your own values, and from material or answers the user handed you, still apply) | Only about claims that look exaggerated (doc-types/promo.md) | Yes |
+| You received only the text, with nothing else (nothing on the topic in the conversation; a one-shot run without material) | No | Only where readers cannot act, or where a claim needs a value the text does not give (up to three) | Omit when there is no gap (section 1); when you ask, start it with "Sources checked: None (received the text only)" |
 | Text that already reads naturally and that you did not write | No, unless there is a gap that meets section 3 | None | Omit, unless you filled or corrected something (then only those lines) |
 | The user wants only the text | Not from the conversation or files (corrections from material the user handed you still apply) | None | Omit; no notes before or after the body |
 | "Don't check" or "no need to check the facts" | As for only the text | None | Omit |

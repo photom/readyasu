@@ -56,6 +56,7 @@ HELP_EPILOG = """Meaning risks counted by --fail-on meaning-risk:
   name_order        the same names appear in a different order, or a name moved to another sentence
   name              a name left a sentence and the whole text, or another name replaced it in the sentence
   material_number   (compose mode) a number in the final draft is not in the material
+  code              a value or name inside inline code, a code block or a URL changed
 Reported but not counted: changes to inline code, code blocks, URLs and e-mail addresses; a denied word moved to the
 affirmative side; certainty weakened; causal links added; added feelings and actors.
 
@@ -119,7 +120,8 @@ HEARSAY = _rx(r"\b(?:reportedly|allegedly|rumou?red)\b|\baccording\s+to\b|\b(?:i
               r"|\b(?:says|said|told\s+(?:us|me|them|him|her|the\s+team))\b"
               r"|\b(?:people|colleagues|users|customers|experts|critics|others|they)\s+(?:say|report)\b"
               r"|\b(?:claims?|claimed|noted|mentioned|stated)\s+(?=(?:the|a|an|it|we|they|this|that|our|its|there)\b)"
-              r"|\btells?\s+us\b|\bper\s+(?:the|our|their|its)\s+\w+|\bper\s+[A-Z][\w'’-]+"
+              r"|\btells?\s+us\b|\bper\s+(?:the|our|their|its)\s+(?!(?:hour|minute|second|day|week|month|year|user|request|instance|"
+              r"unit|seat|item)s?\b)\w+|(?-i:\b[Pp]er\s+[A-Z][\w'’-]+)"
               r"|\b(?:we['’]re|i['’]m|we\s+are|i\s+am)\s+told\b")
 REQUEST = _rx(r"\bplease\b|\b(?:could|would|can|will)\s+you\b|\bkindly\b|\bwe\s+ask\s+(?:that|you)\b"
               r"|\bi(?:['’]d|\s+would)\s+like\s+you\s+to\b|\bi\s+need\s+you\s+to\b")
@@ -170,7 +172,7 @@ CONTRAST_DENIED = _rx(r"\bnot\s+(?:just\s+|only\s+|merely\s+|simply\s+)?(?:an?\s
                       r"|\b(?:instead\s+of|rather\s+than)\s+(?:an?\s+|the\s+)?([a-z][\w-]{2,})")
 CONDITION = _rx(r"\b(?:if|unless|until|till|whenever|when|while|after|before|as\s+soon\s+as|provided(?:\s+that)?"
                 r"|as\s+long\s+as|in\s+case|except\s+(?:when|if)|at\s+launch|at\s+first|initially|for\s+now"
-                r"|for\s+the\s+time\s+being|temporarily|except\s+(?:where|as|for|when|that|to\s+the\s+extent))\b"
+                r"|for\s+the\s+time\s+being|temporarily|currently|at\s+present|right\s+now|at\s+the\s+moment|except\s+(?:where|as|for|when|that|to\s+the\s+extent))\b"
                 r"|\bat\s+(?:its|our|their|his|her|the\s+\w+['’]s)\s+(?:sole\s+|own\s+|reasonable\s+)?discretion\b"
                 r"|(?<!\bat\s)\bonce\b(?!\s+(?:a|an|per|every|more|again|or|and)\b)")
 NOT_CONDITION = _rx(r"\b(?:a|for\s+a|after\s+a|in\s+a|quite\s+a|little)\s+while\b|\bbefore(?=\s*(?:[.!?,;)]|$))"
@@ -182,7 +184,9 @@ NOT_PERMISSION = _rx(r"\bfeel\s+free\s+to\s+(?:reach\s+out|contact|ask|get\s+in\
 # Stock phrases whose words would otherwise count as obligation, hearsay or condition markers.
 STOCK_MARKERS = _rx(r"\bit\s+should\s+be\s+noted\s+that\b|\bit\s+(?:is|['’]s)\s+worth\s+noting\s+that\b|\bwhen\s+it\s+comes\s+to\b"
                     r"|\b(?:that\s+said|having\s+said\s+that|that\s+being\s+said|easier\s+said\s+than\s+done|needless\s+to\s+say)\b"
-                    r"|\bafter\s+all\b|\bbefore\s+we\s+(?:begin|dive\s+in|start)\b")
+                    r"|\bafter\s+all\b|\bbefore\s+we\s+(?:begin|dive\s+in|start)\b"
+                    r"|\b(?:don['’]t|do\s+not)\s+hesitate\s+to\b|\blook\s+no\s+further\b|\bwithout\s+further\s+ado\b"
+                    r"|\bit\s+goes\s+without\s+saying\b")
 # Negated obligations are not obligations ("you don't have to", "not required").
 NEG_OBLIGATION = _rx(r"(?:\b\w+n['’]t|\b(?:do|does|did|is|are|was|were|will|would|should)\s+not|\bnot|\bno|\bnever|\bneedn['’]t)"
                      r"\s+(?:have\s+to|has\s+to|need\s+to|needs?|required|requires?|mandatory)\b")
@@ -200,7 +204,7 @@ DATE_ABBR = {"Jan": "January", "Feb": "February", "Mar": "March", "Apr": "April"
              "Dec": "December", "Mon": "Monday", "Tue": "Tuesday", "Tues": "Tuesday", "Wed": "Wednesday",
              "Thu": "Thursday", "Thur": "Thursday", "Thurs": "Thursday", "Fri": "Friday", "Sat": "Saturday",
              "Sun": "Sunday"}
-DATE_WORD = re.compile(r"\b(" + "|".join(DATE_FULL) + r"|MONTHMAY)\b|\b(" + "|".join(sorted(DATE_ABBR, key=len, reverse=True))
+DATE_WORD = re.compile(r"\b(" + "|".join(DATE_FULL) + r"|MONTHMAY)s?\b|\b(" + "|".join(sorted(DATE_ABBR, key=len, reverse=True))
                        + r")\b\.?(?=,?\s+(?:\d|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\b)|\s*\|)")
 UNIT_NAMES = {
     "ms": "ms", "msec": "ms", "millisecond": "ms", "milliseconds": "ms", "s": "s", "sec": "s", "secs": "s",
@@ -227,13 +231,16 @@ QUANTIFIER = _rx(r"(?<!\bthe\s)(?<!\bat\s)\b(?:a\s+few|a\s+couple\s+of|some|most
                  r"(?=\s+(?:of\s+)?[a-z])")
 STATISTIC = _rx(r"\b(?:mean|median|average|avg|p\d{2}|percentile|peak)\b")
 FREQUENCY = _rx(r"\b(?:hourly|daily|nightly|weekly|biweekly|fortnightly|monthly|quarterly|annually|annual|yearly|semiannual(?:ly)?)\b"
-                r"|\b(?:every|each|per|a)\s+(?:hour|day|night|week|fortnight|month|quarter|year)\b")
-FREQ_NORMAL = {"hour": "hourly", "day": "daily", "night": "nightly", "week": "weekly", "fortnight": "fortnightly",
-               "month": "monthly", "quarter": "quarterly", "year": "yearly", "annually": "yearly", "annual": "yearly",
-               "biweekly": "fortnightly", "semiannual": "semiannually"}
+                r"|\b(?:every|each|per|an?)\s+(?:(?:few|couple\s+of|several|other)\s+)?"
+                r"(?:second|minute|hour|day|night|week|fortnight|month|quarter|year)s?\b")
+FREQ_NORMAL = {"hourly": "hour", "daily": "day", "nightly": "night", "weekly": "week", "biweekly": "fortnight",
+               "fortnightly": "fortnight", "monthly": "month", "quarterly": "quarter", "annually": "year", "annual": "year",
+               "yearly": "year", "semiannual": "half-year", "semiannually": "half-year"}
 # A qualifier phrase at the start of a sentence ("Under normal traffic,", "During peak hours,", "For annual plans,").
 QUALIFIER = re.compile(r"(?:^|(?<=[.!?:]\s))((?:[Uu]nder|[Dd]uring|[Ff]or|[Ii]n|[Oo]n|[Aa]t|[Ww]ithin|[Oo]utside|[Ff]rom|[Ee]xcept)"
                        r"\s+[^,.;:!?]{2,40}),")
+STOCK_OPENER = _rx(r"in\s+today['’]s\b|in\s+an?\s+(?:era|world|age|landscape)\b|at\s+the\s+end\s+of\s+the\s+day\b"
+                   r"|in\s+(?:the\s+)?(?:ever-|rapidly\s+)?(?:evolving|changing)\b|for\s+(?:many|most)\s+(?:teams|organizations|people)\b")
 PRIORITY_WORDS = _rx(r"\b(?:focus\w*|priorit\w*|first|both|as\s+well\s+as|in\s+addition\s+to|along\s+with|and|plus|also)\b")
 
 STOPWORDS = set("""
@@ -249,7 +256,7 @@ After Before Because Although However Therefore Thus Also In On At For From To B
 There What Which Who Why How Please Note Yes No Not All Each Every Some Any Most Many More Monday Tuesday Wednesday
 Thursday Friday Saturday Sunday January February March April May June July August September October November December
 Let Lets OK Okay Section Sections Clause Clauses Article Chapter Appendix Figure Table Step Steps Part Page Item
-Items Annex Schedule Exhibit TBD TBC EOD EOW COB ASAP ETA FYI FAQ WIP OOO PR PRs QA UI UX""".split())
+Items Annex Schedule Exhibit Mondays Tuesdays Wednesdays Thursdays Fridays Saturdays Sundays TBD TBC EOD EOW COB ASAP ETA FYI FAQ WIP OOO PR PRs QA UI UX""".split())
 
 
 # ---------------------------------------------------------------- data
@@ -366,7 +373,7 @@ def _number_text(text: str) -> str:
 
 
 def numbers(text: str) -> Counter[str]:
-    text = _number_text(text)
+    text = _number_text(CITATION.sub(" ", text))  # a citation's numbers are compared as the citation
     c: Counter[str] = Counter()
     for m in NUMBER.finditer(text):
         c[number_key(m)] += 1
@@ -403,7 +410,7 @@ def dates(text: str) -> Counter[str]:
 
 def unit_pairs(text: str) -> Counter[str]:
     """Each number with the unit written right after it (or a currency code before it): "30 s", "2 TB", "8"."""
-    text = _number_text(text)
+    text = _number_text(CITATION.sub(" ", text))
     c: Counter[str] = Counter()
     found: list[tuple[str, int, int]] = [(number_key(m), m.start(), m.end()) for m in NUMBER.finditer(text)]
     for m in NUMBER_WORD.finditer(text):
@@ -424,10 +431,12 @@ def unit_pairs(text: str) -> Counter[str]:
                     if tz and tz.group(1).lower() in UNIT_NAMES:
                         unit += " " + tz.group(1)
                 if not unit and after.group(1).isalpha():
-                    # one qualifier between the number and the unit: "30 business days"
+                    # one qualifier between the number and the unit: "30 business days"; "per/a/each month" is a rate
                     second = re.match(r"\s([A-Za-z]+)(?![\w-])", text[after.end():])
                     if second and second.group(1).lower() in UNIT_NAMES:
-                        unit = after.group(1).lower() + " " + UNIT_NAMES[second.group(1).lower()]
+                        qual = after.group(1).lower()
+                        qual = "per" if qual in ("per", "a", "an", "each", "every") else qual
+                        unit = qual + " " + UNIT_NAMES[second.group(1).lower()]
         c[key + " " + (unit or "(no unit)")] += 1
     return c
 
@@ -499,9 +508,15 @@ def denied_words(text: str) -> set[str]:
 def frequencies(text: str) -> Counter[str]:
     """How often something happens, normalized ("every night" -> nightly, "annual" -> yearly)."""
     c: Counter[str] = Counter()
+    text = re.sub(r"\b(?:wait|just|hang\s+on|give\s+(?:me|us)|take|in|for|half)\s+an?\s+(?:second|minute|moment)\b", " ", text,
+                  flags=re.IGNORECASE)  # idioms, not durations
+    text = re.sub(r"\ban?\s+(?:second|minute|hour|day|week|month|quarter|year)\s+(?:ago|later|earlier|back|before|after|from\s+now)\b",
+                  " ", text, flags=re.IGNORECASE)  # a point in time, not a frequency
     for m in FREQUENCY.finditer(text):
         w = m.group(0).lower().split()[-1]
-        c[FREQ_NORMAL.get(w, w)] += 1
+        w = FREQ_NORMAL.get(w, w)
+        c[w[:-1] if w.endswith("s") and w[:-1] in ("second", "minute", "hour", "day", "night", "week", "month", "year")
+          else w] += 1
     return c
 
 
@@ -526,7 +541,7 @@ def _ordinary_word_use(text: str, m: re.Match[str]) -> bool:
 
 def approx_map(text: str) -> dict[str, set[str]]:
     result: dict[str, set[str]] = {}
-    text = _number_text(text)
+    text = _number_text(CITATION.sub(" ", text))
     for m in NUMBER.finditer(text):
         key = number_key(m)
         before = APPROX_BEFORE.search(text[max(0, m.start() - 20):m.start()])
@@ -706,6 +721,11 @@ def align(orig: tx.Document, rev: tx.Document) -> list[Chunk]:
         r = rev.sentences[j1:j2]
         if tag == "replace" and len(o) == len(r) and len(o) > 1:
             ratios = [difflib.SequenceMatcher(None, a[i1 + k], b[j1 + k]).ratio() for k in range(len(o))]
+            crossed = _crossed_pairs(a[i1:i2], b[j1:j2]) if len(o) <= 12 else None
+            if crossed is not None and sum(x for x, _, _ in crossed) > sum(ratios) + 0.3:
+                for _ratio, x, y in sorted(crossed, key=lambda t: t[1]):
+                    chunks.append(Chunk([o[x]], [r[y]]))  # sentences reordered inside the block
+                continue
             if all(x > 0.35 for x in ratios):
                 for k in range(len(o)):
                     chunks.append(Chunk([o[k]], [r[k]]))
@@ -715,6 +735,22 @@ def align(orig: tx.Document, rev: tx.Document) -> list[Chunk]:
             continue
         chunks.append(Chunk(list(o), list(r)))
     return chunks
+
+
+def _crossed_pairs(a: list[str], b: list[str]) -> Optional[list[tuple[float, int, int]]]:
+    """Best one-to-one pairing of two equal-size sentence lists, ignoring order (greedy by similarity)."""
+    cand = sorted(((difflib.SequenceMatcher(None, x, y).ratio(), i, j) for i, x in enumerate(a) for j, y in enumerate(b)),
+                  reverse=True)
+    used_i: set[int] = set()
+    used_j: set[int] = set()
+    out: list[tuple[float, int, int]] = []
+    for ratio, i, j in cand:
+        if i in used_i or j in used_j:
+            continue
+        used_i.add(i)
+        used_j.add(j)
+        out.append((ratio, i, j))
+    return out if len(out) == len(a) else None
 
 
 def _split_chunk(o: list[tx.Sentence], r: list[tx.Sentence]) -> list[Chunk]:
@@ -838,10 +874,14 @@ def attach_adjacent(chunks: list[Chunk], orig: tx.Document, rev: tx.Document) ->
             idx = [o_index[id(x)] for x in pair.orig] if side_o else [r_index[id(x)] for x in pair.rev]
             own = ch.orig[0] if side_o else ch.rev[0]
             same_block = any(x.block_index == own.block_index for x in (pair.orig if side_o else pair.rev))
-            adjacent = idx[-1] + 1 == pos or idx[0] - 1 == pos
+            adjacent = idx[-1] + 1 == pos or idx[0] - 1 == pos or idx[0] < pos < idx[-1]
             if not adjacent and not same_block:
                 continue
-            if pos > idx[-1]:
+            if idx[0] < pos < idx[-1]:
+                key_of = (lambda x: o_index[id(x)]) if side_o else (lambda x: r_index[id(x)])
+                merged = Chunk(sorted(pair.orig + ch.orig, key=key_of), pair.rev) if side_o else \
+                    Chunk(pair.orig, sorted(pair.rev + ch.rev, key=key_of))
+            elif pos > idx[-1]:
                 merged = Chunk(pair.orig + ch.orig, pair.rev) if side_o else Chunk(pair.orig, pair.rev + ch.rev)
             else:
                 merged = Chunk(ch.orig + pair.orig, pair.rev) if side_o else Chunk(pair.orig, ch.rev + pair.rev)
@@ -854,7 +894,9 @@ def attach_adjacent(chunks: list[Chunk], orig: tx.Document, rev: tx.Document) ->
             overlap = len(left & gained)
             moved_in = overlap >= 2 and overlap >= len(left) / 2
             score = ratio + (1.0 if moved_in else 0.0)
-            if ((ratio > base and overlap >= 1) or moved_in) and (best is None or score > best[0]):
+            middle = idx[0] < pos < idx[-1]
+            inside = middle and bool(left) and left <= (content_words(pair.rev_text) if side_o else content_words(pair.orig_text))
+            if ((ratio > base and overlap >= 1) or moved_in or inside) and (best is None or score > best[0]):
                 best = (score, nb, merged)
         if best is None:
             k += 1
@@ -973,20 +1015,20 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
                 note = f" ({', '.join(elsewhere)} {verb} elsewhere in the original or material)"
             parts.append("added " + ", ".join(added) + note)
         risk("number", True, "Number changed: " + "; ".join(parts))
-    else:
-        oa, ra = approx_map(o), approx_map(r)
-        for key in sorted(set(oa) & set(ra)):
-            if {approx_group(w) for w in oa[key]} != {approx_group(w) for w in ra[key]}:
-                before = ", ".join(sorted(oa[key])) or "none"
-                after = ", ".join(sorted(ra[key])) or "none"
-                risk("approximation", True, f"Approximation on {key} changed: {before} → {after}")
+    oa, ra = approx_map(o), approx_map(r)
+    for key in sorted(set(oa) & set(ra)):  # also when another number in the sentence changed
+        if {approx_group(w) for w in oa[key]} != {approx_group(w) for w in ra[key]}:
+            before = ", ".join(sorted(oa[key])) or "none"
+            after = ", ".join(sorted(ra[key])) or "none"
+            risk("approximation", True, f"Approximation on {key} changed: {before} → {after}")
+    if on == rn:
         uo, ur = unit_pairs(o), unit_pairs(r)
         if uo != ur:
             risk("number", True, "Unit changed: " + ", ".join(sorted((uo - ur).elements())) + " → "
                  + ", ".join(sorted((ur - uo).elements())))
     fq_o, fq_r = frequencies(o), frequencies(r)
     if fq_o != fq_r and (fq_o or fq_r):
-        risk("number", True, "Frequency changed: " + (", ".join(sorted((fq_o - fq_r).elements())) or "none") + " → "
+        risk("number", True, "Frequency or time unit changed: " + (", ".join(sorted((fq_o - fq_r).elements())) or "none") + " → "
              + (", ".join(sorted((fq_r - fq_o).elements())) or "none"))
     do_, dr = dates(o), dates(r)
     if do_ != dr:
@@ -1060,6 +1102,9 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
         if count(ABILITY, r_st) >= count(ABILITY, o_st):
             # "can possibly" -> "can" reduces a stack (SKILL.md); "can" stays as the hedge
             o_st = re.sub(r"\b(can)\s+(?:possibly|potentially|conceivably|maybe)\b", r"\1", o_st, flags=re.IGNORECASE)
+        if HEARSAY.search(o_st) and HEARSAY.search(r_st):
+            o_st = re.sub(r"\breportedly\b", " ", o_st, flags=re.IGNORECASE)  # hearsay kept in another form
+            r_st = re.sub(r"\breportedly\b", " ", r_st, flags=re.IGNORECASE)
         ho, hr = hedges(o_st), hedges(r_st)
         lv_o, lv_r = sorted(lv for lv, _ in ho), sorted(lv for lv, _ in hr)
         list_o, list_r = sorted(w.lower() for _, w in ho), sorted(w.lower() for _, w in hr)
@@ -1102,7 +1147,10 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
 
     obl_o, w_obl_o = obligation_level(o)
     obl_r, w_obl_r = obligation_level(r)
-    if obl_o == 2 and obl_r == 0 and _imperative(ch.rev) and not _imperative(ch.orig):
+    governed = re.search(r"\byou\s+(?:must|have\s+to|need\s+to|will\s+need\s+to|will\s+have\s+to|are\s+required\s+to)\s+"
+                         r"(?:first\s+)?([a-z]+)", o, re.IGNORECASE)
+    if obl_o == 2 and obl_r == 0 and governed and \
+            re.match(r"\s*" + re.escape(governed.group(1)) + r"\b", r_st or r, re.IGNORECASE):
         pass  # "You will need to restart" -> "Restart": the imperative keeps the instruction
     elif obl_o != obl_r:
         risk("obligation", True, "Obligation strength changed: "
@@ -1154,7 +1202,13 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
                  + (", ".join(sorted((st_r - st_o).elements())) or "none"))
 
     for qm in QUALIFIER.finditer(o):
-        words = [w for w in re.findall(r"[A-Za-z][A-Za-z'’-]{2,}", qm.group(1))[1:] if w.lower() not in STOPWORDS]
+        if STOCK_OPENER.match(qm.group(1)) or _list_hits("stock-phrases", qm.group(1)) or \
+                _list_hits("wordy-phrases", qm.group(1)) or re.match(r"(?:on\s+the\s+other\s+hand|for\s+example|for\s+instance|"
+                                                                     r"in\s+other\s+words|in\s+short|in\s+addition)\b",
+                                                                     qm.group(1), re.IGNORECASE):
+            continue  # "In today's fast-paced world," is a stock opener the skill removes, not a qualifier
+        words = [w for w in re.findall(r"[A-Za-z][A-Za-z'’-]{2,}", re.sub(r"^\S+\s+", "", qm.group(1)))
+                 if w.lower() not in STOPWORDS]
         if words and not any(re.search(r"\b" + re.escape(w) + r"\b", r, re.IGNORECASE) for w in words):
             risk("condition", True, f'Qualifier removed: "{qm.group(1)}". Check that the sentence did not become true '
                  "in more cases.")
@@ -1163,7 +1217,8 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
         for am in re.finditer(r"\b(?:all|every|each|any)\s+([a-z]+)", r, re.IGNORECASE):
             head = am.group(1).lower()
             mm = re.search(r"\b([A-Za-z][\w-]+)\s+" + re.escape(head) + r"\b", o, re.IGNORECASE)
-            if mm and mm.group(1).lower() not in STOPWORDS | {"all", "every", "each", "any"}:
+            if mm and mm.group(1).lower() not in STOPWORDS | {"all", "every", "each", "any", "per", "a", "an"} and \
+                    not mm.group(1)[0].isdigit():
                 risk("scope", True, f'Restriction removed: "{mm.group(1)} {head}" → "{am.group(0)}"')
                 break
 
@@ -1305,6 +1360,7 @@ def _cached_feelings(text: str) -> list[str]:
     return _list_hits("feelings", text)
 
 
+BOLD_LABEL = re.compile(r"^\s*(?:\*\*|__)[^*_\n]{1,60}?(?:\*\*|__)\s*:?")
 LABEL_PREFIX = re.compile(r"^\s*(?:\*\*|__)[^*_\n]{1,60}?(?:\*\*|__)\s*:?|^\s*[*_]?[A-Z][\w ]{0,40}?:(?=\s)")
 
 
@@ -1316,7 +1372,11 @@ def _sentence_names(sentences: list[tx.Sentence], proper: set[str]) -> set[str]:
     for x in sentences:
         if x.kind == "heading":
             continue
-        x = tx.Sentence(x.text, LABEL_PREFIX.sub("", x.masked), x.line, x.kind, x.block_index)
+        label = LABEL_PREFIX.match(x.masked)
+        masked = x.masked
+        if label and not (set(re.findall(r"[A-Z][\w'’-]+", label.group(0))) & proper):
+            masked = masked[label.end():]  # a label such as "**Faster Startup**:", not a name such as "Dana:"
+        x = tx.Sentence(x.text, CITATION.sub(" ", masked), x.line, x.kind, x.block_index)
         found |= set(names(x.masked))
         first = names(x.masked, include_initial=True)[:1]
         if first and first[0] in proper:
@@ -1352,6 +1412,50 @@ def _list_hits(name: str, text: str) -> list[str]:
             if w not in hits:
                 hits.append(w)
     return hits
+
+
+_VALUE_MSG = re.compile(r"^(Number changed|Month or weekday changed): (.*)$")
+
+
+def _cancel_moved_values(risks: list[Risk], orig: tx.Document) -> list[Risk]:
+    """A number or date that one sentence pair lost and another pair in the same paragraph gained moved between
+    sentences ("We need approval by Friday" / "Please approve" -> "Could you approve by Friday?" / "We need
+    approval by then"): it is not a change."""
+    block_of = {x.line: x.block_index for x in orig.sentences}
+    parsed: list[tuple[Risk, str, list[str], list[str]]] = []
+    for x in risks:
+        m = _VALUE_MSG.match(x.message) if x.kind == "number" and x.orig_line else None
+        if not m:
+            continue
+        body = re.sub(r"\s*\([^)]*\)", "", m.group(2))
+        rem = re.search(r"removed ([^;]+)", body)
+        add = re.search(r"added ([^;]+)", body)
+        parsed.append((x, m.group(1), [v.strip() for v in rem.group(1).split(",")] if rem else [],
+                       [v.strip() for v in add.group(1).split(",")] if add else []))
+    changed: dict[int, tuple[list[str], list[str]]] = {id(x): (rem, add) for x, _k, rem, add in parsed}
+    for x, kind, _rem, _add in parsed:
+        for y, kind2, _r2, _a2 in parsed:
+            if x is y or kind != kind2 or block_of.get(x.orig_line) != block_of.get(y.orig_line):
+                continue
+            rem_x, add_x = changed[id(x)]
+            rem_y, add_y = changed[id(y)]
+            for v in [v for v in rem_x if v in add_y]:
+                rem_x.remove(v)
+                add_y.remove(v)
+    result: list[Risk] = []
+    for x in risks:
+        if id(x) not in changed:
+            result.append(x)
+            continue
+        rem, add = changed[id(x)]
+        if not rem and not add:
+            continue
+        head = _VALUE_MSG.match(x.message)
+        kind = head.group(1) if head else "Number changed"
+        parts = (["removed " + ", ".join(rem)] if rem else []) + (["added " + ", ".join(add)] if add else [])
+        x.message = f"{kind}: " + "; ".join(parts)
+        result.append(x)
+    return result
 
 
 def _dedupe_risks(risks: list[Risk]) -> list[Risk]:
@@ -1851,11 +1955,12 @@ def compare(orig_text: str, rev_text: str, doc_type: Optional[str] = None, reade
     orig_all = " ".join(s.masked for s in orig.sentences)
     rev_all = " ".join(s.masked for s in rev.sentences)
     lower_words = lower_word_set(orig_all, rev_all, materials)
-    proper = {n for x in orig.sentences + rev.sentences for n in names(x.masked)} | set(names(materials))
+    proper = {n for x in orig.sentences + rev.sentences for n in names(BOLD_LABEL.sub("", x.masked, count=1))} | \
+        set(names(materials))
     for ch in chunks:
         compare_chunk(ch, doc_type, risks, reviews, orig_all, materials, proper, rev_all)
     risks.extend(moved_names(chunks, lower_words))
-    risks[:] = _dedupe_risks(risks)
+    risks[:] = _dedupe_risks(_cancel_moved_values(risks, orig))
 
     # whole-text checks catch sentences that were deleted, added, split or moved
     o_nums, r_nums = numbers(orig_all), numbers(" ".join(s.masked for s in rev.sentences))
@@ -1890,12 +1995,23 @@ def compare(orig_text: str, rev_text: str, doc_type: Optional[str] = None, reade
                                       f"with a different negation or hedge. (original line {ch.orig_line})", 0, text))
 
     po, pr_ = protected_items(orig), protected_items(rev)
-    for item in sorted((po - pr_).elements()):
-        risks.append(Risk("protected", False, "Text that must not change is gone or changed: " + tx.display_width_cut(item, 120),
-                          0, 0, item, ""))
-    for item in sorted((pr_ - po).elements()):
-        risks.append(Risk("protected", False, "New or changed text in code or URLs: " + tx.display_width_cut(item, 120),
-                          0, 0, "", item))
+    gone_items, new_items = sorted((po - pr_).elements()), sorted((pr_ - po).elements())
+    changed: set[str] = set()
+    for item in gone_items:
+        kind = item.split(":", 1)[0]
+        best = max((x for x in new_items if x.split(":", 1)[0] == kind and x not in changed),
+                   key=lambda x: difflib.SequenceMatcher(None, item, x).ratio(), default=None)
+        if best is not None and difflib.SequenceMatcher(None, item, best).ratio() >= 0.6:
+            changed.add(best)
+            risks.append(Risk("code", True, "Value or name inside code or a URL changed: " + tx.display_width_cut(item, 60)
+                              + " → " + tx.display_width_cut(best, 60), 0, 0, item, best))
+        else:
+            risks.append(Risk("protected", False, "Text that must not change is gone or changed: "
+                              + tx.display_width_cut(item, 120), 0, 0, item, ""))
+    for item in new_items:
+        if item not in changed:
+            risks.append(Risk("protected", False, "New or changed text in code or URLs: " + tx.display_width_cut(item, 120),
+                              0, 0, "", item))
 
     reviews.extend(added_actors(orig, rev, materials, chunks))
     lost_words = disappeared_words(orig, rev)
@@ -1943,8 +2059,11 @@ def compare(orig_text: str, rev_text: str, doc_type: Optional[str] = None, reade
     if materials.strip():
         material = material_check(rev, materials, orig_text)
     changes, full = line_changes(orig_text, rev_text)
-    reported = {r.message.split(" moved")[0] for r in risks if r.kind == "name_order"}
-    risks.extend(r for r in moved_names_in_lines(changes, lower_words) if r.message.split(" moved")[0] not in reported)
+    def _moved_tokens(message: str) -> frozenset[str]:
+        return frozenset(re.findall(r"[A-Z][\w'’-]+", message.split(" moved")[0]))
+    reported = [_moved_tokens(r.message) for r in risks if r.kind == "name_order"]
+    risks.extend(r for r in moved_names_in_lines(changes, lower_words)
+                 if not any(_moved_tokens(r.message) <= t for t in reported))
     return DiffResult(changes, risks, reviews, stiff, doc_type in STIFF_REFERENCE_TYPES, en_items, en_ref,
                       gaps, gaps_note, material, full, doc_type, reader, stance, "rewrite", words or tx.Words(),
                       want_fact_gaps and doc_type not in ("essay", "promo"))
@@ -2088,6 +2207,9 @@ def format_sections(result: DiffResult) -> list[str]:
         out.append("")
     if result.fact_gaps or result.fact_gaps_note or result.fact_gaps_checked:
         out.append(f"== Fact gaps ({len(result.fact_gaps)}; partial list, not counted) ==")
+        if result.doc_type in ("formal", "paper"):
+            out.append(f"- In {result.doc_type}, do not fill from the conversation or files; list such content under "
+                       "\"Facts that could be filled\" (fact-recovery.md section 6).")
         if not result.fact_gaps and not result.fact_gaps_note:
             out.append("- None found (the list is partial)")
         for g in result.fact_gaps:
