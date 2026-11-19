@@ -3,8 +3,8 @@
 ## Calling the skill
 
 - Name it in the request: "Revise this with readyasu." and paste the text.
-- Send only `/readyasu` (Codex: `$readyasu`): the skill revises the body text the AI wrote in its previous answer. If there is none, it looks at the `.md` and `.txt` files directly under the working folder, leaving out instruction files (`AGENTS.md`, `CLAUDE.md`) and its own excerpts (`*.material.txt`). One file: it revises that file. Two or more: it asks which. None: it asks you to paste the text.
-- When it revises a file, it writes the final draft to a new file in the same folder and does not overwrite the original. Ask "update the file" to have the final draft copied over the original.
+- Send only `/readyasu` (Codex: `$readyasu`): the skill revises the body text the AI wrote in its previous answer. If there is none, it looks at the `.md` and `.txt` files directly under the working folder, leaving out instruction files (`AGENTS.md`, `CLAUDE.md`) and its own helper files (`*.material.txt`, `*.request.txt`). One file: it revises that file. Two or more: it asks which. None: it asks you to paste the text.
+- When it revises a file, it writes the final draft to a new file in the same folder and does not overwrite the original. Ask "update the file" to have the final draft copied over the original; a copy of the original is kept as `<name>.orig.md`. Pasted text and its final draft are saved under `.readyasu/drafts/` for the checks.
 
 ## Telling it more
 

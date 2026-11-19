@@ -3,10 +3,10 @@ delv*	plain verb: look at, examine, go through
 tapestry	name the parts, or delete
 testament to	"shows", or state the evidence
 a testament	"shows", or state the evidence
-pivotal	say what depends on it
+pivotal	say what depends on it, only from the original; otherwise keep and ask
 paramount	say what depends on it
-seamless*	say what the user does not have to do
-robust	say what it withstands; keep in statistics and control engineering
+seamless*	say what the user does not have to do, only from the original; otherwise keep and ask
+robust	say what it withstands, only from the original; otherwise keep; keep in statistics and control engineering
 leverag*	"use" (keep the financial noun)
 realm	usually delete ("in AI")
 the evolving landscape	usually delete
@@ -48,9 +48,9 @@ plethora	"many", or give the number
 elevate	"improve", or say what changes
 elevates	"improves", or say what changes
 elevating	"improving", or say what changes
-empower*	"lets", "allows"
-crucial	say what depends on it
-vital	say what depends on it
+empower*	"lets", "allows" (keep the tense; keep the legal sense)
+crucial	say what depends on it, only from the original; otherwise keep and ask
+vital	say what depends on it, only from the original; otherwise keep and ask
 navigat* the complexities	name the difficulties
 navigat* the landscape	delete or name what is dealt with
 in the realm of	delete

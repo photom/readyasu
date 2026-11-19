@@ -25,4 +25,4 @@ Lint rules exempted: emoji, exclamation, fragment_run, self_answered_question
 | Original | Handling |
 |---|---|
 | Faster. Lighter. Yours. | Keep |
-| Unlock seamless productivity with our cutting-edge AI. | "Our AI drafts your replies" if the text says that is the feature; otherwise keep and ask |
+| Unlock seamless productivity with our cutting-edge AI. | "Let our cutting-edge AI draft your replies." if the text says that is the feature (keeps the call to action; ask about "cutting-edge" if nothing supports it); otherwise keep and ask |

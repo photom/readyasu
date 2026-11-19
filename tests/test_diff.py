@@ -605,3 +605,14 @@ def test_contractions_in_removed_contrast_are_not_counted() -> None:
     o = "This PR doesn't just fix a bug — it's a rethink. It's worth noting that retries are capped.\n"
     r = "This PR fixes a bug and rethinks retries. Retries are capped.\n"
     assert diff.compare(o, r).stiffness == []
+
+
+def test_folded_label_word_is_not_a_gone_name() -> None:
+    assert kinds("1. **Slower responses**: Peak latency exceeded 3 seconds.\n",
+                 "1. Responses slowed down, and peak latency exceeded 3 seconds.\n") == []
+
+
+def test_name_replaced_in_a_sentence() -> None:
+    o = "Dana is the owner. The budget was approved by Dana. Lee reviewed it.\n"
+    r = "Dana is the owner. The budget was approved by Lee. Lee reviewed it.\n"
+    assert "name" in kinds(o, r)

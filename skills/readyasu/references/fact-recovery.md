@@ -126,7 +126,7 @@ The one exception: when a missing or vague owner, deadline or request target cou
 | Situation | Fill or correct | Questions | "Fact check" |
 |---|---|---|---|
 | Only the text (nothing on the topic in the conversation; a one-shot run without material) | No | Only where readers cannot act | Omit when there is no gap (section 1); when you ask, start it with "Sources checked: None (received the text only)" |
-| Text that already reads naturally and that you did not write | Only where there is a gap | None | Omit |
+| Text that already reads naturally and that you did not write | No, unless there is a gap that meets section 3 | None | Omit, unless you filled or corrected something (then only those lines) |
 | The user wants only the text | Not from the conversation or files (corrections from material the user handed you still apply) | None | Omit; no notes before or after the body |
 | "Don't check" or "no need to check the facts" | As for only the text | None | Omit |
 | "Don't ask me anything" | Yes | None: no "Questions for the writer" and no questions block | Only the fills and corrections |

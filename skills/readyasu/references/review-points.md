@@ -43,7 +43,7 @@ Each item is tagged with its kind. Counted kinds make `--fail-on meaning-risk` f
 | commitment | we will, we guarantee, will never happen again... was added | Remove it unless the request or material states the commitment |
 | citation | A citation ([1], (Smith, 2020)) changed | Restore; which source supports which claim must not move |
 | name_order | The same names appear in a different order, or a name moved to another sentence or line (owners swapped between list items) | Check who does what to whom; restore if the roles swapped |
-| name | A name left a sentence and does not appear anywhere in the final draft, or another name took its place ("Dana asked Lee to review it" → "Dana reviewed it") | Restore the name and who does what |
+| name | A name left a sentence and appears nowhere in the final draft (the name that replaced it, if any, is shown: "Dana asked Lee to review it" → "Dana reviewed it"), or one name was replaced by another in the same sentence ("approved by Dana" → "approved by Lee") | Restore the name and who does what |
 | material_number | (compose) A number in the final draft is not in the material | Remove it or use the material's value |
 | contrast_reversed [not counted] | A word the original denied ("not X", "rather than X"; not "not just X", which affirms X) now appears with focus, priority, first, both, and... | If X moved to the affirmative side, the claim flipped; restore the negation (rephrase-test.md section 3). A rewrite such as "First, reduce X" can also appear; read which side X is on |
 | protected [not counted] | Inline code, URLs, e-mail addresses or code blocks changed | Restore them exactly |
@@ -87,7 +87,7 @@ Exclamation marks, emoji or headings decreased. Check that the writer's energy w
 
 Shown when material was passed (`--material`, or material sections on standard input).
 - "Not in the material (numbers)" and "(names)": values in the final draft found in neither the material nor the original. In compose mode, numbers here are counted meaning risks.
-- "Number found, but its unit, month or weekday is not in the material": the number is there, but with a different unit or date word ("22 seconds" where the material says "22 minutes"). Treat it like a number not in the material. When you filled a value, the excerpt must have the line it came from (fact-recovery.md section 2, step 6).
+- "Number found, but its unit, month or weekday is not in the material": the number is there, but with a different unit or date word ("22 seconds" where the material says "22 minutes"). Treat it like a number not in the material. It also lists a number whose material line has no unit word (`RETRY_INTERVAL_SECONDS = 0.5`); keep such a fill when the excerpt line has the same value and claim (fact-recovery.md section 2, step 6), and check that the line's name matches the sentence (`retry_wait = 3` is not "3 retries"). When you filled a value, the excerpt must have the line it came from (fact-recovery.md section 2, step 6).
 - "Values on changed lines that match a material line": only lines you changed are listed (up to 15; the rest are counted); lines marked "(original)" come from the original, not the material. It shows only that a line has the same value. It does not prove the line is the source or that the value is right.
 - "Hedge or status words in the material that the final draft lacks": check that the final draft kept "planned", "not yet", "may" and the like where it uses those values.
 

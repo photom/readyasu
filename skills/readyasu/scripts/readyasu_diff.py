@@ -54,7 +54,7 @@ HELP_EPILOG = """Meaning risks counted by --fail-on meaning-risk:
   commitment        a commitment (we will, we guarantee) was added
   citation          a citation ([1], (Smith, 2020)) changed
   name_order        the same names appear in a different order, or a name moved to another sentence
-  name              a name left a sentence and the whole text, or was replaced by another name
+  name              a name left a sentence and the whole text, or another name replaced it in the sentence
   material_number   (compose mode) a number in the final draft is not in the material
 Reported but not counted: changes to inline code, code blocks, URLs and e-mail addresses; a denied word moved to the
 affirmative side; certainty weakened; causal links added; added feelings and actors.
@@ -1146,11 +1146,16 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
     if proper_names is not None and rev_all:
         n_o = _sentence_names(ch.orig, proper_names)
         n_r = _sentence_names(ch.rev, proper_names)
-        gone_n = sorted(n for n in n_o - n_r if not re.search(r"(?<![\w-])" + re.escape(n) + r"(?![\w-])", rev_all))
+        # a word now written in lower case ("Peak latency" -> "peak latency" after folding a label) is not a gone name
+        lost_n = sorted(n for n in n_o - n_r if not re.search(r"(?<![\w-])" + re.escape(n.lower()) + r"(?![\w-])", ch.rev_text))
+        gone_n = [n for n in lost_n if not re.search(r"(?<![\w-])" + re.escape(n) + r"(?![\w-])", rev_all)]
+        new_n = sorted(n for n in n_r - n_o if not re.search(r"(?<![\w-])" + re.escape(n.lower()) + r"(?![\w-])", ch.orig_text))
         if gone_n:
-            new_n = sorted(n for n in n_r - n_o if not re.search(r"(?<![\w-])" + re.escape(n) + r"(?![\w-])", orig_all))
-            risk("name", True, f'Name gone from the text: {", ".join(gone_n)}' + (f' (now {", ".join(new_n)})' if new_n else "")
+            new_all = [n for n in new_n if not re.search(r"(?<![\w-])" + re.escape(n) + r"(?![\w-])", orig_all)]
+            risk("name", True, f'Name gone from the text: {", ".join(gone_n)}' + (f' (now {", ".join(new_all)})' if new_all else "")
                  + ". Check who does what.")
+        elif lost_n and new_n and len(ch.orig) == 1 and len(ch.rev) == 1:
+            risk("name", True, f'Name replaced in this sentence: {", ".join(lost_n)} → {", ".join(new_n)}. Check who does what.')
 
     if len(ch.orig) == 1 and len(ch.rev) == 1:
         no, nr = names(ch.orig[0].masked, True), names(ch.rev[0].masked, True)
@@ -1273,6 +1278,8 @@ def _dedupe_risks(risks: list[Risk]) -> list[Risk]:
                 continue
             seen_scope.add(key)
         if x.kind == "permission" and key in may_can and x.message.lower().endswith(' may"'):
+            continue
+        if x.kind == "name" and any(y.kind == "name_order" and (y.orig_line, y.rev_line) == key for y in risks):
             continue
         result.append(x)
     return result

@@ -485,7 +485,8 @@ def first_line(status: str, attempt: int, revisions: int, same_as_previous: bool
                 "again with --new-run instead.)")
     return (f"Ran the checks (attempt {attempt}, revision {revisions}). This exceeds the one-revision rule. Proceed only if this revision "
             "only reverted fills without a source (references/fact-recovery.md section 2, step 7), and say so in the "
-            f"report. Right before submitting, {verify} once.")
+            f"report. Right before submitting, {verify} once. (If this was the first run for a new request about this "
+            "text, run it again with --new-run instead.)")
 
 
 def split_kept_added(lint_final: Optional[dict[str, Any]], lint_orig: Optional[dict[str, Any]],

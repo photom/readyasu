@@ -29,4 +29,4 @@ Lint rules exempted: excess_list
 |---|---|
 | - Add eviction for expired cache keys | Keep (fragment) |
 | - **Improvement**: Improved the list view | Remove the label: "- Improved the list view". Say what changed only if the original or material says |
-| This PR seamlessly enhances the robustness of the retry logic. | "This PR changes the retry logic to ..." with what the diff or material shows; ask if unknown |
+| This PR seamlessly enhances the robustness of the retry logic. | "This PR makes the retry logic withstand ..." with what the diff or material shows (keep the improvement claim); ask if unknown |

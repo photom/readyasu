@@ -13,7 +13,7 @@ readyasu finds and rewrites:
 - stock AI vocabulary and phrases ("delve", "seamless", "a testament to", "In today's fast-paced world", "It's worth noting that"),
 - metaphorical verbs for ordinary events ("unlock", "supercharge", "navigate the complexities of"),
 - tools and ideas written as if they had feelings or a will ("the code tells a story"),
-- negative contrast used for effect ("It's not just a tool, it's a philosophy"), self-answered questions ("The result?") and ad-copy fragments,
+- negative contrast used for effect ("It's not a dashboard, it's a command center"), self-answered questions ("The result?") and ad-copy fragments,
 - announcements and closings that only repeat ("Let's take a closer look", "In conclusion"),
 - assistant chat left in a document ("I hope this helps!", "Certainly! Here's a revised version:"),
 - decoration: bold labels with colons at the start of every list item, heavy bold, emoji, clause-splicing em dashes, colons at the end of headings.

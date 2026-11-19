@@ -8,10 +8,10 @@ harnessing the	"using"
 harnesses the	"uses"
 weave	"combines"
 weaves	"combines"
-weaved	"combines"
-weaving	"combines"
-wove	"combines"
-woven	"combines"
+weaved	"combined"
+weaving	"combining"
+wove	"combined"
+woven	"combined"
 fuels	say what it makes possible
 fueled	say what it made possible
 fuelled	say what it made possible
@@ -25,7 +25,7 @@ taming the	"reducing", "sorting", "controlling"
 skyrocket*	"rose sharply" with the number if given
 bridg* the gap	say what connects to what
 pav* the way	say what becomes possible
-spearhead*	"led"
+spearhead*	"lead" or "led" (keep the tense)
 catapult*	say what changed
 ignite	say what starts
 ignites	say what starts

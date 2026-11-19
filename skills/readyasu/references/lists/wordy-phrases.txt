@@ -20,7 +20,7 @@ utiliz*	"use" (keep "utilization" as a metric)
 utilis*	"use" (keep "utilisation" as a metric)
 facilitate	"help", "make easier", "run"
 facilitates	"help", "make easier", "run"
-facilitated	"help", "make easier", "run"
+facilitated	"helped", "made easier", "ran"
 facilitating	"help", "make easier", "run"
 a large number of	"many", or the number
 the majority of	"most"

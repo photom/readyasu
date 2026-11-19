@@ -1,12 +1,12 @@
 # Intensifiers that rarely add strength. Delete only if the strength stays the same.
-truly	delete when stacked, on an absolute, or in technical/formal text; keep in quotes, dialogue, promo/mail/essay voice
-incredibly	delete when stacked, on an absolute, or in technical/formal text; keep in quotes, dialogue, promo/mail/essay voice
-extremely	delete when stacked, on an absolute, or in technical/formal text; keep in quotes, dialogue, promo/mail/essay voice
-absolutely	delete when stacked, on an absolute, or in technical/formal text; keep in quotes, dialogue, promo/mail/essay voice
-deeply	delete when stacked, on an absolute, or in technical/formal text; keep in quotes, dialogue, promo/mail/essay voice
-genuinely	delete when stacked, on an absolute, or in technical/formal text; keep in quotes, dialogue, promo/mail/essay voice
-remarkably	delete when stacked, on an absolute, or in technical/formal text; keep in quotes, dialogue, promo/mail/essay voice
-exceptionally	delete when stacked, on an absolute, or in technical/formal text; keep in quotes, dialogue, promo/mail/essay voice
-undeniably	delete when stacked, on an absolute, or in technical/formal text; keep in quotes, dialogue, promo/mail/essay voice
-fundamentally	delete when stacked, on an absolute, or in technical/formal text; keep in quotes, dialogue, promo/mail/essay voice
-profoundly	delete when stacked, on an absolute, or in technical/formal text; keep in quotes, dialogue, promo/mail/essay voice
+truly	delete when stacked, on an absolute, or where it adds no information in technical/formal text; keep it when it carries degree ("extremely rare"); keep in quotes, dialogue, promo/mail/essay voice
+incredibly	delete when stacked, on an absolute, or where it adds no information in technical/formal text; keep it when it carries degree ("extremely rare"); keep in quotes, dialogue, promo/mail/essay voice
+extremely	delete when stacked, on an absolute, or where it adds no information in technical/formal text; keep it when it carries degree ("extremely rare"); keep in quotes, dialogue, promo/mail/essay voice
+absolutely	delete when stacked, on an absolute, or where it adds no information in technical/formal text; keep it when it carries degree ("extremely rare"); keep in quotes, dialogue, promo/mail/essay voice
+deeply	delete when stacked, on an absolute, or where it adds no information in technical/formal text; keep it when it carries degree ("extremely rare"); keep in quotes, dialogue, promo/mail/essay voice
+genuinely	delete when stacked, on an absolute, or where it adds no information in technical/formal text; keep it when it carries degree ("extremely rare"); keep in quotes, dialogue, promo/mail/essay voice
+remarkably	delete when stacked, on an absolute, or where it adds no information in technical/formal text; keep it when it carries degree ("extremely rare"); keep in quotes, dialogue, promo/mail/essay voice
+exceptionally	delete when stacked, on an absolute, or where it adds no information in technical/formal text; keep it when it carries degree ("extremely rare"); keep in quotes, dialogue, promo/mail/essay voice
+undeniably	delete when stacked, on an absolute, or where it adds no information in technical/formal text; keep it when it carries degree ("extremely rare"); keep in quotes, dialogue, promo/mail/essay voice
+fundamentally	delete when stacked, on an absolute, or where it adds no information in technical/formal text; keep it when it carries degree ("extremely rare"); keep in quotes, dialogue, promo/mail/essay voice
+profoundly	delete when stacked, on an absolute, or where it adds no information in technical/formal text; keep it when it carries degree ("extremely rare"); keep in quotes, dialogue, promo/mail/essay voice
