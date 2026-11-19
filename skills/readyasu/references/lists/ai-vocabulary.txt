@@ -1,10 +1,10 @@
 # Words far more frequent in AI text than in human text of the same kind.
 delv*	plain verb: look at, examine, go through
-tapestry	name the parts, or delete
+tapestry	name the parts, or delete, only from the original; otherwise keep and ask
 testament to	"shows", or state the evidence
 a testament	"shows", or state the evidence
 pivotal	say what depends on it, only from the original; otherwise keep and ask
-paramount	say what depends on it
+paramount	say what depends on it, only from the original; otherwise keep and ask
 seamless*	say what the user does not have to do, only from the original; otherwise keep and ask
 robust	say what it withstands, only from the original; otherwise keep; keep in statistics and control engineering
 leverag*	"use" (keep the financial noun)
@@ -15,43 +15,43 @@ the digital landscape	usually delete
 the modern landscape	usually delete
 the current landscape	usually delete
 embark*	"start"
-fosters	say what people do
-fostering	say what people do
-foster collaboration	say what people do
-foster innovation	say what people do
-foster a culture	say what people do
+fosters	say what people do, only from the original; otherwise keep and ask
+fostering	say what people do, only from the original; otherwise keep and ask
+foster collaboration	say what people do, only from the original; otherwise keep and ask
+foster innovation	say what people do, only from the original; otherwise keep and ask
+foster a culture	say what people do, only from the original; otherwise keep and ask
 underscores	"shows", or state the point
 underscored	"showed", or state the point
 underscoring	"showing", or state the point
 showcas*	"shows"
-intricate	name the parts
-intricacies	name the parts
-multifaceted	name the facets
-nuanced	say what the nuance is
-holistic	say what it covers
-synerg*	name the people and what they do together
+intricate	name the parts, only from the original; otherwise keep and ask
+intricacies	name the parts, only from the original; otherwise keep and ask
+multifaceted	name the facets, only from the original; otherwise keep and ask
+nuanced	say what the nuance is, only from the original; otherwise keep and ask
+holistic	say what it covers, only from the original; otherwise keep and ask
+synerg*	name the people and what they do together, only from the original; otherwise keep and ask
 ever-evolving	delete
 ever-changing	delete
 fast-paced	delete the opener
-cutting-edge	say what is new
-game-chang*	state the change
-game changer	state the change
-groundbreaking	state the change
-revolutioniz*	state the change
-transformative	state the change
+cutting-edge	say what is new, only from the original; otherwise keep and ask
+game-chang*	state the change, only from the original; otherwise keep and ask
+game changer	state the change, only from the original; otherwise keep and ask
+groundbreaking	state the change, only from the original; otherwise keep and ask
+revolutioniz*	state the change, only from the original; otherwise keep and ask
+transformative	state the change, only from the original; otherwise keep and ask
 boasts	"has"
 meticulous*	delete, or say what care was taken
-vibrant	use a concrete detail
-bustling	use a concrete detail
-myriad	"many", or give the number
-plethora	"many", or give the number
+vibrant	use a concrete detail, only from the original; otherwise keep and ask
+bustling	use a concrete detail, only from the original; otherwise keep and ask
+myriad	"many" (a number only if the text gives one)
+plethora	"many" (a number only if the text gives one)
 elevate	"improve", or say what changes
 elevates	"improves", or say what changes
 elevating	"improving", or say what changes
 empower*	"lets", "allows" (keep the tense; keep the legal sense)
 crucial	say what depends on it, only from the original; otherwise keep and ask
 vital	say what depends on it, only from the original; otherwise keep and ask
-navigat* the complexities	name the difficulties
+navigat* the complexities	name the difficulties, only from the original; otherwise keep and ask
 navigat* the landscape	delete or name what is dealt with
 in the realm of	delete
 a deep dive	"a detailed look"; keep a meeting name
@@ -59,16 +59,16 @@ dive deep*	delete the announcement
 dive into	delete the announcement
 deep dive into	delete the announcement
 key takeaways	delete only when it repeats the body; keep summaries of long documents and requested ones
-actionable insights	say what the reader learns
-valuable insights	say what the reader learns
+actionable insights	say what the reader learns, only from the original; otherwise keep and ask
+valuable insights	say what the reader learns, only from the original; otherwise keep and ask
 treasure trove	"collection", or name what it holds
 harness the power of	usually delete the frame
 unleash the power of	usually delete the frame
 leverage the power of	usually delete the frame
-unwavering	use a concrete detail
-commendable	say what is good about it
-noteworthy	say what is notable
+unwavering	use a concrete detail, only from the original; otherwise keep and ask
+commendable	say what is good about it, only from the original; otherwise keep and ask
+noteworthy	say what is notable, only from the original; otherwise keep and ask
 embark on a journey	"start"
 your journey	keep literal journeys; otherwise "process", "time"
 the journey of	keep literal journeys; otherwise "process", "time"
-catastrophic	say what happened; keep it when it is the organization's defined severity level
+catastrophic	say what happened; keep it when it is the organization's defined severity level, only from the original; otherwise keep and ask

@@ -67,7 +67,7 @@ Put the "Fact check" section after "Questions for the writer" and before "Check 
 - Sources checked: (kinds and names of the sources used; when you got only the text, "None (received the text only)")
 - Filled: "phrase in the body" ← location "source sentence (up to about 15 words)"
 - Corrected: "phrase in the body" (draft had …; no source) ← location "source sentence"
-- Facts that could be filled (not put in the body): value ← location (essay, promo, formal, paper, and gaps found during the revision)
+- Facts that could be filled (not put in the body): value ← location (promo, formal, paper, and gaps found during the revision)
 - In an answer but without a stated source, so not used: value
 - Values that matched the sources: list the values (some values and claims were not checked)
 - Values not settled in the sources: value (the source says "planned")
@@ -125,6 +125,9 @@ The one exception: when a missing or vague owner, deadline or request target cou
 
 | Situation | Fill or correct | Questions | "Fact check" |
 |---|---|---|---|
+| essay | No (corrections of your own values still apply) | No fact questions | Only corrections of your own values |
+| formal, paper | No | Only about gaps whose content is not in the context; gaps the context fills go under "Facts that could be filled" | Yes |
+| promo | No | Only about claims that look exaggerated (doc-types/promo.md) | Yes |
 | Only the text (nothing on the topic in the conversation; a one-shot run without material) | No | Only where readers cannot act | Omit when there is no gap (section 1); when you ask, start it with "Sources checked: None (received the text only)" |
 | Text that already reads naturally and that you did not write | No, unless there is a gap that meets section 3 | None | Omit, unless you filled or corrected something (then only those lines) |
 | The user wants only the text | Not from the conversation or files (corrections from material the user handed you still apply) | None | Omit; no notes before or after the body |

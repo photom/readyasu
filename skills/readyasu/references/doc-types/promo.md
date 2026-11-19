@@ -14,7 +14,7 @@ Lint rules exempted: emoji, exclamation, fragment_run, self_answered_question
 
 - Claims without support ("the fastest", "guaranteed results"): do not change the body; ask.
 - Stock AI vocabulary that sounds generated ("elevate your experience", "unlock your potential") when a concrete benefit is in the text.
-- Stacked superlatives ("truly revolutionary, game-changing innovation").
+- Stacked superlatives ("truly revolutionary, game-changing innovation"): keep them in the body and ask what supports the claims.
 
 ## 3. Length and omissions
 
@@ -25,4 +25,4 @@ Lint rules exempted: emoji, exclamation, fragment_run, self_answered_question
 | Original | Handling |
 |---|---|
 | Faster. Lighter. Yours. | Keep |
-| Unlock seamless productivity with our cutting-edge AI. | "Let our cutting-edge AI draft your replies." if the text says that is the feature (keeps the call to action; ask about "cutting-edge" if nothing supports it); otherwise keep and ask |
+| Unlock seamless productivity with our cutting-edge AI. | Keep the sentence and ask what "seamless productivity" means for the reader and what supports "cutting-edge"; rewrite only with what the text says ("Let our cutting-edge AI draft your replies for seamless productivity" if drafting replies is the feature) |

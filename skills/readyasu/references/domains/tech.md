@@ -9,7 +9,7 @@
 
 ### Decoration and stock structure
 - No emoji in headings or bullets of technical documents.
-- No "Introduction / Key takeaways / Conclusion" frame around a short how-to unless the request asks for it.
+- A closing "Conclusion" or "Key takeaways" section that only repeats a short how-to can go (SKILL.md "Headings that guide"); keep "Introduction" and any number, condition or next step found only there.
 
 ## 2. Steps and settings
 - One action per step, in the order performed. Prerequisites first.

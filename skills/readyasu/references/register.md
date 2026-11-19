@@ -58,6 +58,9 @@ Use the reader's name or role only as the original gives it. Do not add a greeti
 
 ## 8. Notes by purpose
 
+- essay and promo: do not change politeness or the writer's subject, and output no register notices; the voice and energy are the writer's (a call to action stays a call to action).
+- incident: even for outside readers, keep the certainty of causes and the timeline, and add no apology.
+
 - Apology: keep what the writer apologizes for; do not add promises that it will not happen again.
 - Refusal: keep the refusal clear; do not turn "we cannot" into "we may not be able to".
 - Request with a deadline: keep the deadline in the same sentence as the request.

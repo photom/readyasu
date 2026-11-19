@@ -61,7 +61,7 @@ Words that appear far more often in AI text than in human text of the same kind.
 | Word | Example | Candidates |
 |---|---|---|
 | delve, tapestry, testament | "a testament to the team's dedication" | "shows the team's dedication", or state the evidence. |
-| pivotal, crucial, vital, paramount | "plays a pivotal role" | "is central to", or say what depends on it. Keep "crucial" when the original says it is required. |
+| pivotal, crucial, vital, paramount | "plays a pivotal role" | Say what depends on it, only from the original; otherwise keep and ask. Keep "crucial" when the original says it is required. |
 | seamless(ly) | "seamless integration" | Say what the user does not have to do ("works without extra configuration"), only from the original. |
 | robust | "a robust solution" | Say what it withstands. Keep "robust" in statistics and control engineering. |
 | leverage (verb) | "leverage our expertise" | "use". Keep the financial noun. |

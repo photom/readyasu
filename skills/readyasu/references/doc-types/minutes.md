@@ -24,4 +24,4 @@ Lint rules exempted: bold_label_list, excess_list, fragment_run
 | Original | Handling |
 |---|---|
 | - **Action**: Kim to update the runbook by 5/12 | Keep |
-| The team had a robust discussion around pricing. | "The team discussed pricing." |
+| The team had a robust discussion around pricing. | "The team had a robust discussion about pricing." ("robust" is the minutes' evaluation of the discussion; keep it unless the minutes say what made it robust) |

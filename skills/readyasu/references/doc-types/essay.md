@@ -17,6 +17,7 @@ Lint rules exempted: fragment_run, exclamation, chat_residue (interjections only
 - Two-sentence negative contrast in essay prose (not in fiction narration or dialogue).
 - Morals and lessons added at the end that the essay does not support: keep if they are the writer's; delete stock ones ("And that's the true meaning of growth.") only when nothing earlier supports them.
 - Do not add feelings the writer did not state.
+- Do not fill facts from the conversation or files, and do not ask fact questions (fact-recovery.md section 6).
 
 ## 3. Length and omissions
 
