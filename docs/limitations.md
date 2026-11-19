@@ -4,11 +4,11 @@
 
 - The scripts match fixed patterns. They report places to review; they do not decide whether meaning was kept or whether the text is easy to read. A run with no findings does not prove anything about meaning.
 - Lint counts are not a score. A rise or fall in "Review findings" says nothing about readability.
-- The record from `yomiyasu_en_check.py` shows that the checks ran on a final draft with a given hash. Anyone who can edit both the draft and the record can change them; the record helps find skipped runs, it does not prevent tampering or prove human approval.
+- The record from `readyasu_check.py` shows that the checks ran on a final draft with a given hash. Anyone who can edit both the draft and the record can change them; the record helps find skipped runs, it does not prevent tampering or prove human approval.
 
 ## Known gaps in lint
 
-- Word lists match surface forms. A listed word used in its literal or technical sense ("unlock the door", "robust statistics", "elevate the platform by 2 meters") is still reported; use `.yomiyasu-en-words/allow.txt` or keep the word and give the reason.
+- Word lists match surface forms. A listed word used in its literal or technical sense ("unlock the door", "robust statistics", "elevate the platform by 2 meters") is still reported; use `.readyasu-words/allow.txt` or keep the word and give the reason.
 - Words mentioned as examples inside quotation marks (a style guide that says to avoid "delve") are reported like any other use. Only interjections such as "Sure!" are treated as dialogue inside double quotation marks (or with `--doc-type` essay, script or mail); dialogue in single quotation marks is reported.
 - Rhythm-level AI patterns (every paragraph the same length, a "rule of three" in every sentence, a summary sentence at the end of every paragraph) are not detected.
 - Negative contrast, personification and self-answered questions are detected only in common forms.

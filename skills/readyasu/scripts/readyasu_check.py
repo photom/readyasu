@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""yomiyasu-en check: run lint and diff together on a final draft and keep a record.
+"""readyasu check: run lint and diff together on a final draft and keep a record.
 
 `run` runs lint on the final draft and diff on the original and the final draft
 (compose mode: the material match) and writes a record. `verify` checks right
@@ -33,26 +33,26 @@ from typing import Any, NoReturn, Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import yomiyasu_en_text as tx  # noqa: E402
+import readyasu_text as tx  # noqa: E402
 
 __version__ = tx.__version__
-TOOL = "yomiyasu-en-check"
-STATUS_PREFIX = "yomiyasu-en-check:"
+TOOL = "readyasu-check"
+STATUS_PREFIX = "readyasu-check:"
 SCRIPTS = Path(__file__).resolve().parent
-LINT = SCRIPTS / "yomiyasu_en_lint.py"
-DIFF = SCRIPTS / "yomiyasu_en_diff.py"
-MARKER = re.compile(r"^<<<yomiyasu-en:(original|final|material)(?:[ \t]+([^\n]{1,200}?))?>>>[ \t]*$")
-MARKER_ANY = re.compile(r"^<<<yomiyasu-en:")
+LINT = SCRIPTS / "readyasu_lint.py"
+DIFF = SCRIPTS / "readyasu_diff.py"
+MARKER = re.compile(r"^<<<readyasu:(original|final|material)(?:[ \t]+([^\n]{1,200}?))?>>>[ \t]*$")
+MARKER_ANY = re.compile(r"^<<<readyasu:")
 RUN_WINDOW_SECONDS = 2 * 60 * 60  # a run continues only within this time and the same working folder
 RUN_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 WINDOWS_NAMES = {"con", "prn", "aux", "nul"} | {f"com{i}" for i in range(1, 10)} | {f"lpt{i}" for i in range(1, 10)}
 KEPT_WORD_RULES = ("project_term", "ai_vocabulary", "metaphor_verb", "jargon")
 NOT_A_SCORE = "(lint rule matches; not a score. A rise or fall does not mean better or worse readability.)"
 
-USAGE = """yomiyasu_en_check.py run --final FINAL (--source ORIGINAL | --material MATERIAL) [options]
-       yomiyasu_en_check.py run --stdin [options]
-       yomiyasu_en_check.py verify --final FINAL|- [options]
-       yomiyasu_en_check.py --version"""
+USAGE = """readyasu_check.py run --final FINAL (--source ORIGINAL | --material MATERIAL) [options]
+       readyasu_check.py run --stdin [options]
+       readyasu_check.py verify --final FINAL|- [options]
+       readyasu_check.py --version"""
 
 EPILOG = """Exit codes:
   0  run: all checks finished and no --fail-on condition matched (status executed or unrecorded,
@@ -91,7 +91,7 @@ def valid_run_id(value: str) -> bool:
 def state_dir(arg: Optional[str]) -> Path:
     if arg:
         return Path(arg).resolve()
-    env = os.environ.get("YOMIYASU_EN_STATE_DIR", "").strip()
+    env = os.environ.get("READYASU_STATE_DIR", "").strip()
     if env and "${" not in env:
         return Path(env).resolve()
     cwd = Path.cwd().resolve()
@@ -118,7 +118,7 @@ def ensure_state(folder: Path) -> None:
     folder.mkdir(parents=True, exist_ok=True)
     ignore = folder / ".gitignore"
     if not ignore.exists():
-        ignore.write_text("# Records of yomiyasu-en check runs. Not meant to be committed.\n*\n", encoding="utf-8")
+        ignore.write_text("# Records of readyasu check runs. Not meant to be committed.\n*\n", encoding="utf-8")
 
 
 def strip_markers(text: str) -> str:
@@ -134,12 +134,12 @@ def parse_stdin(data: str) -> tuple[Optional[str], list[tuple[str, str]], str]:
             sections.append((m.group(1), (m.group(2) or "").strip(), []))
             continue
         if MARKER_ANY.match(line):
-            raise Usage(f"Unknown separator line: {line.strip()[:80]}. Use <<<yomiyasu-en:original>>>, "
-                        "<<<yomiyasu-en:material SOURCE>>> or <<<yomiyasu-en:final>>> exactly.")
+            raise Usage(f"Unknown separator line: {line.strip()[:80]}. Use <<<readyasu:original>>>, "
+                        "<<<readyasu:material SOURCE>>> or <<<readyasu:final>>> exactly.")
         if not sections:
             if line.strip():
-                raise Usage("Standard input must start with a <<<yomiyasu-en:original>>>, <<<yomiyasu-en:material>>> "
-                            "or <<<yomiyasu-en:final>>> line.")
+                raise Usage("Standard input must start with a <<<readyasu:original>>>, <<<readyasu:material>>> "
+                            "or <<<readyasu:final>>> line.")
             continue
         sections[-1][2].append(line)
     original: Optional[str] = None
@@ -149,16 +149,16 @@ def parse_stdin(data: str) -> tuple[Optional[str], list[tuple[str, str]], str]:
         body = "\n".join(lines).strip("\n") + "\n"
         if kind == "original":
             if original is not None:
-                raise Usage("Standard input has more than one <<<yomiyasu-en:original>>> section.")
+                raise Usage("Standard input has more than one <<<readyasu:original>>> section.")
             original = body
         elif kind == "final":
             if final is not None:
-                raise Usage("Standard input has more than one <<<yomiyasu-en:final>>> section.")
+                raise Usage("Standard input has more than one <<<readyasu:final>>> section.")
             final = body
         else:
             materials.append((source or "standard input", body))
     if final is None:
-        raise Usage("Standard input has no <<<yomiyasu-en:final>>> section.")
+        raise Usage("Standard input has no <<<readyasu:final>>> section.")
     return original, materials, final
 
 
@@ -220,8 +220,8 @@ def cmd_run(args: argparse.Namespace) -> int:
             original, stdin_materials, final = parse_stdin(tx.read_text("-"))
             materials.extend(stdin_materials)
             if original is None and not stdin_materials and not args.material:
-                raise Usage("Standard input needs a <<<yomiyasu-en:original>>> section (revising) or a "
-                            "<<<yomiyasu-en:material>>> section (composing) before the final draft.")
+                raise Usage("Standard input needs a <<<readyasu:original>>> section (revising) or a "
+                            "<<<readyasu:material>>> section (composing) before the final draft.")
             final_label = "-"
             source_label = "-" if original is not None else None
         else:
@@ -239,7 +239,7 @@ def cmd_run(args: argparse.Namespace) -> int:
                     Path(args.source).resolve() == Path(args.final).resolve():
                 raise Usage("The original and the final draft are the same file. Save the final draft separately.")
         if args.stdin and "-" in (args.material or []):
-            raise Usage("With --stdin, put the material in a <<<yomiyasu-en:material>>> section, not --material -.")
+            raise Usage("With --stdin, put the material in a <<<readyasu:material>>> section, not --material -.")
         for name in args.material or []:
             materials.append((name, tx.read_text(name)))
         if not final.strip():
@@ -253,7 +253,7 @@ def cmd_run(args: argparse.Namespace) -> int:
             if strip_markers(body).strip() == final.strip():
                 raise Usage(f"The material {source} has the same content as the final draft.")
     except (tx.InputError, Usage) as exc:
-        sys.stderr.write(f"yomiyasu_en_check.py: {exc}\n")
+        sys.stderr.write(f"readyasu_check.py: {exc}\n")
         sys.stdout.write(f"{STATUS_PREFIX} not_run reason=usage_error\n")
         return 2
 
@@ -279,7 +279,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     source_hash = tx.sha256_text(original) if original is not None else ""
     material_hashes = sorted(tx.sha256_text(body) for _s, body in materials)
 
-    with tempfile.TemporaryDirectory(prefix="yomiyasu-en-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="readyasu-") as tmp:
         tmpdir = Path(tmp)
         final_path = tmpdir / "final.md"
         final_path.write_text(final, encoding="utf-8")
@@ -354,7 +354,7 @@ def cmd_run(args: argparse.Namespace) -> int:
             by_source = folder / "index" / "by-source" / f"{key}.json"
             previous = read_json(by_source) or {}
             cwd = str(Path.cwd().resolve())
-            session = args.session or os.environ.get("YOMIYASU_EN_SESSION") or None
+            session = args.session or os.environ.get("READYASU_SESSION") or None
             fresh = False
             try:
                 age = now_utc().timestamp() - float(previous.get("updated_ts", 0))
@@ -410,7 +410,7 @@ def cmd_run(args: argparse.Namespace) -> int:
             write_json(folder / "state.json", {"last_run": run_id, "last_attempt": attempt,
                                                "updated": now_utc().isoformat(timespec="seconds")})
         except OSError as exc:
-            sys.stderr.write(f"yomiyasu_en_check.py: cannot write the record in {folder}: {exc}\n")
+            sys.stderr.write(f"readyasu_check.py: cannot write the record in {folder}: {exc}\n")
             record_error = str(exc.strerror or exc)
             status = "partial"
             record_path = None
@@ -525,7 +525,7 @@ def format_run(first: str, status_line: str, mode: str, checks: list[str], recor
     out.append("Read the sections below in full; do not cut the output.")
     out.append("")
     if diff is not None:
-        import yomiyasu_en_diff as dmod
+        import readyasu_diff as dmod
         out.extend(dmod_sections(dmod, diff))
         out.append("")
     if lint_final is not None:
@@ -572,7 +572,7 @@ def cmd_verify(args: argparse.Namespace) -> int:
             raise Usage("verify needs --final FILE (or --final - for standard input).")
         final = tx.read_text(args.final)
     except (tx.InputError, Usage) as exc:
-        sys.stderr.write(f"yomiyasu_en_check.py: {exc}\n")
+        sys.stderr.write(f"readyasu_check.py: {exc}\n")
         sys.stdout.write(f"{STATUS_PREFIX} not_run reason=usage_error\n")
         return 2
     digest = tx.sha256_text(final)
@@ -656,20 +656,20 @@ def build_parser() -> argparse.ArgumentParser:
     desc = ("Run lint on the final draft and diff on the original and the final draft (compose mode: the material "
             "match) together, and keep a record. The result means 'the checks ran', not that meaning was kept or that "
             "the text passed a readability test.")
-    p = _Parser(prog="yomiyasu_en_check.py", usage=USAGE, description=desc, epilog=EPILOG,
+    p = _Parser(prog="readyasu_check.py", usage=USAGE, description=desc, epilog=EPILOG,
                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     sub = p.add_subparsers(dest="command", metavar="{run,verify}", parser_class=_Parser)
-    run = sub.add_parser("run", prog="yomiyasu_en_check.py run", help="run the checks and write a record; once for the final draft, again after a "
+    run = sub.add_parser("run", prog="readyasu_check.py run", help="run the checks and write a record; once for the final draft, again after a "
                          "revision", description=desc, epilog=EPILOG, formatter_class=argparse.RawDescriptionHelpFormatter)
     run.add_argument("--final", metavar="FINAL", help="final draft (UTF-8); - for standard input")
     run.add_argument("--source", "--original", dest="source", metavar="ORIGINAL",
                      help="the original before rewriting; must be a different file from the final draft")
     run.add_argument("--material", "--materials", action="append", metavar="MATERIAL",
-                     help="material file; repeatable. Separator lines <<<yomiyasu-en:material SOURCE>>> are allowed")
+                     help="material file; repeatable. Separator lines <<<readyasu:material SOURCE>>> are allowed")
     run.add_argument("--stdin", action="store_true",
                      help="read the original (or material) and the final draft from standard input, separated by "
-                          "lines <<<yomiyasu-en:original>>>, <<<yomiyasu-en:material SOURCE>>>, <<<yomiyasu-en:final>>>")
+                          "lines <<<readyasu:original>>>, <<<readyasu:material SOURCE>>>, <<<readyasu:final>>>")
     run.add_argument("--stance", choices=tx.STANCES, help="stance: recommend, rule or explain")
     run.add_argument("--doc-type", choices=tx.DOC_TYPES, metavar="TYPE", help="document type: " + ", ".join(tx.DOC_TYPES))
     run.add_argument("--reader", choices=tx.READERS, metavar="READER", help="expected reader (recorded only)")
@@ -679,8 +679,8 @@ def build_parser() -> argparse.ArgumentParser:
                      help="total seconds for the lint and diff child processes (default 90)")
     run.add_argument("--run-id", metavar="ID", help="run ID to continue (letters, digits, '.', '_', '-'; up to 64)")
     run.add_argument("--new-run", action="store_true", help="start a new run ID instead of continuing")
-    run.add_argument("--session", metavar="ID", help="session ID stored in the record (default: YOMIYASU_EN_SESSION)")
-    run.add_argument("--state-dir", metavar="DIR", help=f"state folder (default: YOMIYASU_EN_STATE_DIR, else "
+    run.add_argument("--session", metavar="ID", help="session ID stored in the record (default: READYASU_SESSION)")
+    run.add_argument("--state-dir", metavar="DIR", help=f"state folder (default: READYASU_STATE_DIR, else "
                      f"{tx.STATE_DIR_NAME}/ at the git top or working folder)")
     run.add_argument("--no-record", action="store_true", help="do not write a record (only when the user asked, or when no writable folder exists)")
     run.add_argument("--fact-gaps", action="store_true", help="list some fact-gap candidates (not counted; not for "
@@ -688,7 +688,7 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--json", action="store_true", help="print the result as JSON")
     run.add_argument("--words", metavar="DIR", help=f"project word-list folder (default: {tx.WORDS_DIR_NAME}/)")
     run.add_argument("--no-words", action="store_true", help="do not look for or read a project word list")
-    ver = sub.add_parser("verify", prog="yomiyasu_en_check.py verify", help="right before submitting, match the final draft's hash with the record "
+    ver = sub.add_parser("verify", prog="readyasu_check.py verify", help="right before submitting, match the final draft's hash with the record "
                          "(reads only)", epilog=EPILOG, formatter_class=argparse.RawDescriptionHelpFormatter)
     ver.add_argument("--final", metavar="FINAL", help="final draft to submit; - for standard input")
     ver.add_argument("--state-dir", metavar="DIR", help="state folder (same default as run)")
@@ -712,7 +712,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     except BrokenPipeError:
         return 3
     except Exception as exc:  # noqa: BLE001 - report any unexpected error with a status line and exit 3
-        sys.stderr.write(f"yomiyasu_en_check.py: internal error: {type(exc).__name__}: {exc}\n")
+        sys.stderr.write(f"readyasu_check.py: internal error: {type(exc).__name__}: {exc}\n")
         sys.stdout.write(f"{STATUS_PREFIX} partial via={args.command} reason=internal_error\n")
         return 3
 

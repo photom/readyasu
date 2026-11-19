@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import pytest
-import yomiyasu_en_diff as diff
+import readyasu_diff as diff
 
 
 def kinds(orig: str, rev: str, doc_type: str | None = None, counted_only: bool = True) -> list[str]:

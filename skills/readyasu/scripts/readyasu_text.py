@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Shared text handling for the yomiyasu-en checks.
+"""Shared text handling for the readyasu checks.
 
 Reads UTF-8 text, splits Markdown into blocks, masks code and URLs, splits
 English sentences, and loads word lists. Standard library only; Python 3.9+.
@@ -23,8 +23,8 @@ __version__ = "0.1.0"
 
 SKILL_DIR = Path(__file__).resolve().parent.parent
 LISTS_DIR = SKILL_DIR / "references" / "lists"
-WORDS_DIR_NAME = ".yomiyasu-en-words"
-STATE_DIR_NAME = ".yomiyasu-en"
+WORDS_DIR_NAME = ".readyasu-words"
+STATE_DIR_NAME = ".readyasu"
 DOC_TYPES = (
     "pr", "article", "incident", "proposal", "minutes", "manual", "slides",
     "essay", "formal", "promo", "mail", "paper", "script",

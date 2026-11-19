@@ -1,13 +1,13 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
-  "name": "yomiyasu-en",
-  "description": "Claude Code marketplace for yomiyasu-en",
+  "name": "readyasu",
+  "description": "Claude Code marketplace for readyasu",
   "owner": {
     "name": "photom"
   },
   "plugins": [
     {
-      "name": "yomiyasu-en",
+      "name": "readyasu",
       "description": "Revises AI-generated English prose to read naturally while keeping meaning and conditions",
       "version": "0.1.0",
       "author": {
@@ -15,8 +15,8 @@
       },
       "source": "./",
       "category": "productivity",
-      "homepage": "https://github.com/photom/yomiyasu-en",
-      "repository": "https://github.com/photom/yomiyasu-en",
+      "homepage": "https://github.com/photom/readyasu",
+      "repository": "https://github.com/photom/readyasu",
       "license": "MIT"
     }
   ]

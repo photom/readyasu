@@ -1,13 +1,13 @@
 # Reading the check output, and reviewing by eye
 
-Read this when you look at lint findings in SKILL.md Step 2, item 1, and when you check the findings of `yomiyasu_en_check.py run` in Step 4. When Python cannot run, follow section 4.
+Read this when you look at lint findings in SKILL.md Step 2, item 1, and when you check the findings of `readyasu_check.py run` in Step 4. When Python cannot run, follow section 4.
 
 Findings are places to check against the original (the material, when composing), not orders to change. Do not keep rephrasing only to make findings disappear. Revise once only, and run again after the revision (SKILL.md Step 4). Having no findings does not prove that the meaning was kept. Lint gives no score; do not treat the number of findings as a pass mark.
 
 ## 1. The first lines of the output
 
 - Line 1 says what to do next. Follow it.
-- Line 2 is the status line (it starts with `yomiyasu-en-check:`). Copy it into the check record. When you ran verify before submitting, copy the second line of the verify output instead.
+- Line 2 is the status line (it starts with `readyasu-check:`). Copy it into the check record. When you ran verify before submitting, copy the second line of the verify output instead.
 - "Checks run:" summarizes what ran; it corresponds to "Checks run" in the check record.
 - "Stiffness check:" and "Energy check:" give values such as "none", "candidates 2" or "reference 1". Copy them to the lines of the same name in the check record. "reference" means the doc type normally changes these things (stiffness in incident, formal and paper; energy in pr, article, incident, manual, formal and paper); still read the section. When these lines are absent (compose mode), leave them out of the record.
 - "Review findings: original N → final M" counts lint rule matches before and after. It is not a score, and a rise or fall says nothing about readability. Copy the values to "Review findings" in the check record.
@@ -94,7 +94,7 @@ With `--fact-gaps`: sentences of the final draft that give only a metaphor (figu
 
 ### Attempts
 
-The first line counts attempts and revisions. Rerunning on an unchanged final draft (for example when verify did not match) is not a revision. A run continues the previous one only when the original (in compose mode, the material) is the same, the working folder is the same, the session ID (`--session` or `YOMIYASU_EN_SESSION`, when both runs have one) is the same, and the previous run was less than two hours ago; otherwise a new run starts at attempt 1. For a new request about the same text, add `--new-run` (SKILL.md Step 3).
+The first line counts attempts and revisions. Rerunning on an unchanged final draft (for example when verify did not match) is not a revision. A run continues the previous one only when the original (in compose mode, the material) is the same, the working folder is the same, the session ID (`--session` or `READYASU_SESSION`, when both runs have one) is the same, and the previous run was less than two hours ago; otherwise a new run starts at attempt 1. For a new request about the same text, add `--new-run` (SKILL.md Step 3).
 
 ### == Lint findings on the final draft ==
 
@@ -132,11 +132,11 @@ Every changed line pair, not shortened. `~` lines show word-level changes as `[-
 | `exclamation` | info | Keep only where the type and writer use them. Exempt in essay, promo, mail and script |
 | `sentence_start_repeat` | info | Vary only where it reads as a pattern; keep parallel steps |
 | `decorative_colon` | info | Remove the colon or finish the sentence |
-| `project_term` | info | A word from `.yomiyasu-en-words/flag.txt` or `flag-patterns.txt`. Rewrite the sentence, not just the word; the replacement after "→" is the project's preferred term |
+| `project_term` | info | A word from `.readyasu-words/flag.txt` or `flag-patterns.txt`. Rewrite the sentence, not just the word; the replacement after "→" is the project's preferred term |
 
 ## 4. Reviewing by eye (when Python cannot run)
 
-Write `yomiyasu-en-check: not_run reason=no_python` in the check record and write "Checks not run: lint (no_python), diff (no_python), final match (no_python)" (add "material match (no_python)" when material was given). Then, before submitting:
+Write `readyasu-check: not_run reason=no_python` in the check record and write "Checks not run: lint (no_python), diff (no_python), final match (no_python)" (add "material match (no_python)" when material was given). Then, before submitting:
 
 1. Compare every sentence of the final draft with the original for numbers, negations, hedges, permission and obligation words, status words, hearsay, questions, requests, limits (only), names and their order, citations, code and URLs.
 2. Search the final draft for the lint rules in section 3: emoji, dashes, bold labels, stock phrases, chat residue, stacked hedges, headings with colons.

@@ -222,5 +222,5 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-# yomiyasu-en check records
-.yomiyasu-en/
+# readyasu check records
+.readyasu/

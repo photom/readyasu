@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import yomiyasu_en_text as tx
+import readyasu_text as tx
 
 
 def spans(text: str) -> list[str]:

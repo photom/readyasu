@@ -22,9 +22,9 @@ jobs:
       - name: Install Python checkers
         run: python -m pip install --disable-pip-version-check ruff==0.17.3 ty==0.0.92
       - name: Check annotations, path operations and common bugs
-        run: ruff check --isolated --select ANN,PTH,F,E9,B --target-version py39 skills/yomiyasu-en/scripts
+        run: ruff check --isolated --select ANN,PTH,F,E9,B --target-version py39 skills/readyasu/scripts
       - name: Check Python 3.9 types
-        run: ty check --python-version 3.9 skills/yomiyasu-en/scripts
+        run: ty check --python-version 3.9 skills/readyasu/scripts
 
   test:
     name: pytest (${{ matrix.os }}, Python ${{ matrix.python-version }})

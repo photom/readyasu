@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import re
 
-import yomiyasu_en_lint as lint
-import yomiyasu_en_text as tx
+import readyasu_lint as lint
+import readyasu_text as tx
 from conftest import ROOT, SKILL
 
 
@@ -18,7 +18,7 @@ def test_frontmatter() -> None:
     m = re.match(r"^---\n(.*?)\n---\n", text, re.S)
     assert m
     front = m.group(1)
-    assert re.search(r"^name: yomiyasu-en$", front, re.M)
+    assert re.search(r"^name: readyasu$", front, re.M)
     assert re.search(r"^description: .{50,1024}$", front, re.M)
     version = re.search(r'version: "([^"]+)"', front)
     assert version and version.group(1) == tx.__version__
@@ -73,8 +73,8 @@ def test_review_points_cover_every_rule() -> None:
 
 def test_versions_agree() -> None:
     import json
-    import yomiyasu_en_check as check
-    import yomiyasu_en_diff as diff
+    import readyasu_check as check
+    import readyasu_diff as diff
     assert lint.__version__ == diff.__version__ == check.__version__ == tx.__version__
     plugin = json.loads((ROOT / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
     market = json.loads((ROOT / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8"))
@@ -96,7 +96,7 @@ def test_list_files_compile() -> None:
 
 
 def test_review_points_cover_every_risk_kind() -> None:
-    import yomiyasu_en_diff as diff
+    import readyasu_diff as diff
     text = (SKILL / "references" / "review-points.md").read_text(encoding="utf-8")
     kinds = re.findall(r"^  ([a-z_]+)\s{2,}", diff.HELP_EPILOG, re.M)
     assert "condition" in kinds

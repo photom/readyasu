@@ -19,7 +19,7 @@ The lint and diff scripts read these files. One phrase per line; an optional TAB
 | metaphor-verbs.txt | metaphor_verb | info |
 | intensifiers.txt | intensifier | info |
 | jargon.txt | jargon | info |
-| fact-gaps.txt | fact gaps in `yomiyasu_en_check.py run --fact-gaps` (format: kind<TAB>regex; see the file) | (not lint) |
+| fact-gaps.txt | fact gaps in `readyasu_check.py run --fact-gaps` (format: kind<TAB>regex; see the file) | (not lint) |
 | stiff-words.txt | stiffness check in diff | (not lint) |
 | feelings.txt | feelings added, in diff | (not lint) |
 | roles.txt | actors added, in diff | (not lint) |

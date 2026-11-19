@@ -1,4 +1,4 @@
-# Fact-gap candidates (the "Fact gaps" section of check run --fact-gaps; read by fact_gaps() in yomiyasu_en_diff.py).
+# Fact-gap candidates (the "Fact gaps" section of check run --fact-gaps; read by fact_gaps() in readyasu_diff.py).
 # Finds sentences of the final draft that may give only a metaphor or a degree word and no content or value. The list is partial.
 # Format: one "kind<TAB>regular expression" per line. Kinds:
 #   figure  a metaphor hides the content (lays the groundwork, paves the way, silently fails)
@@ -7,7 +7,7 @@
 #   change  a change without the before and after values (shortened, sped up)
 # Each sentence reports the kind of the first matching line, so the order matters.
 # Sentences with a digit, a hedge or plan word, a vague quantity (some, several, a few), a closing resolution,
-# questions, headings, table rows, code and quotations are never reported (rules inside yomiyasu_en_diff.py).
+# questions, headings, table rows, code and quotations are never reported (rules inside readyasu_diff.py).
 # The section is not shown for --doc-type essay or promo. Matching ignores case.
 # If this file is missing or has an error, the built-in copy of this list is used and the section says so.
 figure	\b(?:lay(?:s|ing)?|laid) the (?:foundation|groundwork)\b|\b(?:a|the) first step\b|\ba (?:big|major|giant|huge) (?:step|leap)\b|\bpav(?:e|es|ed|ing) the way\b|\bopen(?:s|ed|ing)? (?:the|new) doors?\b|\bhold(?:s|ing)? the key\b|\bsecret weapon\b|\bnorth star\b|\bbridg(?:e|es|ed|ing) the gap\b|\bbreath(?:e|es|ed|ing) (?:new )?life into\b|\b(?:silently|quietly) (?:fail|break|drop|corrupt)\w*|\bto the next level\b|\bnew heights\b|\bunlock(?:s|ed|ing)? (?:new |the full )?(?:potential|possibilities|value)\b

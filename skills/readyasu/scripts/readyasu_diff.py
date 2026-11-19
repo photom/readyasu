@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""yomiyasu-en diff: compare an original and a revised English text.
+"""readyasu diff: compare an original and a revised English text.
 
 Shows every change and lists changes that may alter meaning (numbers, negation,
 certainty, permission, obligation, scope, hearsay, questions, requests, names)
@@ -24,10 +24,10 @@ from typing import Any, NoReturn, Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import yomiyasu_en_text as tx  # noqa: E402
+import readyasu_text as tx  # noqa: E402
 
 __version__ = tx.__version__
-TOOL = "yomiyasu-en-diff"
+TOOL = "readyasu-diff"
 JSON_FORMAT = 1
 FACT_TYPES = ("pr", "article", "incident", "proposal", "manual", "formal", "paper")
 STIFF_REFERENCE_TYPES = ("incident", "formal", "paper")
@@ -1510,7 +1510,7 @@ def read_materials(names_: Optional[list[str]]) -> str:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = _Parser(prog="yomiyasu_en_diff.py",
+    p = _Parser(prog="readyasu_diff.py",
                 description="Compare an original and a revised text, show every change, and list meaning risks and "
                             "review findings. A full diff does not prove that the meaning is the same; this tool does "
                             "not decide that.",
@@ -1554,7 +1554,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         texts = [tx.read_text(name) for name in args.files]
         materials = read_materials(args.material)
     except tx.InputError as exc:
-        sys.stderr.write(f"yomiyasu_en_diff.py: {exc}\n")
+        sys.stderr.write(f"readyasu_diff.py: {exc}\n")
         return 2
     if args.compose:
         result = compose(texts[0], materials, args.doc_type, args.reader, args.stance, args.fact_gaps, words)

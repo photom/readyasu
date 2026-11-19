@@ -1,12 +1,14 @@
-# yomiyasu-en
+# readyasu
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 
-yomiyasu-en is an agent skill that revises AI-generated English prose so it reads like a careful person wrote it. It is the English counterpart of [yomiyasu](https://github.com/nanaism/yomiyasu), a skill for Japanese text. It follows the same design: keep the meaning first, add nothing, change only what a reader would stumble over, and run fixed-pattern checks on the final draft before returning it.
+readyasu is an agent skill that revises AI-generated English prose so it reads like a careful person wrote it. It is an unofficial English adaptation of [yomiyasu](https://github.com/nanaism/yomiyasu), a skill for Japanese text by nanaism. readyasu is maintained separately by photom and is not affiliated with the yomiyasu project. The name puts the English "read" in place of "yomi" ("read" in Japanese) in yomiyasu.
+
+It follows the same design as yomiyasu: keep the meaning first, add nothing, change only what a reader would stumble over, and run fixed-pattern checks on the final draft before returning it.
 
 ## What it does
 
-yomiyasu-en finds and rewrites:
+readyasu finds and rewrites:
 
 - stock AI vocabulary and phrases ("delve", "seamless", "a testament to", "In today's fast-paced world", "It's worth noting that"),
 - metaphorical verbs for ordinary events ("unlock", "supercharge", "navigate the complexities of"),
@@ -28,22 +30,22 @@ The package is a set of instructions (`SKILL.md` and `references/`) plus three P
 
 ```bash
 # skills CLI
-npx skills add photom/yomiyasu-en
+npx skills add photom/readyasu
 
 # GitHub CLI
-gh skill install photom/yomiyasu-en yomiyasu-en
+gh skill install photom/readyasu readyasu
 ```
 
-As a Claude Code plugin, run these two commands in Claude Code. The skill is then named `yomiyasu-en:yomiyasu-en`.
+As a Claude Code plugin, run these two commands in Claude Code. The skill is then named `readyasu:readyasu`.
 
 ```text
-/plugin marketplace add photom/yomiyasu-en
-/plugin install yomiyasu-en@yomiyasu-en
+/plugin marketplace add photom/readyasu
+/plugin install readyasu@readyasu
 ```
 
-To install by hand, copy the `skills/yomiyasu-en/` folder into the skills folder of your agent (for example `.claude/skills/yomiyasu-en/` for Claude Code, or `.agents/skills/yomiyasu-en/` for Codex).
+To install by hand, copy the `skills/readyasu/` folder into the skills folder of your agent (for example `.claude/skills/readyasu/` for Claude Code, or `.agents/skills/readyasu/` for Codex).
 
-Do not edit files inside the installed skill folder; updates may replace it. Put project words in `.yomiyasu-en-words/` and your own instructions in `CLAUDE.md` or `AGENTS.md`.
+Do not edit files inside the installed skill folder; updates may replace it. Put project words in `.readyasu-words/` and your own instructions in `CLAUDE.md` or `AGENTS.md`.
 
 These install methods have not been tested yet; see [docs/limitations.md](./docs/limitations.md).
 
@@ -52,20 +54,20 @@ These install methods have not been tested yet; see [docs/limitations.md](./docs
 Name the skill in the request and paste the draft.
 
 ```text
-Revise this with yomiyasu-en.
+Revise this with readyasu.
 (paste the text here)
 ```
 
-Sending only `/yomiyasu-en` makes the skill revise the text the AI wrote in its previous answer, or the single draft (`.md` or `.txt`) directly under the working folder. When it works on a file, it does not overwrite the file; it saves the final draft in the same folder under a new name.
+Sending only `/readyasu` makes the skill revise the text the AI wrote in its previous answer, or the single draft (`.md` or `.txt`) directly under the working folder. When it works on a file, it does not overwrite the file; it saves the final draft in the same folder under a new name.
 
 You can tell it the document type, the readers, and the relationship ("This is an email to a client"). With a relationship, it adjusts politeness the way a person in that relationship would write. If you say nothing, it infers the type from the text when it can and does not change the politeness.
 
 After the revised text, it reports what it changed and the record of the checks it ran, and, when there is something to say, the AI-like wording it chose to keep and questions for the writer. Ask for "the text only" to get the revised text alone; the checks still run.
 
-Agents use yomiyasu-en only when you ask for it: when the request names it, when you send `/yomiyasu-en`, or when you clearly ask for skill-based revision of English prose. To use it every time an agent writes English prose, add a line to your instruction file, for example in `CLAUDE.md` or `AGENTS.md`:
+Agents use readyasu only when you ask for it: when the request names it, when you send `/readyasu`, or when you clearly ask for skill-based revision of English prose. To use it every time an agent writes English prose, add a line to your instruction file, for example in `CLAUDE.md` or `AGENTS.md`:
 
 ```text
-When you write English prose for people to read (articles, PR descriptions, reports, mail), revise it with the yomiyasu-en skill before returning it.
+When you write English prose for people to read (articles, PR descriptions, reports, mail), revise it with the readyasu skill before returning it.
 ```
 
 See [docs/usage.md](./docs/usage.md) for more.
@@ -74,18 +76,18 @@ See [docs/usage.md](./docs/usage.md) for more.
 
 The scripts need only the Python standard library and are written for Python 3.9 and later. On Windows, run them with `py -3` instead of `python3`.
 
-- `scripts/yomiyasu_en_lint.py` lists expressions and Markdown formatting worth reviewing in one document: stock vocabulary and phrases, chat residue, wordy phrases, metaphorical verbs, intensifiers, jargon, stacked hedges, negative contrast, personification, self-answered questions, fragment runs, count announcements, closing summaries, emoji, clause-splicing dashes, bold labels, heavy bold, bold that will not render, and words from your project list.
-- `scripts/yomiyasu_en_diff.py` compares the original and the revised text. It shows every change and lists changes that may alter the meaning: numbers and their units, months and weekdays, negations, hedges, permission and obligation words, status words such as "TBD", hearsay, questions and requests, limits such as "only", conditions such as "if" and "at launch", choice and quantifier scope, citations, names in a different order or moved to another line, and added commitments. It also lists added actors and feelings, causal links, words that disappeared, and changes in register and energy.
-- `scripts/yomiyasu_en_check.py` runs lint on the final draft and diff on the original and the final draft, and keeps a record in `.yomiyasu-en/` at the top of the git repository (or in the working folder outside git). `verify` checks right before submitting that the final draft is the one that was checked.
+- `scripts/readyasu_lint.py` lists expressions and Markdown formatting worth reviewing in one document: stock vocabulary and phrases, chat residue, wordy phrases, metaphorical verbs, intensifiers, jargon, stacked hedges, negative contrast, personification, self-answered questions, fragment runs, count announcements, closing summaries, emoji, clause-splicing dashes, bold labels, heavy bold, bold that will not render, and words from your project list.
+- `scripts/readyasu_diff.py` compares the original and the revised text. It shows every change and lists changes that may alter the meaning: numbers and their units, months and weekdays, negations, hedges, permission and obligation words, status words such as "TBD", hearsay, questions and requests, limits such as "only", conditions such as "if" and "at launch", choice and quantifier scope, citations, names in a different order or moved to another line, and added commitments. It also lists added actors and feelings, causal links, words that disappeared, and changes in register and energy.
+- `scripts/readyasu_check.py` runs lint on the final draft and diff on the original and the final draft, and keeps a record in `.readyasu/` at the top of the git repository (or in the working folder outside git). `verify` checks right before submitting that the final draft is the one that was checked.
 
 ```bash
-python3 skills/yomiyasu-en/scripts/yomiyasu_en_lint.py article.md
-python3 skills/yomiyasu-en/scripts/yomiyasu_en_diff.py original.md revised.md
-python3 skills/yomiyasu-en/scripts/yomiyasu_en_check.py run --source original.md --final final.md
-python3 skills/yomiyasu-en/scripts/yomiyasu_en_check.py verify --final final.md
+python3 skills/readyasu/scripts/readyasu_lint.py article.md
+python3 skills/readyasu/scripts/readyasu_diff.py original.md revised.md
+python3 skills/readyasu/scripts/readyasu_check.py run --source original.md --final final.md
+python3 skills/readyasu/scripts/readyasu_check.py verify --final final.md
 ```
 
-A project word list in `.yomiyasu-en-words/` (`allow.txt`, `flag.txt`, `flag-patterns.txt`) removes wrong findings and adds project-specific words. See [docs/tools.md](./docs/tools.md).
+A project word list in `.readyasu-words/` (`allow.txt`, `flag.txt`, `flag-patterns.txt`) removes wrong findings and adds project-specific words. See [docs/tools.md](./docs/tools.md).
 
 The scripts only report places to review. They do not judge whether the meaning was kept or whether the text is easy to read.
 
@@ -95,4 +97,4 @@ The checks catch fixed patterns only. Places without findings still need to be r
 
 ## License
 
-The code and documents in this repository are released under the [MIT License](./LICENSE). yomiyasu-en is derived from [yomiyasu](https://github.com/nanaism/yomiyasu) by nanaism (Aiichiro Oga), also released under the MIT License; its copyright notice is kept in [LICENSE](./LICENSE). yomiyasu-en is not an official part of the yomiyasu project.
+The code and documents in this repository are released under the [MIT License](./LICENSE). readyasu is derived from [yomiyasu](https://github.com/nanaism/yomiyasu) by nanaism (Aiichiro Oga), also released under the MIT License; its copyright notice is kept in [LICENSE](./LICENSE). readyasu is not an official part of the yomiyasu project.

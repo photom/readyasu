@@ -7,7 +7,7 @@ from pathlib import Path
 
 from conftest import SCRIPTS
 
-CHECK = SCRIPTS / "yomiyasu_en_check.py"
+CHECK = SCRIPTS / "readyasu_check.py"
 
 
 def run(args: list[str], cwd: Path, stdin: str | None = None) -> subprocess.CompletedProcess[str]:
@@ -28,14 +28,14 @@ def test_run_and_verify(tmp_path: Path) -> None:
     assert p.returncode == 0, p.stderr
     lines = p.stdout.splitlines()
     assert lines[0].startswith("Ran the checks (attempt 1)")
-    assert lines[1].startswith("yomiyasu-en-check: executed via=run") and "meaning_risk=1" in lines[1]
+    assert lines[1].startswith("readyasu-check: executed via=run") and "meaning_risk=1" in lines[1]
     assert any(ln.startswith("Stiffness check:") for ln in lines)
     assert any(ln.startswith("Review findings: original 0 → final 0") for ln in lines)
     assert lines[-1] == lines[1]
     v = run(["verify", "--final", fin, "--state-dir", st], tmp_path)
     assert v.returncode == 0
     assert "The hash matches the record" in v.stdout.splitlines()[0]
-    assert v.stdout.splitlines()[1].startswith("yomiyasu-en-check: executed via=verify")
+    assert v.stdout.splitlines()[1].startswith("readyasu-check: executed via=verify")
     assert (tmp_path / "st" / ".gitignore").read_text(encoding="utf-8").strip().endswith("*")
 
 
@@ -59,7 +59,7 @@ def test_attempts_and_mismatch(tmp_path: Path) -> None:
 
 def test_stdin_mode(tmp_path: Path) -> None:
     st = str(tmp_path / "st")
-    data = "<<<yomiyasu-en:original>>>\nWait 3 seconds.\n<<<yomiyasu-en:final>>>\nWait 5 seconds.\n"
+    data = "<<<readyasu:original>>>\nWait 3 seconds.\n<<<readyasu:final>>>\nWait 5 seconds.\n"
     p = run(["run", "--stdin", "--state-dir", st, "--no-words", "--fail-on", "meaning-risk"], tmp_path, data)
     assert p.returncode == 1
     assert "verify --final -" in p.stdout.splitlines()[0]
@@ -68,7 +68,7 @@ def test_stdin_mode(tmp_path: Path) -> None:
 
 
 def test_stdin_bad_separator(tmp_path: Path) -> None:
-    p = run(["run", "--stdin", "--no-words"], tmp_path, "<<<yomiyasu-en:orignal>>>\nx\n<<<yomiyasu-en:final>>>\ny\n")
+    p = run(["run", "--stdin", "--no-words"], tmp_path, "<<<readyasu:orignal>>>\nx\n<<<readyasu:final>>>\ny\n")
     assert p.returncode == 2 and "not_run" in p.stdout
 
 
@@ -93,7 +93,7 @@ def test_no_record(tmp_path: Path) -> None:
 
 
 def test_compose_mode(tmp_path: Path) -> None:
-    mat = write(tmp_path / "m.txt", "<<<yomiyasu-en:material user's message>>>\nBackups are kept for 30 days.\n")
+    mat = write(tmp_path / "m.txt", "<<<readyasu:material user's message>>>\nBackups are kept for 30 days.\n")
     fin = write(tmp_path / "f.md", "We keep backups for 45 days, and the old ones go away on a schedule.\n")
     p = run(["run", "--material", mat, "--final", fin, "--state-dir", str(tmp_path / "st"), "--no-words",
              "--fail-on", "meaning-risk", "--json"], tmp_path)
@@ -123,18 +123,18 @@ def test_default_state_dir_at_git_top(tmp_path: Path) -> None:
     src = write(sub / "o.md", "A.\n")
     fin = write(sub / "f.md", "B.\n")
     assert run(["run", "--source", src, "--final", fin, "--no-words"], sub).returncode == 0
-    assert (tmp_path / ".yomiyasu-en" / "state.json").is_file()
+    assert (tmp_path / ".readyasu" / "state.json").is_file()
     assert run(["verify", "--final", fin], sub).returncode == 0
 
 
 def test_stdin_only_final_is_usage_error(tmp_path: Path) -> None:
-    p = run(["run", "--stdin", "--no-words"], tmp_path, "<<<yomiyasu-en:final>>>\nText.\n")
+    p = run(["run", "--stdin", "--no-words"], tmp_path, "<<<readyasu:final>>>\nText.\n")
     assert p.returncode == 2 and "not_run" in p.stdout
 
 
 def test_verify_tolerates_trailing_newlines(tmp_path: Path) -> None:
     st = str(tmp_path / "st")
-    data = "<<<yomiyasu-en:original>>>\nThe job may fail.\n<<<yomiyasu-en:final>>>\nThe job can fail.\n\n\n"
+    data = "<<<readyasu:original>>>\nThe job may fail.\n<<<readyasu:final>>>\nThe job can fail.\n\n\n"
     assert run(["run", "--stdin", "--state-dir", st, "--no-words"], tmp_path, data).returncode == 0
     assert run(["verify", "--final", "-", "--state-dir", st], tmp_path, "The job can fail.").returncode == 0
     fin = write(tmp_path / "f.md", "The job can fail.\n")
@@ -181,13 +181,13 @@ def test_new_session_starts_a_new_run(tmp_path: Path) -> None:
     src = write(tmp_path / "o.md", "We leverage a robust pipeline.\n")
     fin = write(tmp_path / "f.md", "We use a robust pipeline.\n")
     st = str(tmp_path / "st")
-    env = {**os.environ, "YOMIYASU_EN_SESSION": "chat-1"}
+    env = {**os.environ, "READYASU_SESSION": "chat-1"}
     args = [sys.executable, str(CHECK), "run", "--source", src, "--final", fin, "--state-dir", st, "--no-words"]
     subprocess.run(args, cwd=tmp_path, env=env, capture_output=True, check=False)
     write(tmp_path / "f.md", "We use a pipeline.\n")
     subprocess.run(args, cwd=tmp_path, env=env, capture_output=True, check=False)
     write(tmp_path / "f.md", "We run a pipeline.\n")
-    env["YOMIYASU_EN_SESSION"] = "chat-2"
+    env["READYASU_SESSION"] = "chat-2"
     p = subprocess.run(args, cwd=tmp_path, env=env, capture_output=True, text=True, encoding="utf-8", check=False)
     assert p.stdout.splitlines()[0].startswith("Ran the checks (attempt 1)")
 
@@ -229,12 +229,12 @@ def test_compose_run_continues_when_adoption_changes(tmp_path: Path) -> None:
 def test_more_usage_errors(tmp_path: Path) -> None:
     src = write(tmp_path / "o.md", "Hello there.\n")
     fin = write(tmp_path / "f.md", "Hello.\n")
-    empty = write(tmp_path / "m.txt", "<<<yomiyasu-en:material notes>>>\n")
+    empty = write(tmp_path / "m.txt", "<<<readyasu:material notes>>>\n")
     for args, stdin in (
         (["run", "--material", empty, "--final", fin], None),
         (["run", "--source", src, "--final", fin, "--timeout", "inf"], None),
         (["run", "--source", "-", "--material", "-", "--final", fin], "x\n"),
-        (["run", "--stdin"], "<<<yomiyasu-en:original>>>\n\n<<<yomiyasu-en:final>>>\nHello.\n"),
+        (["run", "--stdin"], "<<<readyasu:original>>>\n\n<<<readyasu:final>>>\nHello.\n"),
     ):
         p = run([*args, "--state-dir", str(tmp_path / "st"), "--no-words"], tmp_path, stdin)
         assert p.returncode == 2, (args, p.stdout, p.stderr)
@@ -242,8 +242,8 @@ def test_more_usage_errors(tmp_path: Path) -> None:
 
 
 def test_separator_source_may_contain_angle_bracket(tmp_path: Path) -> None:
-    stdin = ("<<<yomiyasu-en:material output of git diff (retry.py -> retry_v2.py)>>>\nRetry after 0.5 seconds.\n"
-             "<<<yomiyasu-en:final>>>\nRetries now wait 0.5 seconds.\n")
+    stdin = ("<<<readyasu:material output of git diff (retry.py -> retry_v2.py)>>>\nRetry after 0.5 seconds.\n"
+             "<<<readyasu:final>>>\nRetries now wait 0.5 seconds.\n")
     p = run(["run", "--stdin", "--state-dir", str(tmp_path / "st"), "--no-words"], tmp_path, stdin)
     assert p.returncode == 0, p.stdout + p.stderr
 

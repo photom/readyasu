@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""yomiyasu-en lint: list English expressions and Markdown formatting worth reviewing.
+"""readyasu lint: list English expressions and Markdown formatting worth reviewing.
 
 Findings are places to review, not orders to change and not a quality score.
 Standard library only; Python 3.9+.
@@ -22,10 +22,10 @@ from typing import Iterator, NoReturn, Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import yomiyasu_en_text as tx  # noqa: E402
+import readyasu_text as tx  # noqa: E402
 
 __version__ = tx.__version__
-TOOL = "yomiyasu-en-lint"
+TOOL = "readyasu-lint"
 JSON_FORMAT = 1
 
 SEVERITY_ORDER = {"error": 0, "warn": 1, "info": 2}
@@ -847,7 +847,7 @@ class _Parser(argparse.ArgumentParser):
 
 def build_parser() -> argparse.ArgumentParser:
     p = _Parser(
-        prog="yomiyasu_en_lint.py",
+        prog="readyasu_lint.py",
         description="Check English expressions and Markdown formatting against fixed rules. Findings are places to "
                     "review. Their number is not a judgment of quality, of whether meaning was kept, or of clarity.",
         epilog=HELP_EPILOG, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -876,7 +876,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         words = tx.load_words(args.words, args.no_words)
         text = tx.read_text(args.file)
     except tx.InputError as exc:
-        sys.stderr.write(f"yomiyasu_en_lint.py: {exc}\n")
+        sys.stderr.write(f"readyasu_lint.py: {exc}\n")
         return 2
     result = lint(text, args.doc_type, args.reader, words)
     if args.json:

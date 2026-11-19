@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import pytest
-import yomiyasu_en_lint as lint
-import yomiyasu_en_text as tx
+import readyasu_lint as lint
+import readyasu_text as tx
 
 
 def rules(text: str, doc_type: str | None = None, words: tx.Words | None = None) -> list[str]:
@@ -110,7 +110,7 @@ def test_json_output(tmp_path, capsys) -> None:  # noqa: ANN001
     path.write_text("We delve.\n", encoding="utf-8")
     lint.main([str(path), "--json", "--no-words"])
     data = json.loads(capsys.readouterr().out)
-    assert data["tool"] == "yomiyasu-en-lint" and data["review_findings"] == 1
+    assert data["tool"] == "readyasu-lint" and data["review_findings"] == 1
     assert data["findings"][0]["rule"] == "ai_vocabulary"
 
 

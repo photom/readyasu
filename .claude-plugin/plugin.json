@@ -1,12 +1,12 @@
 {
-  "name": "yomiyasu-en",
+  "name": "readyasu",
   "description": "Revises AI-generated English prose to read naturally while keeping meaning and conditions",
   "version": "0.1.0",
   "skills": "./skills/",
   "author": {
     "name": "photom"
   },
-  "homepage": "https://github.com/photom/yomiyasu-en",
-  "repository": "https://github.com/photom/yomiyasu-en",
+  "homepage": "https://github.com/photom/readyasu",
+  "repository": "https://github.com/photom/readyasu",
   "license": "MIT"
 }
