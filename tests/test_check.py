@@ -326,3 +326,10 @@ def test_first_line_names_counted_risks(tmp_path: Path) -> None:
     fin = write(tmp_path / "f.md", "The job fails.\n")
     p = run(["run", "--source", src, "--final", fin, "--state-dir", str(tmp_path / "st"), "--no-words"], tmp_path)
     assert "1 counted meaning risk" in p.stdout.splitlines()[0]
+
+
+def test_compose_lists_composer_words_as_added(tmp_path: Path) -> None:
+    mat = write(tmp_path / "m.txt", "Notes: backups kept 30 days.\n")
+    fin = write(tmp_path / "f.md", "We leverage a seamless backup process that keeps backups for 30 days.\n")
+    p = run(["run", "--material", mat, "--final", fin, "--state-dir", str(tmp_path / "st"), "--no-words"], tmp_path)
+    assert "Flagged words kept" not in p.stdout and "Flagged words added by the rewrite" in p.stdout

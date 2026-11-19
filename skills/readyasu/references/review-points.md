@@ -12,7 +12,7 @@ Findings are places to check against the original (the material, when composing)
 - "Stiffness check:" and "Energy check:" give values such as "none", "candidates 2" or "reference 1". Copy them to the lines of the same name in the check record. "reference" means the doc type normally changes these things (stiffness in incident, formal and paper; energy in pr, article, incident, manual, formal and paper); still read the section. When these lines are absent (compose mode), leave them out of the record.
 - "Review findings: original N → final M" counts lint rule matches before and after. It is not a score, and a rise or fall says nothing about readability. Copy the values to "Review findings" in the check record.
 - "Flagged words kept:" lists stock vocabulary, metaphorical verbs, jargon and project words that are still in the final draft and were in the original. Reread each sentence with the Step 2 questions (SKILL.md Step 5).
-- "Flagged words added by the rewrite:" lists such words that your rewrite introduced. Restore the original wording.
+- "Flagged words added by the rewrite:" lists such words that your rewrite introduced. Restore the original wording. In compose mode, words found in the material count as kept and the rest as added.
 
 ## 2. Sections of the output
 

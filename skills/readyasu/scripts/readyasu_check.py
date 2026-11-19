@@ -439,7 +439,7 @@ def cmd_run(args: argparse.Namespace) -> int:
                  "such folder; then follow the first line of that output.")
     else:
         first = first_line(status, attempt, revisions, same_as_previous, args, problems, folder, meaning_risk)
-    kept_added = split_kept_added(lint_final, lint_orig, original)
+    kept_added = split_kept_added(lint_final, lint_orig, original, material_text)
     if args.json:
         out = {"format": 1, "tool": TOOL, "version": __version__, "status": status, "first_line": first,
                "status_line": status_line, "run": run_id or None, "attempt": attempt or None,
@@ -452,7 +452,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         sys.stdout.write(json.dumps(out, ensure_ascii=True, indent=1) + "\n")
     else:
         sys.stdout.write(format_run(first, status_line, mode, checks, record_path, lint_final, lint_orig, diff,
-                                    orig_count, final_count, adopted, problems, original))
+                                    orig_count, final_count, adopted, problems, original, material_text))
     if problems or record_error:
         return 3
     return 1 if hit else 0
@@ -492,13 +492,18 @@ def first_line(status: str, attempt: int, revisions: int, same_as_previous: bool
 
 
 def split_kept_added(lint_final: Optional[dict[str, Any]], lint_orig: Optional[dict[str, Any]],
-                     original_text: Optional[str]) -> tuple[list[str], list[str]]:
-    """Flagged words in the final draft: (kept from the original, added by the rewrite)."""
+                     original_text: Optional[str], material_text: str = "") -> tuple[list[str], list[str]]:
+    """Flagged words in the final draft: (kept from the original, added by the rewrite). In compose mode the
+    material stands in for the original: words not in it were added by the composer."""
     if lint_final is None:
         return [], []
     final_words = kept_words(list(lint_final.get("findings", [])))
     if lint_orig is None:
-        return final_words, []
+        if not material_text.strip():
+            return final_words, []
+        mat_low = material_text.lower()
+        in_mat = [w for w in final_words if re.search(r"(?<![\w-])" + re.escape(w.lower()), mat_low)]
+        return in_mat, [w for w in final_words if w not in in_mat]
     orig_words = {w.lower() for w in kept_words(list(lint_orig.get("findings", [])))}
     orig_low = original_text.lower() if original_text else ""
     in_orig = [w for w in final_words if w.lower() in orig_words or
@@ -509,7 +514,7 @@ def split_kept_added(lint_final: Optional[dict[str, Any]], lint_orig: Optional[d
 def format_run(first: str, status_line: str, mode: str, checks: list[str], record: Optional[Path],
                lint_final: Optional[dict[str, Any]], lint_orig: Optional[dict[str, Any]],
                diff: Optional[dict[str, Any]], orig_count: Optional[int], final_count: int, adopted: str,
-               problems: list[str], original_text: Optional[str] = None) -> str:
+               problems: list[str], original_text: Optional[str] = None, material_text: str = "") -> str:
     out = [first, status_line]
     parts = []
     if lint_final is not None:
@@ -536,7 +541,7 @@ def format_run(first: str, status_line: str, mode: str, checks: list[str], recor
     else:
         out.append(f"Review findings: final {final_count} {NOT_A_SCORE}")
     if lint_final is not None:
-        kept, added = split_kept_added(lint_final, lint_orig, original_text)
+        kept, added = split_kept_added(lint_final, lint_orig, original_text, material_text)
         if kept:
             out.append("Flagged words kept: " + ", ".join(kept)
                        + " (reread these sentences; ask the writer or give the reason under \"AI-like wording kept\")")

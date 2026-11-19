@@ -104,10 +104,10 @@ PERMISSION = _rx(r"\b(?:you|users?|they|we|customers?|members?)\s+may\b|\b(?:all
                  r"|\bno\s+need\s+to\b|\b(?:don['’]t|do\s+not|doesn['’]t|does\s+not)\s+(?:have|need)\s+to\b"
                  r"|\b(?:is|are)\s+not\s+required\b|\b(?:is|are)n['’]t\s+required\b|\bn['’]t\s+mandatory\b|\bnot\s+mandatory\b"
                  r"|\b\w+n['’]t\s+(?:have|need)\s+to\b|\b(?:will|should|would)\s+not\s+(?:have|need)\s+to\b")
-OBLIGATION_STRONG = _rx(r"\b(?:must|shall|mandatory|required|requires?)\b|\b(?:have|has|had)\s+to\b|\bneeds?\s+to\b"
+OBLIGATION_STRONG = _rx(r"\b(?:must|shall|mandatory|required|requires?)\b|\b(?:mustn|shan)['’]t\b|\b(?:have|has|had)\s+to\b|\bneeds?\s+to\b"
                         r"|(?<!\bno\s)\bneeds?\s+(?!to\b|for\b)(?=[\w$€£])"
                         r"|\bis\s+obligated\b")
-OBLIGATION_SOFT = _rx(r"\b(?:should|ought\s+to|recommended|advisable|encouraged)\b|\bwe\s+recommend\b|\bbest\s+to\b")
+OBLIGATION_SOFT = _rx(r"\b(?:should|ought\s+to|recommended|advisable|encouraged)\b|\bshouldn['’]t\b|\bwe\s+recommend\b|\bbest\s+to\b")
 ABILITY = _rx(r"\bcan\b|\bable\s+to\b|\bcapable\s+of\b")
 STATUS = _rx(r"\b(?:tbd|tbc|pending|unconfirmed|undecided|tentative(?:ly)?|on\s+hold|in\s+progress|ongoing|underway)\b"
              r"|\bunder\s+way\b|\b(?:is|are|was|still)\s+(?:a\s+|still\s+a\s+)?drafts?\b|\(draft\)|\bin\s+draft\b"
@@ -249,7 +249,7 @@ After Before Because Although However Therefore Thus Also In On At For From To B
 There What Which Who Why How Please Note Yes No Not All Each Every Some Any Most Many More Monday Tuesday Wednesday
 Thursday Friday Saturday Sunday January February March April May June July August September October November December
 Let Lets OK Okay Section Sections Clause Clauses Article Chapter Appendix Figure Table Step Steps Part Page Item
-Items Annex Schedule Exhibit""".split())
+Items Annex Schedule Exhibit TBD TBC EOD EOW COB ASAP ETA FYI FAQ WIP OOO PR PRs QA UI UX""".split())
 
 
 # ---------------------------------------------------------------- data
@@ -419,6 +419,10 @@ def unit_pairs(text: str) -> Counter[str]:
             after = UNIT_AFTER.match(text, end)
             if after:
                 unit = UNIT_NAMES.get(after.group(1).lower(), "")
+                if unit in ("a.m.", "p.m."):
+                    tz = re.match(r"\s+([A-Z]{2,4})\b", text[after.end():])
+                    if tz and tz.group(1).lower() in UNIT_NAMES:
+                        unit += " " + tz.group(1)
                 if not unit and after.group(1).isalpha():
                     # one qualifier between the number and the unit: "30 business days"
                     second = re.match(r"\s([A-Za-z]+)(?![\w-])", text[after.end():])
@@ -742,13 +746,23 @@ def _split_chunk(o: list[tx.Sentence], r: list[tx.Sentence]) -> list[Chunk]:
     chunks: list[Chunk] = []
     pi, pj = 0, 0
     for i, j in pairs:
-        if o[pi:i] or r[pj:j]:
-            chunks.append(Chunk(list(o[pi:i]), list(r[pj:j])))
+        chunks.extend(_leftover_chunks(list(o[pi:i]), list(r[pj:j])))
         chunks.append(Chunk([o[i]], [r[j]]))
         pi, pj = i + 1, j + 1
-    if o[pi:] or r[pj:]:
-        chunks.append(Chunk(list(o[pi:]), list(r[pj:])))
-    return _attach_leftovers(chunks)
+    chunks.extend(_leftover_chunks(list(o[pi:]), list(r[pj:])))
+    while True:
+        joined = _attach_leftovers(chunks)
+        if len(joined) == len(chunks):
+            return joined
+        chunks = joined
+
+
+def _leftover_chunks(o: list[tx.Sentence], r: list[tx.Sentence]) -> list[Chunk]:
+    """Unpaired sentences between two pairs: one chunk per sentence when they are all on one side, so each can join
+    the sentence it was merged into or split from."""
+    if o and r:
+        return [Chunk(o, r)]
+    return [Chunk([x], []) for x in o] + [Chunk([], [x]) for x in r]
 
 
 def _chunk_ratio(ch: Chunk) -> float:
@@ -806,7 +820,9 @@ def attach_adjacent(chunks: list[Chunk], orig: tx.Document, rev: tx.Document) ->
     makes the pair more similar: its content was merged into the neighbor ("..., and sleepiness also improved")."""
     o_index = {id(x): k for k, x in enumerate(orig.sentences)}
     r_index = {id(x): k for k, x in enumerate(rev.sentences)}
-    result = list(chunks)
+    result: list[Chunk] = []
+    for ch in chunks:
+        result.extend(_leftover_chunks(ch.orig, ch.rev) if not (ch.orig and ch.rev) else [ch])
     k = 0
     while k < len(result):
         ch = result[k]
@@ -982,9 +998,11 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
         risk("number", True, "Month or weekday changed: " + "; ".join(parts))
 
     o_neg, r_neg = o, r
+    if STATUS.search(o) and STATUS.search(r):
+        o_neg, r_neg = STATUS.sub(" ", o_neg), STATUS.sub(" ", r_neg)  # "TBD" -> "not decided yet" keeps the status
     if PERMISSION.search(o) and PERMISSION.search(r):
         # "You don't have to restart" -> "Restarting is optional": a negated obligation is a permission
-        o_neg, r_neg = NEG_OBLIGATION.sub(" ", o), NEG_OBLIGATION.sub(" ", r)
+        o_neg, r_neg = NEG_OBLIGATION.sub(" ", o_neg), NEG_OBLIGATION.sub(" ", r_neg)
     neg_o, neg_r = count(NEGATION, o_neg), count(NEGATION, r_neg)
     not_just = re.compile(r"\b(?:not|n['’]t)\s+(?:just|only|merely|simply)\b|n['’]t\s+(?:just|only|merely|simply)\b", re.IGNORECASE)
     nj_o, nj_r = len(not_just.findall(o_neg)), len(not_just.findall(r_neg))
@@ -1070,8 +1088,12 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
 
     po_m = PERMISSION.search(NOT_PERMISSION.sub(" ", mask_month_may(o)))
     po = bool(po_m)
-    pr_ = bool(PERMISSION.search(NOT_PERMISSION.sub(" ", mask_month_may(r))))
-    if po and not pr_ and po_m is not None and po_m.group(0).lower().endswith(" may") and \
+    pr_m = PERMISSION.search(NOT_PERMISSION.sub(" ", mask_month_may(r)))
+    pr_ = bool(pr_m)
+    if pr_ and not po and pr_m is not None and pr_m.group(0).lower().endswith(" may") and \
+            (hedges(o) or re.search(r"\bpossible\b", o, re.IGNORECASE)):
+        pass  # "Users might see a delay" -> "Users may see a delay": a possibility, compared as a hedge
+    elif po and not pr_ and po_m is not None and po_m.group(0).lower().endswith(" may") and \
             re.search(r"\b(?:may|might|could)\b", r, re.IGNORECASE):
         pass  # "Users may see a delay" -> "Users might see a delay": a possibility, compared as a hedge
     elif po != pr_:
@@ -1090,7 +1112,8 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
         possibility = re.search(r"\b(\w+)\s+can\s+(\w+)", o, re.IGNORECASE)
         person = r"(?:i|you|we|they|he|she|users?|customers?|admins?|administrators?|people|members?|teams?|anyone|everyone)"
         if possibility and not re.fullmatch(person, possibility.group(1), re.IGNORECASE) and \
-                re.search(r"\b" + re.escape(possibility.group(2)[:5]), r, re.IGNORECASE) and not has_question:
+                re.search(r"\b" + re.escape(possibility.group(2)[:5]), r, re.IGNORECASE) and not has_question and \
+                not hedges(r):
             risk("certainty", True, f'"can {possibility.group(2)}" became a plain statement: if "can" meant possibility, '
                  "the sentence now says it always happens")
         else:
@@ -1194,7 +1217,8 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
         n_o = _sentence_names(ch.orig, proper_names)
         n_r = _sentence_names(ch.rev, proper_names)
         # a word now written in lower case ("Peak latency" -> "peak latency" after folding a label) is not a gone name
-        lost_n = sorted(n for n in n_o - n_r if not re.search(r"(?<![\w-])" + re.escape(n.lower()) + r"(?![\w-])", ch.rev_text))
+        rev_lower = _cached_lower_words(rev_all)
+        lost_n = sorted(n for n in n_o - n_r if not (_word_forms(n) & rev_lower))
         gone_n = [n for n in lost_n if not re.search(r"(?<![\w-])" + re.escape(n) + r"(?![\w-])", rev_all)]
         new_n = sorted(n for n in n_r - n_o if not re.search(r"(?<![\w-])" + re.escape(n.lower()) + r"(?![\w-])", ch.orig_text))
         if gone_n:
@@ -1267,6 +1291,11 @@ def _imperative(sentences: list[tx.Sentence]) -> bool:
 
 
 @functools.lru_cache(maxsize=8)
+def _cached_lower_words(text: str) -> frozenset[str]:
+    return frozenset(lower_word_set(text))
+
+
+@functools.lru_cache(maxsize=8)
 def _cached_numbers(text: str) -> Counter[str]:
     return numbers(text)
 
@@ -1274,6 +1303,9 @@ def _cached_numbers(text: str) -> Counter[str]:
 @functools.lru_cache(maxsize=8)
 def _cached_feelings(text: str) -> list[str]:
     return _list_hits("feelings", text)
+
+
+LABEL_PREFIX = re.compile(r"^\s*(?:\*\*|__)[^*_\n]{1,60}?(?:\*\*|__)\s*:?|^\s*[*_]?[A-Z][\w ]{0,40}?:(?=\s)")
 
 
 def _sentence_names(sentences: list[tx.Sentence], proper: set[str]) -> set[str]:
@@ -1284,6 +1316,7 @@ def _sentence_names(sentences: list[tx.Sentence], proper: set[str]) -> set[str]:
     for x in sentences:
         if x.kind == "heading":
             continue
+        x = tx.Sentence(x.text, LABEL_PREFIX.sub("", x.masked), x.line, x.kind, x.block_index)
         found |= set(names(x.masked))
         first = names(x.masked, include_initial=True)[:1]
         if first and first[0] in proper:
@@ -1325,14 +1358,15 @@ def _dedupe_risks(risks: list[Risk]) -> list[Risk]:
     """One counted risk per change: two scope findings on the same pair, or "may" -> "can" reported as both
     certainty and permission, count once."""
     result: list[Risk] = []
-    seen_scope: set[tuple[int, int]] = set()
+    seen_scope_words: list[tuple[tuple[int, int], set[str]]] = []
     may_can: set[tuple[int, int]] = {(x.orig_line, x.rev_line) for x in risks if x.message.startswith('"may" became "can"')}
     for x in risks:
         key = (x.orig_line, x.rev_line)
         if x.counted and x.kind == "scope" and key != (0, 0):
-            if key in seen_scope:
+            words = {w.lower() for w in re.findall(r'"([^"]+)"', x.message)}
+            if any(k == key and (words & w2) for k, w2 in seen_scope_words):
                 continue
-            seen_scope.add(key)
+            seen_scope_words.append((key, words))
         if x.kind == "permission" and key in may_can and x.message.lower().endswith(' may"'):
             continue
         if x.kind == "name" and any(y.kind == "name_order" and (y.orig_line, y.rev_line) == key for y in risks):
@@ -1805,7 +1839,13 @@ def compare(orig_text: str, rev_text: str, doc_type: Optional[str] = None, reade
             words: Optional[tx.Words] = None) -> DiffResult:
     orig = tx.parse(orig_text)
     rev = tx.parse(rev_text)
-    chunks = attach_adjacent(pair_moved(align(orig, rev)), orig, rev)
+    chunks = pair_moved(align(orig, rev))
+    while True:
+        joined = attach_adjacent(chunks, orig, rev)
+        if len(joined) == len(chunks):
+            break
+        chunks = joined
+    chunks = joined
     risks: list[Risk] = []
     reviews: list[Review] = []
     orig_all = " ".join(s.masked for s in orig.sentences)

@@ -707,3 +707,49 @@ def test_fact_gaps_ignore_digits_inside_names() -> None:
 def test_full_diff_shows_one_line_per_one_line_change() -> None:
     full = diff.compare("We use a robust pipeline.\n", "We use a pipeline.\n").full_diff
     assert "  ~ " in full and "  - " not in full
+
+
+def test_three_to_one_merge_is_compared_as_one() -> None:
+    o = "The migration ran overnight. It may have skipped a few rows. We have not checked the totals.\n"
+    r = "The migration ran overnight and skipped a few rows; we have checked the totals.\n"
+    assert {"negation", "certainty"} <= set(kinds(o, r))
+
+
+def test_one_to_three_split_keeps_numbers() -> None:
+    o = ("We propose moving CI to self-hosted runners, which would cut the monthly bill from $4,000 to $1,500 and "
+         "shorten queue times from 10 minutes to 2 minutes.\n")
+    r = ("We propose moving CI to self-hosted runners. This would cut the monthly bill from $4,000 to $1,500. It would "
+         "also shorten queue times from 10 minutes to 2 minutes.\n")
+    assert "number" not in kinds(o, r)
+
+
+def test_title_case_labels_are_not_names() -> None:
+    o = "- **Faster Startup**: The CLI starts in 200 ms instead of 900 ms.\n- **Key Takeaway**: Cache needs an owner.\n"
+    r = "- The CLI starts faster, in 200 ms instead of 900 ms.\n- The cache needs an owner.\n"
+    assert "name" not in kinds(o, r)
+
+
+@pytest.mark.parametrize(("orig", "rev"), [
+    ("Large uploads can time out on slow links.\n", "Large uploads may time out on slow links.\n"),
+    ("Users might see a delay during the upgrade.\n", "Users may see a delay during the upgrade.\n"),
+    ("The launch date is TBD.\n", "The launch date is not decided yet.\n"),
+])
+def test_set8_diff_review_harmless(orig: str, rev: str) -> None:
+    assert kinds(orig, rev) == []
+
+
+@pytest.mark.parametrize(("orig", "rev"), [
+    ("Contractors mustn't share badges.\n", "Contractors shouldn't share badges.\n"),
+    ("You shouldn't run the migration on the primary.\n", "Never run the migration on the primary.\n"),
+    ("Visitors mustn't enter the server room.\n", "Visitors don't enter the server room.\n"),
+])
+def test_contracted_prohibitions(orig: str, rev: str) -> None:
+    assert "obligation" in kinds(orig, rev)
+
+
+def test_two_scope_changes_both_count() -> None:
+    assert kinds("Only admins can delete some projects.\n", "Admins can delete all projects.\n").count("scope") == 2
+
+
+def test_time_zone_after_pm() -> None:
+    assert "number" in kinds("The call is at 3 p.m. PST.\n", "The call is at 3 p.m. EST.\n")
