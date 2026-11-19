@@ -1310,8 +1310,11 @@ def _empty_cell(text: str, start: int, end: int) -> bool:
 def _fragment_cell(text: str, start: int, end: int) -> bool:
     """True if the table cell that holds the dash at text[start:end] has no sentence end: a label and a value, not a
     sentence ("| Lost connection — see Troubleshooting |"). A cell with a sentence is still checked ("| We rebuilt
-    the cache — it is 3x faster. |")."""
-    return not _SENTENCE_END.search(_cell(text, start, end))
+    the cache — it is 3x faster. |"). The period of an abbreviation or an initial is not a sentence end ("| Guest
+    speaker — Dr. Helen Marsh |")."""
+    cell = _cell(text, start, end)
+    return not any(cell[m.start()] != "." or not tx.abbreviation_period(cell, m.start(), m.end())
+                   for m in _SENTENCE_END.finditer(cell))
 
 
 def _title_lines(block: tx.Block) -> bool:

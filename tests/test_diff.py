@@ -1457,3 +1457,19 @@ def test_loop1_indirect_question_asked_directly(orig: str, rev: str) -> None:
 
 def test_loop1_new_question_still_counted() -> None:
     assert "question" in kinds("The room is free.\n", "Is the room free?\n")
+
+
+@pytest.mark.parametrize(("orig", "rev"), [
+    ("The standup moves from Monday to Thursday, beginning next week.\n",
+     "The standup moves from Thursday to Monday, beginning next week.\n"),
+    ("Fees rise from $1,200 to $1,800, effective July 1.\n", "Fees rise from $1,800 to $1,200, effective July 1.\n"),
+])
+def test_loop2_from_to_value_stops_at_a_comma(orig: str, rev: str) -> None:
+    risks = [r for r in diff.compare(orig, rev).risks if r.counted]
+    assert any(r.kind == "number" and "Order reversed" in r.message for r in risks)
+
+
+def test_loop2_from_to_with_thousands_and_a_comma_unchanged() -> None:
+    text = "The quota went from 2,500 to 4,000, starting in March.\n"
+    assert kinds(text, text) == []
+    assert kinds(text, "Starting in March, the quota went from 2,500 to 4,000.\n") == []

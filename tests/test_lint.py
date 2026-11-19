@@ -2446,3 +2446,17 @@ def test_loop1_clause_dash_in_speech_or_a_quotation_is_reported(text: str, doc_t
 ])
 def test_loop1_dash_before_a_conjunction_in_a_title_or_cell_is_reported(text: str, doc_type: str | None) -> None:
     assert "em_dash" in rules(text, doc_type)
+
+
+@pytest.mark.parametrize("text", [
+    "| Slot | Session |\n|---|---|\n| 10:00 | Keynote — Dr. Amara Osei |\n",
+    "| Slot | Session |\n|---|---|\n| 11:00 | Panel — Prof. Lin and Mr. Ruiz |\n",
+    "| Slot | Session |\n|---|---|\n| 12:00 | Workshop — T. J. Okafor |\n",
+])
+def test_loop2_abbreviation_in_a_table_cell_is_not_a_sentence_end(text: str) -> None:
+    assert "em_dash" not in rules(text)
+
+
+def test_loop2_table_cell_with_a_sentence_after_an_abbreviation_is_reported() -> None:
+    text = "| Slot | Session |\n|---|---|\n| 10:00 | Keynote — Dr. Osei will open. It runs long. |\n"
+    assert "em_dash" in rules(text)

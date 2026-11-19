@@ -728,6 +728,20 @@ def _is_initial(text: str, pos: int) -> bool:
     return word[0].isupper() and word.lower() not in _SENTENCE_STARTERS
 
 
+def abbreviation_period(text: str, dot: int, next_pos: int, start: int = 0) -> bool:
+    """True if the period at text[dot] ends an abbreviation or an initial, not a sentence ("Dr. Helen Marsh",
+    "e.g. this", "No. 5", "John F. Kennedy"). next_pos is where the text after the period and its spaces starts;
+    start is where the word before the period may begin at the earliest."""
+    word = _word_before(text, dot, start)
+    if not word:
+        return False
+    low = word.lower()
+    if (low in _ABBREVIATIONS or (low in _NUMBER_ABBREVIATIONS and text[next_pos:next_pos + 1].isdigit())) \
+            and not _after_number(text, dot - len(word), next_pos):
+        return True
+    return len(word) == 1 and word.isupper() and _is_initial(text, next_pos)
+
+
 def split_sentences(text: str) -> list[tuple[int, int]]:
     """Return (start, end) spans of English sentences in text."""
     spans: list[tuple[int, int]] = []
@@ -750,16 +764,9 @@ def split_sentences(text: str) -> list[tuple[int, int]]:
         if not at_end and not _starts_sentence(text, m.end()) and "\n" not in m.group(3):
             continue
         if punct == "." and not at_end:
-            word = _word_before(text, m.start(), start)
-            following = text[m.end():m.end() + 1]
-            if word:
-                low = word.lower()
-                if (low in _ABBREVIATIONS or (low in _NUMBER_ABBREVIATIONS and following.isdigit())) \
-                        and not _after_number(text, m.start() - len(word), m.end()):
-                    continue
-                if len(word) == 1 and word.isupper() and _is_initial(text, m.end()):
-                    continue
-            if m.start() > 0 and text[m.start() - 1].isdigit() and following.isdigit():
+            if abbreviation_period(text, m.start(), m.end(), start):
+                continue
+            if m.start() > 0 and text[m.start() - 1].isdigit() and text[m.end():m.end() + 1].isdigit():
                 continue
         if punct in ("...", "…") and not at_end:
             if not text[m.end():m.end() + 1].isupper():

@@ -298,7 +298,8 @@ CONNECTIVE_OPENER = _rx(r"(?:on\s+the\s+other\s+hand|for\s+example|for\s+instanc
                         r"|in\s+turn|on\s+the\s+contrary|in\s+essence|in\s+a\s+nutshell|in\s+reality|in\s+light\s+of\s+(?:this|that)"
                         r"|for\s+starters|in\s+closing|in\s+summary|in\s+conclusion|on\s+balance|in\s+any\s+case|at\s+the\s+same\s+time"
                         r"|in\s+general|for\s+now|at\s+first)\b")
-_FT_VALUE = (r"(?:(?:about|roughly|approximately|around|nearly|~)\s*)?[$€£]?[\w.,:%]+(?:-[A-Za-z]+)?"
+# a comma ends the value ("from Tuesday to Wednesday, starting May 15") unless it separates thousands ("1,000")
+_FT_VALUE = (r"(?:(?:about|roughly|approximately|around|nearly|~)\s*)?[$€£]?(?:\d{1,3}(?:,\d{3})+[\w.:%]*|[\w.:%]+)(?:-[A-Za-z]+)?"
              r"(?:\s+(?!to\b|and\b|in\b|on\b|at\b|for\b|by\b|with\b)[A-Za-z]{1,14}(?=[\s.,;:)]|$))?")
 FROM_TO = re.compile(r"\bfrom\s+(?:an?\s+|the\s+)?(" + _FT_VALUE + r")\s+to\s+(?:an?\s+|the\s+)?(" + _FT_VALUE + r")",
                      re.IGNORECASE)  # "from an annual review to a semi-annual review"
