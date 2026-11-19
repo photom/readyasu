@@ -420,3 +420,61 @@ def test_abbreviation_after_a_number_ends_a_sentence_before_a_starter() -> None:
     assert spans("It took 450ms. The rest was fast.") == ["It took 450ms.", "The rest was fast."]
     assert spans("Meet at 5 p.m. Smith will join.") == ["Meet at 5 p.m. Smith will join."]
     assert spans("Ms. Lee agreed. See No. 5 for details.") == ["Ms. Lee agreed.", "See No. 5 for details."]
+
+
+# ---------------------------------------------------------------- set 8 lint review
+
+
+def test_fence_on_the_list_marker_line() -> None:
+    text = ("## Setup\n\n1. ```bash\n   npm install --save robust-retry\n   ```\n2. Start the server. It is crucial.\n\n"
+            "This tool will seamlessly empower your team.\n")
+    assert kinds(text) == ["heading", "blank", "fence", "code", "fence", "list", "blank", "para"]
+    doc = tx.parse(text)
+    assert [s.text for s in doc.sentences] == [
+        "Setup", "Start the server.", "It is crucial.", "This tool will seamlessly empower your team."]
+    # Text indented to the item after the closing fence still belongs to the item.
+    assert kinds("- ```\n  x\n  ```\n  More text.\n\nAfter.\n") == ["fence", "code", "fence", "para", "blank", "para"]
+    # Backticks in the info string of a backtick fence make it inline code, as on any other line.
+    assert kinds("1. ```a` b\n2. c\n") == ["list", "list"]
+    assert kinds("- ~~~\n  x\n  ~~~\n") == ["fence", "code", "fence"]
+
+
+def test_indented_code_after_a_heading_rule_table_or_html() -> None:
+    assert kinds("## Usage\n    make deploy\n") == ["heading", "code"]
+    assert kinds("---\n    make deploy\n") == ["rule", "code"]
+    assert kinds("Title\n=====\n    make deploy\n") == ["heading", "rule", "code"]
+    assert kinds("| a | b |\n|---|---|\n| 1 | 2 |\n    make deploy\n") == ["table", "table", "table", "code"]
+    assert kinds("| a | b |\n|---|---|\n    1 | 2\n") == ["table", "table", "table"]  # a row, not code
+    assert kinds("<div>\n    make deploy\n") == ["html", "code"]
+    assert kinds("Text here.\n    still the paragraph\n") == ["para", "para"]  # cannot interrupt a paragraph
+
+
+def test_pre_script_and_style_blocks_are_not_prose() -> None:
+    text = "<pre>\n$ tinyq status\n\nworkers: 4 — all robust\n</pre>\nAfter.\n"
+    assert kinds(text) == ["html", "code", "code", "code", "html", "para"]
+    assert kinds("<script>\nvar a = 1;\n</script>\n") == ["html", "code", "html"]
+    assert kinds("<STYLE type=\"text/css\">\np { color: red }\n</style>\nText.\n") == ["html", "code", "html", "para"]
+    assert kinds("<pre>one line</pre>\nText.\n") == ["html", "para"]
+    assert kinds("<prefix>\nText.\n") == ["html", "para"]  # not a <pre> tag
+
+
+def test_am_pm_before_i_is_not_a_sentence_end() -> None:
+    assert spans("At 9 a.m. I restarted the service. I checked the logs.") == [
+        "At 9 a.m. I restarted the service.", "I checked the logs."]
+    assert spans("Meet at 5 p.m. The room is booked.") == ["Meet at 5 p.m.", "The room is booked."]
+
+
+def test_emoji_with_and_without_the_emoji_selector() -> None:
+    vs = "\ufe0f"  # VARIATION SELECTOR-16: emoji presentation
+    text = f"\u2139{vs} Read. \u25b6{vs} Watch. \u203c{vs} Note. \u27a1{vs} Next. \u00a9{vs} \u2611{vs}"
+    assert tx.emoji_in(text) == [f"{c}{vs}" for c in "\u2139\u25b6\u203c\u27a1\u00a9\u2611"]
+    # Arrows, dingbats and symbols that are not emoji, alone or with U+FE0F, and a symbol with the text selector.
+    assert tx.emoji_in(f"Settings \u279c Privacy \u266a \u2605 \u2713 \u2192 \u27a1 \u2b05 \u2139 \u25b6 \u2122 \u00a9 "
+                       f"\u2611 \u2600\ufe0e \u279c{vs} \U0001f812 \U0001f0a1 \U0001f701") == []
+    # Emoji that are shown as emoji without U+FE0F are still found.
+    alone = ["\u2705", "\u2764", "\u26a0", "\u2b50", "\u231b", "\U0001f004", "\U0001f170", "\U0001f7e0", "\U0001fae0"]
+    assert tx.emoji_in(" ".join(alone)) == alone
+    assert tx.is_emoji("\U0001f680") and not tx.is_emoji("\u279c") and not tx.is_emoji("\u2139")
+    # Every emoji code point below U+1F000 is one emoji when U+FE0F follows it.
+    for cp in tx._BMP_EMOJI:
+        assert tx.emoji_in(chr(cp) + vs) == [chr(cp) + vs], hex(cp)

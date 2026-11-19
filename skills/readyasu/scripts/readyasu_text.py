@@ -229,6 +229,9 @@ _HTML_BLOCK = re.compile(
     r"iframe|legend|li|link|main|menu|menuitem|nav|noframes|ol|optgroup|option|p|param|pre|script|search|section|"
     r"style|summary|table|tbody|td|textarea|tfoot|th|thead|title|tr|track|ul)(?=[\s/>]|$)", re.IGNORECASE)
 _HTML_ALONE = re.compile(r"^ {0,3}(?:<[A-Za-z][A-Za-z0-9-]*(?:\s[^<>]*)?/?>|</[A-Za-z][A-Za-z0-9-]*\s*>)\s*$")
+# CommonMark HTML blocks whose content is raw (preformatted text, scripts, styles): they run to the closing tag,
+# across blank lines. The lines between the tags are classified as code.
+_RAW_HTML = re.compile(r"^ {0,3}<(pre|script|style|textarea)(?=[\s>]|$)", re.IGNORECASE)
 
 
 @dataclass
@@ -378,6 +381,7 @@ def classify(text: str) -> list[Line]:
     quote_fence: Optional[str] = None
     quote_fence_indent = 0
     quote_para = False  # the previous line is paragraph text inside a block quote
+    raw_html_end: Optional[str] = None  # the closing tag of an open <pre>, <script>, <style> or <textarea> block
     prev_kind = "blank"
     for index, raw in enumerate(raw_lines):
         no = index + 1
@@ -391,6 +395,14 @@ def classify(text: str) -> list[Line]:
                 lines[-1].kind = "fence"
                 in_fence = None
                 prev_kind = "fence"
+            continue
+        if raw_html_end is not None:
+            # Preformatted text is kept like code; the line with the closing tag is HTML.
+            closing = raw_html_end in raw.lower()
+            lines.append(Line(no, raw, "html" if closing else "code"))
+            if closing:
+                raw_html_end = None
+                prev_kind = "html"
             continue
         if not in_html_comment and lines and lines[-1].kind in ("para", "list", "heading", "table") \
                 and _opens_comment(lines[-1].content):
@@ -451,8 +463,10 @@ def classify(text: str) -> list[Line]:
             lines.append(Line(no, raw, "blank"))
             prev_kind = "blank"
             continue
-        if raw.startswith(("    ", "\t")) and prev_kind in ("blank", "code", "fence"):
-            # Indented code needs four columns more than the content of the list item it is in.
+        if raw.startswith(("    ", "\t")) and (prev_kind in ("blank", "code", "fence", "heading", "rule", "html") or (
+                prev_kind == "table" and "|" not in stripped)):
+            # Indented code cannot interrupt a paragraph, but it may follow a heading, a rule, a table or an HTML
+            # block directly. It needs four columns more than the content of the list item it is in.
             _close_items(items, indent)
             if not items or indent >= items[-1] + 4:
                 lines.append(Line(no, raw, "code"))
@@ -490,6 +504,9 @@ def classify(text: str) -> list[Line]:
             _close_items(items, indent)
             lines.append(Line(no, raw, "html"))
             prev_kind = "html"
+            rm = _RAW_HTML.match(raw)
+            if rm and f"</{rm.group(1).lower()}>" not in raw[rm.end():].lower():
+                raw_html_end = f"</{rm.group(1).lower()}>"
             continue
         lm = _LIST.match(raw)
         marker = lm.group(2) if lm else ""
@@ -506,10 +523,19 @@ def classify(text: str) -> list[Line]:
             _close_items(items, indent)
             del markers[len(items):]
             content = raw[lm.end():]
+            column = _content_indent(raw, lm)
+            items.append(column)
+            markers.append(marker_kind)
+            fm = _LIST_FENCE.match(content)
+            if fm and not ("`" in fm.group(3) and fm.group(2)[0] == "`"):
+                # A fence on the marker line ("1. ```bash") opens code that belongs to the item, indented to its text.
+                in_fence = fm.group(2)
+                fence_indent = column
+                lines.append(Line(no, raw, "fence"))
+                prev_kind = "code"
+                continue
             lines.append(Line(no, raw, "list", content, lm.end()))
             prev_kind = "list"
-            items.append(_content_indent(raw, lm))
-            markers.append(marker_kind)
             continue
         if lazy_quote:
             # CommonMark lazy continuation: an unprefixed line continues the quoted paragraph.
@@ -628,7 +654,7 @@ def _emoji_run_end(text: str, pos: int) -> int:
         while i < len(text) and text[i] in " \t":
             i += 1
         m = _EMOJI_CLUSTER.match(text, i)
-        if not m or not (m.group(0)[0] in "#*0123456789" or is_emoji(m.group(0)[0])):
+        if not m or not _cluster_is_emoji(m.group(0)):
             return end
         end = m.end()
 
@@ -642,7 +668,8 @@ def _after_number(text: str, word_start: int, next_pos: int) -> bool:
     if i == 0 or not text[i - 1].isdigit():
         return False
     m = _NEXT_WORD.match(text, next_pos)
-    return bool(m) and m.group(1)[0].isupper() and m.group(1).lower() in _SENTENCE_STARTERS
+    # "I" is left out: "At 9 a.m. I restarted the service" is more often one sentence than two.
+    return bool(m) and m.group(1)[0].isupper() and m.group(1).lower() in _SENTENCE_STARTERS and m.group(1) != "I"
 
 
 def _starts_sentence(text: str, pos: int) -> bool:
@@ -955,41 +982,69 @@ def load_words(folder: Optional[str], no_words: bool) -> Words:
 
 # ---------------------------------------------------------------- misc
 
-_EMOJI_RANGES = (
-    (0x1F000, 0x1FAFF), (0x2600, 0x27BF), (0x2B00, 0x2BFF), (0x231A, 0x231B),
-    (0x23E9, 0x23FA), (0x2190, 0x21FF), (0x1F1E6, 0x1F1FF),
-)
-# Symbols common in ordinary documents: arrows, bullets, check marks, ballot boxes and stars.
-_EMOJI_EXCLUDE = {0x2022, 0x2605, 0x2606, 0x2610, 0x2611, 0x2612, 0x2713, 0x2717}
+# Emoji=Yes code points below U+1F000 (Unicode emoji-data.txt), apart from the keycap bases # * 0-9. Symbols that
+# are not emoji, such as the arrows → and ➜, the note ♪, the star ★ and the check mark ✓, are not in it.
+_BMP_EMOJI = frozenset(int(cp, 16) for cp in """
+00A9 00AE 203C 2049 2122 2139 2194 2195 2196 2197 2198 2199 21A9 21AA 231A 231B 2328 23CF 23E9 23EA 23EB 23EC
+23ED 23EE 23EF 23F0 23F1 23F2 23F3 23F8 23F9 23FA 24C2 25AA 25AB 25B6 25C0 25FB 25FC 25FD 25FE 2600 2601 2602
+2603 2604 260E 2611 2614 2615 2618 261D 2620 2622 2623 2626 262A 262E 262F 2638 2639 263A 2640 2642 2648 2649
+264A 264B 264C 264D 264E 264F 2650 2651 2652 2653 265F 2660 2663 2665 2666 2668 267B 267E 267F 2692 2693 2694
+2695 2696 2697 2699 269B 269C 26A0 26A1 26A7 26AA 26AB 26B0 26B1 26BD 26BE 26C4 26C5 26C8 26CE 26CF 26D1 26D3
+26D4 26E9 26EA 26F0 26F1 26F2 26F3 26F4 26F5 26F7 26F8 26F9 26FA 26FD 2702 2705 2708 2709 270A 270B 270C 270D
+270F 2712 2714 2716 271D 2721 2728 2733 2734 2744 2747 274C 274E 2753 2754 2755 2757 2763 2764 2795 2796 2797
+27A1 27B0 27BF 2934 2935 2B05 2B06 2B07 2B1B 2B1C 2B50 2B55 3030 303D 3297 3299
+""".split())
+# Of those, the ones that count only with U+FE0F after them (ℹ️, ▶️, ‼️, ➡️): arrows, symbols common in plain text
+# (© ™ ‼ ℹ ▶ ◀ ▪ Ⓜ) and the ballot box ☑. The other miscellaneous symbols and dingbats (☀ ✈ ❤ ⚠ ✔) count alone,
+# as many systems draw them as emoji.
+_FE0F_ONLY = frozenset(cp for cp in _BMP_EMOJI if cp < 0x231A) | frozenset((
+    0x2328, 0x23CF, 0x24C2, 0x25AA, 0x25AB, 0x25B6, 0x25C0, 0x25FB, 0x25FC, 0x2611, 0x27A1, 0x2934, 0x2935, 0x2B05,
+    0x2B06, 0x2B07, 0x3030, 0x303D, 0x3297, 0x3299))
+# Parts of U+1F000-U+1FAFF that are not emoji: game tiles and cards, enclosed letters and ideographs (except 🅰 🆗 🈁
+# and the like), alchemical symbols, geometric shapes (except the colored circles and squares), arrows and chess.
+_SMP_NOT_EMOJI = (
+    (0x1F000, 0x1F003), (0x1F005, 0x1F0CE), (0x1F0D0, 0x1F16F), (0x1F172, 0x1F17D), (0x1F180, 0x1F18D),
+    (0x1F18F, 0x1F190), (0x1F19B, 0x1F1E5), (0x1F200, 0x1F200), (0x1F203, 0x1F219), (0x1F21B, 0x1F22E),
+    (0x1F230, 0x1F231), (0x1F23B, 0x1F24F), (0x1F252, 0x1F2FF), (0x1F700, 0x1F7DF), (0x1F7EC, 0x1F7EF),
+    (0x1F7F1, 0x1F8FF), (0x1FA00, 0x1FA6F))
 
 
 def is_emoji(ch: str) -> bool:
+    """True if the character is an emoji on its own, without U+FE0F after it."""
     cp = ord(ch)
-    if cp in _EMOJI_EXCLUDE:
-        return False
-    if 0x2190 <= cp <= 0x21FF:
-        return False
-    return any(lo <= cp <= hi for lo, hi in _EMOJI_RANGES)
+    if cp >= 0x1F000:
+        return cp <= 0x1FAFF and not any(lo <= cp <= hi for lo, hi in _SMP_NOT_EMOJI)
+    return cp in _BMP_EMOJI and cp not in _FE0F_ONLY
 
 
 # One emoji as the reader sees it: a flag (two regional indicators), a keycap (1️⃣), or a symbol followed by
 # variation selectors, skin-tone modifiers and tag characters, and joined to more symbols by ZWJ (👨‍👩‍👧).
 _EMOJI_MODS = "\uFE0E\uFE0F\U0001F3FB-\U0001F3FF\U000E0020-\U000E007F"
-_EMOJI_SYMBOL = "\u2190-\u2BFF\U0001F000-\U0001FAFF"
+_EMOJI_SYMBOL = ("\u00A9\u00AE\u203C\u2049\u2122\u2139\u2190-\u2BFF\u3030\u303D\u3297\u3299"
+                 "\U0001F000-\U0001FAFF")
 _EMOJI_CLUSTER = re.compile(
     "(?:[\U0001F1E6-\U0001F1FF]{2}|[#*0-9]\uFE0F?\u20E3|[" + _EMOJI_SYMBOL + "])"
     "[" + _EMOJI_MODS + "]*"
     "(?:\u200D[" + _EMOJI_SYMBOL + "][" + _EMOJI_MODS + "]*)*")
 
 
+def _cluster_is_emoji(cluster: str) -> bool:
+    """True if a match of _EMOJI_CLUSTER is shown as an emoji: a keycap, an emoji, or an emoji symbol with U+FE0F
+    after it ("ℹ️"); not a symbol with the text selector U+FE0E after it ("☀︎")."""
+    first = cluster[0]
+    if first in "#*0123456789":
+        return True  # a keycap: the pattern requires U+20E3 after these
+    selector = cluster[1:2]
+    if selector == "\uFE0E":
+        return False
+    if selector == "\uFE0F" and ord(first) in _BMP_EMOJI:
+        return True
+    return is_emoji(first)
+
+
 def emoji_spans(text: str) -> list[tuple[int, int]]:
     """(start, end) of each emoji in text; a flag, keycap, modified or ZWJ-joined emoji is one span."""
-    found: list[tuple[int, int]] = []
-    for m in _EMOJI_CLUSTER.finditer(text):
-        first = m.group(0)[0]
-        if first in "#*0123456789" or is_emoji(first):
-            found.append((m.start(), m.end()))
-    return found
+    return [(m.start(), m.end()) for m in _EMOJI_CLUSTER.finditer(text) if _cluster_is_emoji(m.group(0))]
 
 
 def emoji_in(text: str) -> list[str]:

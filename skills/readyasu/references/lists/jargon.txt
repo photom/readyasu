@@ -1,4 +1,5 @@
 # Corporate jargon. Say the plain action when the original says what it is.
+# "double-click on" (look at in detail) is left out: it is also the literal step in manuals.
 circle back	"follow up" (add when and about what only if the text says)
 touch base	"talk", "check in"
 move the needle	say what changes, only from the original; otherwise keep and ask
@@ -10,7 +11,6 @@ our bandwidth	"our time", "our capacity"
 more bandwidth	"more time", "more capacity" (keep network bandwidth)
 drive alignment	name who agrees on what, only from the original; otherwise keep and ask
 north star	name the goal, only from the original; otherwise keep and ask
-double-click on	"look at in detail"
 take this offline	"discuss separately"
 boil the ocean	"take on too much"
 best-in-class	state the comparison, only from the original; otherwise keep and ask

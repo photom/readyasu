@@ -75,7 +75,7 @@ def test_doc_type_exemptions() -> None:
 
 
 def test_mail_exempts_courtesies_only() -> None:
-    text = "Let me know if you have any questions. I hope this helps. Here's the revised version of the plan.\n"
+    text = "Let me know if you have any questions. I hope this helps. As an AI language model, I can't attach files.\n"
     got = rules(text, "mail")
     assert got.count("chat_residue") == 1
 
@@ -191,7 +191,7 @@ def test_mail_offers_and_closings_are_exempt() -> None:
             "me to book the room? Let me know if you'd like a later slot.\n\nThanks,\nDana\n")
     result = lint.lint(text, "mail")
     assert result.findings == []
-    assert [f.rule for f in result.exempted] == ["chat_residue"] * 4
+    assert [f.rule for f in result.exempted] == ["chat_residue"] * 3  # "Here's a draft" needs a colon after it
     assert "chat_residue" in rules(text)  # still residue outside mail
 
 
@@ -215,7 +215,7 @@ def test_real_chat_residue_still_caught(text: str) -> None:
 
 def test_essay_keeps_revision_residue() -> None:
     got = [f.match for f in findings("Certainly! Here's the revised version of the plan.\n", "essay")]
-    assert got == ["Here's the revised version"]
+    assert got == ["Certainly! Here's the revised version"]
 
 
 def test_callout_after_blank_quote_line_is_checked() -> None:
@@ -1033,3 +1033,209 @@ def test_metaphor_and_contrast_messages() -> None:
     assert "Do not replace it with a vague benefit." in got[0].message
     got = findings("It is not just fast but also cheap.\n")
     assert got[0].rule == "negative_contrast" and '("not just X" affirms X; keep X)' in got[0].message
+
+
+# ---------------------------------------------------------------- set 8 lint review
+
+
+@pytest.mark.parametrize(("text", "doc_type"), [
+    ("## Configuration\n\nHere are the options you can use with `tinyq worker`:\n\n- `--threads N`: worker threads\n"
+     "- `--db PATH`: database file\n", None),
+    ("## Configuration\n\nHere are the options you can use with `tinyq worker`:\n\n- `--threads N`: threads\n",
+     "manual"),
+    ("# Webhooks\n\nHere is the message you can use to test the webhook:\n\n```json\n{}\n```\n", None),
+    ("Some managers need numbers.\n\nIf yours does, here's a short email you can send to your manager:\n\n"
+     "> Hi Dana, ...\n", "article"),
+    ("Here's a reply you can send to Jordan:\n\n- one\n- two\n", "mail"),  # no drafted mail follows
+    ("We are not sure. Here are the options:\n\n- a\n", None),
+])
+def test_ordinary_lead_ins_are_not_preambles(text: str, doc_type: str | None) -> None:
+    assert "chat_residue" not in rules(text, doc_type)
+
+
+@pytest.mark.parametrize(("text", "doc_type", "match"), [
+    ("Certainly! Here's a revised version:\n\nThe system is fast.\n", None, "Certainly! Here's a revised version"),
+    ("Certainly! Here's a revised version:\n\nHi Jordan,\n\nThanks.\n", "mail", "Certainly! Here's a revised version"),
+    ("Sure! Here's a draft email you can send:\n\nHi Jordan,\n\nThanks.\n", "mail",
+     "Sure! Here's a draft email you can send"),
+    ("Sure — here's the text you can use:\n\n> Hello.\n", None, "Sure — here's the text you can use"),
+    ("Here's a polished version of your email:\n\nHi Jordan,\n\nThanks.\n", "mail", "Here's a polished version"),
+    ("Here's a more concise version:\n\nThe system is fast.\n", None, "Here's a more concise version"),
+    ("Here's a reply you can send to Jordan:\nHi Jordan,\nThanks.\n", "mail", "Here's a reply you can send"),
+    ("Here's a reply you can send to Jordan:\n\nSubject: Q3 numbers\n\nHi Jordan,\n", "mail",
+     "Here's a reply you can send"),
+    ("I'm not sure. Here's a reply you can send to Jordan:\n\nHi Jordan,\n", "mail", "Here's a reply you can send"),
+])
+def test_assistant_preambles_still_caught(text: str, doc_type: str | None, match: str) -> None:
+    assert [f.match for f in findings(text, doc_type) if f.rule == "chat_residue"] == [match]
+
+
+def test_revision_lead_in_before_a_list_is_normal_in_mail() -> None:
+    text = "Here is the revised version of the agenda:\n\n- Budget\n- Hiring\n"
+    result = lint.lint(text, "mail")
+    assert "chat_residue" not in [f.rule for f in result.findings]
+    assert [f.match for f in result.exempted if f.rule == "chat_residue"] == ["Here is the revised version"]
+    assert "chat_residue" in rules(text, "pr")
+    assert "chat_residue" not in rules("# T\n\nIntro.\n\n" + text, "pr")  # only in the first prose block
+
+
+def test_fence_on_a_list_marker_line_does_not_flip_the_document() -> None:
+    text = ("## Setup\n\n1. ```bash\n   npm install --save robust-retry\n   ```\n2. Start the server. It is crucial to "
+            "set the token first — otherwise it fails.\n\nThis tool will seamlessly empower your team.\n")
+    assert [(f.line, f.match) for f in findings(text)] == [
+        (6, "crucial"), (6, "—"), (8, "seamlessly"), (8, "empower")]
+
+
+@pytest.mark.parametrize(("text", "doc_type"), [
+    ("Hi Priya,\n\nThanks for the review. Here is the revised version of the runbook with your comments addressed.\n\n"
+     "Best,\nTom\n", "mail"),
+    ("Thanks for the review. Here is the revised version of the runbook with your comments addressed.\n", "pr"),
+    ("Thanks for the review. Here is the revised version of the runbook with your comments addressed.\n", None),
+    ("Here's a draft implementation of the retry logic.\n", "pr"),
+])
+def test_writers_own_revision_and_draft_sentences(text: str, doc_type: str | None) -> None:
+    assert "chat_residue" not in rules(text, doc_type)
+
+
+def test_here_is_a_draft_with_a_colon_is_still_residue() -> None:
+    assert [f.match for f in findings("Here's a draft:\n\nThe plan is to ship.\n", "pr")
+            if f.rule == "chat_residue"] == ["Here's a draft:"]
+    assert "chat_residue" not in rules("Hi Ana,\n\nHere's a draft:\n\n- one\n", "mail")
+
+
+@pytest.mark.parametrize("text", [
+    "We didn't just ship features. We shipped value.\n",
+    "We didn't simply fix the bug. We fixed the process.\n",
+    "They didn't merely write a spec. They wrote a prototype.\n",
+])
+def test_two_sentence_contrast_with_just_before_the_verb(text: str) -> None:
+    assert "negative_contrast" in rules(text)
+
+
+def test_two_sentence_contrast_with_just_needs_the_same_verb() -> None:
+    assert "negative_contrast" not in rules("We didn't just ship. We celebrated.\n")
+
+
+@pytest.mark.parametrize("text", [
+    "The API isn't stable yet; it's still in beta.\n",
+    "She's not in the office this week; she's at the conference.\n",
+    "It's not ready, it's still in review.\n",
+    "They're not online, they're at the offsite.\n",
+])
+def test_one_sentence_status_and_place_are_not_contrasts(text: str) -> None:
+    assert "negative_contrast" not in rules(text)
+
+
+def test_one_sentence_contrast_still_reported() -> None:
+    assert "negative_contrast" in rules("It's not a bug, it's a feature request.\n")
+    assert "negative_contrast" in rules("It isn't just ready, it's battle-tested.\n")  # "just" makes it a contrast
+
+
+@pytest.mark.parametrize("text", [
+    "We're not just a vendor, we're your partner.\n",
+    "We aren't just a vendor, we're your partner.\n",
+    "You're not just a customer, you're family.\n",
+    "It's not just a tool, it's a platform.\n",
+])
+def test_not_just_contrast_with_contractions(text: str) -> None:
+    assert "negative_contrast" in rules(text)
+
+
+def test_lets_not_just_is_not_a_contrast() -> None:
+    assert "negative_contrast" not in rules("Let's not just ship it, we should test it first.\n")
+
+
+@pytest.mark.parametrize("text", [
+    "It's not a perfect fix, but the patch works.\n",
+    "That's not a lot of money, but the principle matters.\n",
+    "This is not a perfect fix, but the test passes.\n",
+    "This is not a blocker, but the new strategy works.\n",
+])
+def test_concession_with_a_present_tense_verb(text: str) -> None:
+    assert "negative_contrast" not in rules(text)
+
+
+@pytest.mark.parametrize("text", [
+    "This is not a product, but the new features.\n",
+    "It's not a cost, but a few tweaks.\n",
+    "This is not a product, but the missing pieces.\n",
+    "This is not a bug, but a feature.\n",
+])
+def test_contrast_with_a_plural_noun_after_an_adjective(text: str) -> None:
+    assert "negative_contrast" in rules(text)
+
+
+@pytest.mark.parametrize("text", [
+    "- v1.0–v1.4 — end of life\n- 2.0.0 – 2.3.1 — legacy branch\n",
+    "v1.0 to v1.4 — end of life\n",
+    "- 1.2 – 1.4 — old\n",
+])
+def test_em_dash_after_a_version_range(text: str) -> None:
+    assert "em_dash" not in rules(text)
+
+
+def test_em_dash_after_a_version_in_a_sentence_is_reported() -> None:
+    assert rules("We moved from v1.0 to v1.4 — it was slow.\n") == ["em_dash"]
+    assert rules("- 2.0.0 — legacy — mostly\n") == ["em_dash"]
+
+
+@pytest.mark.parametrize("text", [
+    "But what does this mean for developers? It means fewer manual steps.\n",
+    "What does this mean for small teams? It means fewer manual steps.\n",
+    "And what, then, is the real gap? We lack data.\n",
+])
+def test_self_answered_question_with_a_longer_opening(text: str) -> None:
+    assert "self_answered_question" in rules(text)
+
+
+def test_self_answered_question_length_limit() -> None:
+    assert "self_answered_question" not in rules("What does this mean for the many small teams here? Less work.\n")
+
+
+def test_am_before_i_is_not_a_sentence_start_repeat() -> None:
+    assert "sentence_start_repeat" not in rules("At 9 a.m. I restarted the service. I checked the logs. I found the "
+                                                "error.\n")
+    assert "sentence_start_repeat" in rules("I restarted the service. I checked the logs. I found the error.\n")
+
+
+def test_emoji_arrows_and_selectors() -> None:
+    text = "Open Settings ➜ Privacy.\n\nℹ️ Read this first.\n\n▶️ Watch the demo.\n\n" \
+        "‼️ Note.\n\nHum ♪ along.\n"
+    assert [(f.line, f.match) for f in findings(text)] == [
+        (3, "ℹ️"), (5, "▶️"), (7, "‼️")]
+    assert "emoji" in rules("Made with ❤ in Berlin.\n")
+
+
+def test_every_emoji_start_passes_the_candidate_filter() -> None:
+    for cp in tx._BMP_EMOJI:
+        assert lint._EMOJI_CANDIDATE.match(chr(cp)), hex(cp)
+
+
+@pytest.mark.parametrize("text", [
+    "## Usage\n    make deploy  # utilize the robust cache\n",
+    "## Usage\n\n    make deploy  # utilize the robust cache\n",
+    "---\n    make deploy  # utilize the robust cache\n",
+    "<pre>\n$ tinyq status\nworkers: 4 — all robust\n</pre>\n",
+])
+def test_indented_code_and_pre_blocks_are_not_prose(text: str) -> None:
+    assert rules(text) == []
+
+
+def test_indented_line_after_a_paragraph_is_still_prose() -> None:
+    assert rules("Intro text.\n    We utilize the robust cache.\n") == ["wordy_phrase", "ai_vocabulary"]
+
+
+def test_double_click_is_a_literal_step() -> None:
+    assert rules("1. Double-click on the installer.\n2. Follow the prompts.\n") == []
+
+
+def test_many_dashes_in_one_block_are_linear() -> None:
+    import time
+    for text in ("a — b " * 80000 + "\n", "a — b\n" * 80000):
+        start = time.monotonic()
+        result = lint.lint(text)
+        assert time.monotonic() - start < 4
+        assert len(result.findings) == 80000
+        first, last = (f.message.split('"')[1] for f in (result.findings[0], result.findings[-1]))
+        assert first.startswith("a — b") and first.endswith("…")
+        assert last.startswith("…") and last.endswith("a — b")

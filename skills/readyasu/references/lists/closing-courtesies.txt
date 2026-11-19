@@ -1,6 +1,7 @@
 # Courtesies, offers and closings: normal in mail, residue in documents. Not reported for --doc-type mail.
 # "thank you for your attention" is also not reported for --doc-type slides and script (ENTRY_EXEMPT in
 # readyasu_lint.py): it is the closing slide or the last line of a talk.
+# "here's a draft:" needs the colon, so "Here's a draft implementation of the retry logic." is not reported.
 i hope this helps	delete from documents
 hope this helps	delete from documents
 feel free to reach out	delete from documents
@@ -23,8 +24,8 @@ happy exploring!	delete from documents
 happy learning!	delete from documents
 happy writing!	delete from documents
 happy restoring!	delete from documents
-here's a draft	delete from documents
-here is a draft	delete from documents
+here's a draft:	delete from documents
+here is a draft:	delete from documents
 i'd be happy to help	delete from documents
 i'm happy to help	delete from documents
 happy to help!	delete from documents

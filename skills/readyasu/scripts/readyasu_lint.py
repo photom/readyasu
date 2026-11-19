@@ -191,6 +191,7 @@ class _Locator:
 
 
 _WORD = re.compile(r"[A-Za-z0-9][A-Za-z0-9'’-]*")
+_NONSPACE = re.compile(r"\S")
 
 
 def word_count(text: str) -> int:
@@ -290,7 +291,9 @@ def _context(plain: str, start: int, end: int, width: int = 24) -> str:
     while right > end and right < len(plain) and not plain[right].isspace():
         right -= 1  # do not end inside a word
     shown = _show(plain[left:right])
-    return ("…" if plain[:left].strip() else "") + shown + ("…" if plain[right:].strip() else "")
+    before = left > 0 and _NONSPACE.search(plain, 0, left) is not None  # searched in place: linear in a long block
+    after = _NONSPACE.search(plain, right) is not None
+    return ("…" if before else "") + shown + ("…" if after else "")
 
 
 # ---------------------------------------------------------------- regex rules
@@ -347,20 +350,44 @@ still also already never always just now really probably actually usually often 
 eventually suddenly
 """.split())
 _NP_TOKENS = re.compile(r"[\w'’-]+|[^\w\s]")
+# Words before a plural noun that are not singular nouns themselves ("but the new features.", "but a few tweaks.").
+_NOT_A_NOUN = frozenset("""
+the a an new old few many several other same different real main key only right wrong best worst next last first
+latest big small good bad great more most less least all some any no every each such own whole full simple single
+actual final critical technical general additional potential basic specific generic
+""".split())
+_ADJECTIVE_ENDS = ("ive", "ous", "ful", "less", "able", "ible")
+
+
+def _plural(word: str) -> bool:
+    return len(word) > 3 and word.endswith("s") and not word.endswith(("ss", "us", "is", "ics"))
+
+
+def _singular_noun(word: str) -> bool:
+    """A guess from the word's shape: not plural, not a determiner and not shaped like an adjective."""
+    return not _plural(word) and word not in _NOT_A_NOUN and not word.endswith(_ADJECTIVE_ENDS) \
+        and not (word.endswith("ed") and not word.endswith("eed")) and not _progressive(word) \
+        and not word.endswith(("'s", "’s"))
 
 
 def _noun_phrase_ends(text: str, pos: int, last: str) -> bool:
     """True if the noun phrase after "but" whose word `last` ends at pos ends its clause soon (see above)."""
     prev = last.lower()
-    for count, m in enumerate(_NP_TOKENS.finditer(text, pos, min(len(text), pos + 80))):
+    tokens = list(_NP_TOKENS.finditer(text, pos, min(len(text), pos + 80)))
+    for count, m in enumerate(tokens):
         word = m.group(0).lower()
         if not word[0].isalnum():
             return True  # punctuation ends the clause
-        plural = len(prev) > 3 and prev.endswith("s") and not prev.endswith(("ss", "us", "is", "ics"))
+        plural = _plural(prev)
         if word in _NP_GOES_ON:
             return not (plural and word == "to")  # "the team needs to review it"
         if word in _CLAUSE_VERBS or word.endswith(("n't", "n’t")) or plural or count >= 3 or (
                 len(word) > 3 and word.endswith("ed") and not word.endswith("eed") and not prev.endswith("ly")):
+            return False
+        # An -s word right after a singular noun at the end of the clause is a verb: "but the patch works.",
+        # "but the principle matters." ("but the new features." keeps the noun phrase.)
+        at_end = count + 1 >= len(tokens) or not tokens[count + 1].group(0)[0].isalnum()
+        if at_end and _plural(word) and _singular_noun(prev):
             return False
         prev = word
     return True
@@ -379,7 +406,7 @@ _NEG_CONTRAST = (
     re.compile(
         r"\b(?:(?:this|that|these|those|the|our|your|its|their|my)\s+[\w-]+(?:\s+[\w-]+)?|"
         r"it|this|that|these|they|which|he|she|(?-i:[A-Z][\w.+#-]*))" + _NEG_BE + r"\s+"  # "React isn't ..."
-        r"(?:just\s+|only\s+|merely\s+|simply\s+|about\s+)?[^.;:!?\n]{1,80}?[,;—–]\s*"
+        r"(?P<just>just\s+|only\s+|merely\s+|simply\s+|about\s+)?(?P<denied>[^.;:!?\n]{1,80}?)[,;—–]\s*"
         r"(?:it|this|that|they|he|she)(?:['’]s|\s+is|\s+was|\s+are|\s+were|['’]re)\b", re.IGNORECASE),
     re.compile(r"\bnot\s+(?:just|only|merely|simply)\b[^.;!?\n]{1,60}?,?\s*\bbut\s+(?:also\s+)?[\w'’-]+",
                re.IGNORECASE),
@@ -389,14 +416,15 @@ _NEG_CONTRAST = (
     re.compile(
         r"(?:\b(?:is|was|are|were)\s+not|\b(?:isn|wasn|aren|weren)['’]t|['’](?:s|re)\s+not)\s+"
         r"(?:a|an|the|about)\s+[^.;:!?,\n]{1,40}?,?\s+but\s+" + _BUT_NOUN_PHRASE, re.IGNORECASE),
-    re.compile(r"\b(?:doesn['’]t|don['’]t|didn['’]t|does\s+not|do\s+not|isn['’]t|aren['’]t|wasn['’]t|weren['’]t|"
-               r"(?:is|are|was|were)\s+not)\s+(?:just|only|merely|simply)\s+"
-               r"[^.;:!?\n]{1,60}?[,;—–]\s*(?:it|they|this|we|he|she)\b", re.IGNORECASE),
+    re.compile(r"(?:\b(?:doesn['’]t|don['’]t|didn['’]t|does\s+not|do\s+not|isn['’]t|aren['’]t|wasn['’]t|weren['’]t|"
+               r"(?:is|are|was|were)\s+not)|(?<![Ll]et)['’](?:re|s)\s+not)\s+(?:just|only|merely|simply)\s+"
+               r"[^.;:!?\n]{1,60}?[,;—–]\s*(?:it|they|this|we|you|he|she)\b", re.IGNORECASE),
     re.compile(r"\b(?:isn['’]t|is\s+not)\s+(?:just\s+|really\s+)?about\b[^.;!?\n]{1,60}?[.;,—–]\s*"
                r"(?:it['’]s|it\s+is)\s+about\b", re.IGNORECASE),
 )
 _NOT_JUST_BUT = 1  # index of the "not just X but also Y" pattern, which is reported also inside a condition
 _NOT_A_BUT = 2  # index of the "not a X, but Y" pattern, whose noun phrase after "but" is checked
+_NOT_X_IT_IS = 0  # index of the "isn't X; it's Y" pattern, which skips a status or place like the two-sentence form
 # A heading that is "Not X, but Y" ("## Not a linter, but a formatter"), with an article, "about" or "just" after
 # "not", like the sentence form: "## Not supported, but planned" and "## Not now, but soon" are not contrasts.
 _HEADING_CONTRAST = re.compile(
@@ -412,7 +440,8 @@ _NEG_TWO = re.compile(
     r"[A-Z][\w.+#-]*)"  # a name: "Kubernetes isn't just a scheduler. It's a platform."
     r"(?:\s+(?:isn['’]t|is\s+not|wasn['’]t|was\s+not|aren['’]t|are\s+not|weren['’]t|were\s+not|am\s+not)|"
     r"['’](?:s|re|m)\s+not"
-    r"|\s+(?:doesn['’]t|don['’]t|didn['’]t|does\s+not|do\s+not|did\s+not)\s+(?P<v1>[a-z]+))\b"
+    r"|\s+(?:doesn['’]t|don['’]t|didn['’]t|does\s+not|do\s+not|did\s+not)\s+"
+    r"(?:(?:just|simply|merely|only|really)\s+)?(?P<v1>[a-z]+))\b"  # "We didn't just ship features."
     r"(?P<rest1>[^.!?\n]{0,80})\.\s+(?P<s2>It|This|That|They|These|Those|We|I|You)"
     r"(?:(?P<be2>['’]s|\s+is|\s+was|\s+are|\s+were|['’]re|['’]m|\s+am)|\s+(?P<v2>[a-z]+))\b")
 _SUBJECT_GROUPS = ({"it", "this", "that"}, {"they", "these", "those"}, {"we"}, {"i"}, {"you"})
@@ -479,16 +508,24 @@ def _progressive(word: str) -> bool:
     return len(word) > 4 and word.endswith("ing") and not word.endswith("thing")
 
 
+def _states_status(text: str, denied: str, after: int) -> bool:
+    """True if the denied part (the text after "is not") or what follows the second "it is" at after states a status
+    or a place, goes on with an -ing form, or the second part goes on with "still", "now" or "not": "They're not
+    coming to the offsite. They're on leave.", "The API isn't stable yet; it's still in beta.", "It isn't X. It is
+    not Y." """
+    first = _first_word(denied, 0, _SKIP_ADVERBS)
+    second = _first_word(text, after, _SKIP_ADVERBS)
+    return any(word in _STATUS_WORDS or word in _STATUS_PLACES or _progressive(word) for word in (first, second)) \
+        or second in ("still", "currently", "now", "not", "never")
+
+
 def _two_sentence_contrast(text: str) -> Iterator[re.Match[str]]:
     for m in _NEG_TWO.finditer(text):
         if not _same_subject(m.group("s1"), m.group("s2")):
             continue
         if m.group("v1") is None and m.group("be2") is not None:
-            first = _first_word(m.group("rest1"), 0, _SKIP_ADVERBS)
-            second = _first_word(text, m.end(), _SKIP_ADVERBS)
-            if any(word in _STATUS_WORDS or word in _STATUS_PLACES or _progressive(word) for word in (first, second)) \
-                    or second in ("still", "currently", "now", "not", "never"):
-                continue  # "They're not coming to the offsite. They're on leave.", "It isn't X. It is not Y."
+            if _states_status(text, m.group("rest1"), m.end()):
+                continue
             yield m
         elif m.group("v1") is not None and m.group("v2") is not None \
                 and m.group("v2").lower() in _verb_forms(m.group("v1")):
@@ -517,10 +554,14 @@ _PERSONIFICATION = re.compile(
     r"(?:(?:seems?|seemed|appears?|appeared)\s+to\s+)?" + _PERSON_VERB + r"\b",
     re.IGNORECASE)
 
+# Questions of up to six words; _SELF_Q_LONG has the forms that may run to nine ("But what does this mean for
+# small teams?").
 _SELF_Q = re.compile(
     r"^(?:(?:and|so|but)\s+)?(?:the\s+\w+(?:\s+\w+)?|why\s+does\s+(?:this|it|that)\s+matter|why\s+(?:is\s+)?(?:this|that)\s+important|"
-    r"what\s+does\s+(?:this|that|it)\s+mean(?:\s+for\s+\w+(?:\s+\w+)?)?|so\s+what|sound\s+familiar|why|how|"
-    r"what['’]s\s+the\s+catch|the\s+best\s+part|the\s+kicker|"
+    r"so\s+what|sound\s+familiar|why|how|what['’]s\s+the\s+catch|the\s+best\s+part|the\s+kicker)\?$",
+    re.IGNORECASE)
+_SELF_Q_LONG = re.compile(
+    r"^(?:(?:and|so|but)\s+)?(?:what\s+does\s+(?:this|that|it)\s+mean(?:\s+for\s+\w+(?:\s+\w+)?)?|"
     r"what,\s*then,\s*(?:is|was|are|were)\s+the\s+\w+(?:\s+\w+)?)\?$",
     re.IGNORECASE)
 # An answer that opens like this marks the question before it as self-answered ("What is the gap? Simply put, ...").
@@ -531,15 +572,27 @@ _ANSWER_OPENER = re.compile(
 _TODAYS_OPENER = re.compile(
     r"\bin\s+today['’]s\s+(?:[\w-]+\s+){0,4}?(?:world|landscape|age|era|environment|climate|market|marketplace|"
     r"economy|society|business)\b", re.IGNORECASE)
-# An assistant's preamble before a mail it drafted ("Certainly! Here's a reply you can send to Jordan:"): residue
-# even in mail, where "Here's a draft of the agenda" from the writer is normal.
+# An assistant's preamble before a text it drafted or revised. Checked in _preambles; three forms:
+# - after an interjection that starts the sentence ("Certainly! Here's a revised version:", "Sure! Here's a draft
+#   email you can send:"), with any of the nouns below;
+# - a revision lead-in ("Here's a polished version of your email:", group "revised");
+# - an offer of a drafted mail ("Here's a reply you can send to Jordan:"): a mail noun (group "draft") and a verb
+#   such as "you can send"; a generic noun (version, text, message, options) only before "send" or "forward", so
+#   "Here are the options you can use with `tinyq worker`:" and "Here is the message you can use to test the
+#   webhook:" are not reported.
 _PREAMBLE = re.compile(
-    r"(?:\b(?:certainly|sure|absolutely|of\s+course|great\s+question)[!.,]\s+)?"
-    r"\bhere(?:['’]s|\s+is|\s+are)\s+(?:a|an|the|your|some)\s+(?:[\w-]+\s+){0,3}?"
-    r"(?:reply|replies|draft|drafts|version|versions|response|responses|e-?mails?|messages?|note|rewrite|letter|"
-    r"text|options?)\b[^.!?:\n]{0,40}?"
-    r"\b(?:you\s+(?:can|could|might|may)\s+(?:send|use|copy|paste|forward|adapt)|for\s+you\s+to\s+(?:send|use))\b",
+    r"(?P<interjection>\b(?:certainly|sure|absolutely|of\s+course|great\s+question)(?:[!.,]\s+|\s*[—–]\s*))?"
+    r"\bhere(?:['’]s|\s+is|\s+are)\s+(?:a|an|the|your|some)\s+"
+    r"(?:(?P<revised>(?:[\w-]+\s+){0,2}?(?:revised|polished|rewritten|reworded|edited|improved|refined|tightened|"
+    r"proofread|cleaner|clearer|shorter|tighter|more\s+[\w-]+)\s+(?:version|versions|text|draft|copy|rewrite))\b"
+    r"|(?:[\w-]+\s+){0,3}?(?:(?P<draft>reply|replies|draft|drafts|response|responses|e-?mails?|note|rewrite|letter|"
+    r"letters)|version|versions|text|options?|messages?)\b)"
+    r"(?:[^.!?:\n]{0,40}?\b(?:you\s+(?:can|could|might|may)|for\s+you\s+to)\s+"
+    r"(?P<verb>send|use|copy|paste|forward|adapt)\b)?",
     re.IGNORECASE)
+_PREAMBLE_COLON = re.compile(r"[^.!?:]{0,80}:")  # the clause ends with a colon: the drafted text comes next
+_PREAMBLE_END = re.compile(r"[^.!?:]{0,80}[.!:]?\s*$")  # the clause ends the block
+_SUBJECT = re.compile(r"^\s*[*_]*subject\s*:", re.IGNORECASE)
 
 _NUMBER_WORD = r"(?:\d+|two|three|four|five|six|seven|eight|nine|ten|twelve)"
 _COUNT = (
@@ -597,7 +650,8 @@ _VERSION = (r"(?:(?:version|revision|rev\.?|release|v)\s*\d+(?:\.\d+)*[a-z]?|"
 _STAMP_LABEL = (r"(?:(?:effective|updated|last\s+updated|last\s+revised|revised|published|released|issued|dated?)"
                 r"(?:\s+on)?:?\s+)?")
 _ONE_STAMP = r"(?:" + _STAMP_LABEL + r"(?:" + _TIME + "|" + _DATE + r")" + _ZONE + "|" + _VERSION + r")"
-_RANGE_END = r"(?:(?:" + _TIME + "|" + _DATE + r")" + _ZONE + r"|\d{1,2}(?:st|nd|rd|th)?)"  # "Dec 3–5"
+# "Dec 3–5", "v1.0–v1.4", "2.0.0 – 2.3.1"
+_RANGE_END = r"(?:(?:" + _TIME + "|" + _DATE + r")" + _ZONE + "|" + _VERSION + r"|\d{1,2}(?:st|nd|rd|th)?)"
 # Stamps in a row need a separator, so a long run of digits and dots ("1.11.11.1...") cannot be split in
 # exponentially many ways. No "^": the line starts at pos, which is after a line break for a later line.
 _STAMPS = _ONE_STAMP + r"(?:[\s,]+" + _ONE_STAMP + r")*"
@@ -607,8 +661,9 @@ _STAMP = re.compile(r"[\s*_\[(]*" + _STAMPS + r"(?:[\s,]*(?:[-–—]|to\b)\s*" 
 _FIELD_AFTER = re.compile(r"\s*[*_]*[A-Z][\w/&-]*(?:[ \t]+[\w/&-]+){0,2}[*_]*:[*_]*(?:\s|$)")
 # A paragraph that is only an image or display math still follows a colon.
 _FIGURE_LINE = re.compile(r"^(?:\[?!\[[^\]]*\](?:\([^()]*\)|\[[^\]]*\])(?:\]\([^()]*\))?\s*)+$|^\$\$|^\\\[")
-# Every code point tx.is_emoji accepts, and the keycap mark of 1️⃣ and #️⃣.
-_EMOJI_CANDIDATE = re.compile("[\u2190-\u2BFF\u20E3\U0001F000-\U0001FAFF]")
+# Every code point that can start an emoji in tx.emoji_spans, and the keycap mark of 1️⃣ and #️⃣.
+_EMOJI_CANDIDATE = re.compile("[\u00A9\u00AE\u203C\u2049\u2122\u2139\u2190-\u2BFF\u20E3\u3030\u303D\u3297\u3299"
+                              "\U0001F000-\U0001FAFF]")
 
 _BOLD_LABEL = re.compile(r"^\s*(?:\*\*|__)([^*_\n]{1,60}?)(?::\s*(?:\*\*|__)|(?:\*\*|__)\s*:)(?:\s|$)")
 # The text inside cannot contain the delimiter, so an unclosed ** stops at the next one (linear time).
@@ -662,15 +717,21 @@ def _range_dash(text: str, start: int, end: int) -> bool:
 _TERM_GLUE = re.compile(r"(?:[\s*_\[\]()|,/]|(?<!\w)or\b)*")
 
 
-def _term_dash(masked: str, plain: str, start: int) -> bool:
-    """True if only inline code or a URL (with emphasis, or as a link) comes before the dash on its line.
+def _term_dash(masked: str, plain: str, start: int, line: int) -> bool:
+    """True if only inline code or a URL (with emphasis, or as a link) comes before the dash on its line, which
+    starts at offset line.
 
     "- `--threads N` — number of workers" is an option list: the dash separates a term from its description.
     Aliases joined by a comma, a slash or "or" count as one term ("- `-h`, `--help` — show help"). A link with
     words ("[Guide](guide.md) — ...") is still checked.
     """
-    line = masked.rfind("\n", 0, start) + 1
-    return bool(plain[line:start].strip()) and bool(_TERM_GLUE.fullmatch(masked, line, start))
+    return _NONSPACE.search(plain, line, start) is not None and bool(_TERM_GLUE.fullmatch(masked, line, start))
+
+
+def _line_start(newlines: list[int], pos: int) -> int:
+    """The offset where the line that holds pos starts, given the sorted offsets of the line breaks."""
+    i = bisect.bisect_left(newlines, pos)
+    return newlines[i - 1] + 1 if i else 0
 
 
 def _line_at(text: str, pos: int) -> tuple[int, int]:
@@ -885,7 +946,8 @@ def lint(text: str, doc_type: Optional[str] = None, reader: Optional[str] = None
                     f"Project word {label}{arrow}. Rewrite the sentence, not just the word.")
 
         if not is_title:
-            _expression_rules(flat, masked, plain, bold_view, block, bi == first_prose, add, after_greeting)
+            _expression_rules(flat, masked, plain, bold_view, block, add)
+            _preambles(doc, block, flat, masked, plain, bi == first_prose, after_greeting, add)
 
         # emoji
         if _EMOJI_CANDIDATE.search(masked):
@@ -923,8 +985,9 @@ def lint(text: str, doc_type: Optional[str] = None, reader: Optional[str] = None
                 nxt = masked[spans[idx + 1][0]:spans[idx + 1][1]].strip()
                 if not sent.endswith("?") or nxt.endswith("?"):
                     continue
-                if (word_count(sent) <= 6 and _SELF_Q.match(sent)) or \
-                        (word_count(sent) <= 10 and _ANSWER_OPENER.match(nxt)):
+                size = word_count(sent)
+                if (size <= 6 and _SELF_Q.match(sent)) or (size <= 9 and _SELF_Q_LONG.match(sent)) or \
+                        (size <= 10 and _ANSWER_OPENER.match(nxt)):
                     add("self_answered_question", s, e,
                         f'Self-answered question "{_show(plain[s:e]).strip("*_")}". Fold it into a statement unless '
                         "the document type keeps it.")
@@ -964,14 +1027,12 @@ def _after_subordinator(text: str, start: int) -> bool:
     return bool(words) and (words[0].lower() in _SUBORDINATORS or words[-1].lower() in _SUBORDINATORS)
 
 
-def _expression_rules(flat: str, masked: str, plain: str, letters: str, block: tx.Block, first: bool,
-                      add: _Add, after_greeting: int = -1) -> None:
-    """Pattern rules on one block (not the title): hedges, dashes, negative contrast, personification, counts,
-    the looser "in today's ..." opener and an assistant's preamble.
+def _expression_rules(flat: str, masked: str, plain: str, letters: str, block: tx.Block, add: _Add) -> None:
+    """Pattern rules on one block (not the title): hedges, dashes, negative contrast, personification, counts and
+    the looser "in today's ..." opener.
 
     flat is masked with emphasis underscores and line breaks as spaces, letters is plain with code, URLs and tags
-    as letters; all have the offsets of plain. after_greeting is the offset after a greeting line in this or an
-    earlier block, or -1.
+    as letters; all have the offsets of plain.
     """
     for m in _HEDGE_STACK.finditer(flat):
         if _MODAL_ADVERB.match(m.group(0)) and _rhetorical_hedge(flat, m.start()):
@@ -980,6 +1041,7 @@ def _expression_rules(flat: str, masked: str, plain: str, letters: str, block: t
             f'Stacked hedge "{_show(plain[m.start():m.end()])}". Use one hedge of the same strength; do not '
             "remove the hedge.")
     # letters, not masked, so that a dash after inline code is found like any other.
+    newlines = [m.start() for m in re.finditer("\n", masked)]
     for m in _DASHES.finditer(letters):
         around = masked[max(0, m.start() - 2): m.end() + 2]
         if _RANGE_DASH.search(around):
@@ -990,7 +1052,8 @@ def _expression_rules(flat: str, masked: str, plain: str, letters: str, block: t
         ds = m.start() + len(m.group(0)) - len(m.group(0).lstrip())
         de = ds + (2 if letters.startswith("--", ds) else 1)
         if _after_timestamp(masked, ds) or _FIELD_AFTER.match(masked, m.end()) or _attribution(masked, ds) \
-                or _range_dash(masked, ds, de) or _term_dash(masked, plain, ds) or _dash_bullet(masked, ds, de):
+                or _range_dash(masked, ds, de) or _term_dash(masked, plain, ds, _line_start(newlines, ds)) \
+                or _dash_bullet(masked, ds, de):
             continue  # timelines, "— Owner: ..." fields, "— Jeff Atwood", "Monday – Friday", "`-v` — verbose",
             # "Decisions:" then "– Budget approved"
         add("em_dash", ds, de,
@@ -1001,6 +1064,8 @@ def _expression_rules(flat: str, masked: str, plain: str, letters: str, block: t
         for m in pattern.finditer(flat):
             if k == _NOT_A_BUT and not _but_noun_phrase(flat, m):
                 continue
+            if k == _NOT_X_IT_IS and not m.group("just") and _states_status(flat, m.group("denied"), m.end()):
+                continue  # "She's not in the office this week; she's at the conference."
             if k == _NOT_JUST_BUT or not _after_subordinator(flat, m.start()):
                 contrasts.append(m)
     contrasts.extend(_two_sentence_contrast(flat))
@@ -1023,17 +1088,70 @@ def _expression_rules(flat: str, masked: str, plain: str, letters: str, block: t
     for m in _TODAYS_OPENER.finditer(flat):
         add("stock_phrase", m.start(), m.end(), _list_message("stock_phrase", plain[m.start():m.end()],
                                                               "delete the opener"))
+
+
+def _mail_follows(doc: tx.Document, block: tx.Block, masked: str, end: int) -> bool:
+    """True if a drafted mail or message follows the clause that ends at end in the block's masked text: a greeting
+    or "Subject:" on the next line of the block, or, when nothing else follows in the block, a greeting, "Subject:",
+    block quote or code fence as the next line of the document that is not blank."""
+    if _NONSPACE.search(masked, end):
+        line_end = masked.find("\n", end)
+        if line_end < 0 or masked[end:line_end].strip():
+            return False
+        nxt = masked[line_end + 1:_line_at(masked, line_end + 1)[1]]
+        return bool(_GREETING.match(nxt) or _SUBJECT.match(nxt))
+    index = block.lines[-1].no  # the 0-based index of the line after the block
+    while index < len(doc.lines) and doc.lines[index].kind == "blank":
+        index += 1
+    if index >= len(doc.lines):
+        return False
+    line = doc.lines[index]
+    if line.kind in ("quote", "fence", "code"):
+        return True
+    return line.kind in ("para", "list") and bool(_GREETING.match(line.content) or _SUBJECT.match(line.content))
+
+
+def _preambles(doc: tx.Document, block: tx.Block, flat: str, masked: str, plain: str, first: bool,
+               after_greeting: int, add: _Add) -> None:
+    """An assistant's preamble before a drafted or revised text (see _PREAMBLE), at the start of a sentence and not
+    after a greeting line ("Hi Ana," then "Here's a draft reply you can send to the customer:" is the writer's mail).
+
+    After an interjection: reported when the clause ends with a colon, or ends the first prose block. Without one,
+    only in the first prose block: a revision lead-in when the clause ends with a colon (in mail only when a drafted
+    mail follows), an offer of a drafted mail when the clause ends with a colon or ends the block and a drafted mail
+    or message follows. after_greeting is the offset after a greeting line in this or an earlier block, or -1.
+    """
     for m in _PREAMBLE.finditer(flat):
-        # Only a preamble: a clause that ends with a colon before the drafted text, or a first paragraph that holds
-        # nothing else ("Here's a draft you can use for the deck. I added the numbers." is the writer's mail), and
-        # not after a greeting ("Hi Ana," then "Here's a draft reply you can send to the customer:").
-        if 0 <= after_greeting <= m.start():
+        start = m.start()
+        interjection = bool(m.group("interjection")) and _starts_sentence(masked, start)
+        if m.group("interjection") and not interjection:
+            start = m.end("interjection")  # "I'm not sure. Here's a reply ...": checked without the interjection
+        if 0 <= after_greeting <= start or not _starts_sentence(masked, start):
             continue
-        rest = flat[m.end():]
-        if re.match(r"[^.!?:]{0,80}:", rest) or (first and re.fullmatch(r"[^.!?:]{0,80}[.!]?\s*", rest)):
-            add("chat_residue", m.start(), m.end(),
-                f'Assistant chat "{_show(plain[m.start():m.end()])}" left in the text: delete the preamble; it '
-                "speaks to the requester, not the reader (reported in every doc type).")
+        colon = _PREAMBLE_COLON.match(flat, m.end())
+        ends = _PREAMBLE_END.match(flat, m.end())
+        exempt_in: tuple[str, ...] = ()
+        if interjection:
+            if not (colon or (first and ends)):
+                continue
+        elif not first:
+            continue
+        elif m.group("revised"):
+            if not colon:
+                continue
+            if not _mail_follows(doc, block, masked, colon.end()):
+                exempt_in = ("mail",)  # "Here is the revised version of the agenda:" then a list, in a mail
+        else:
+            verb = (m.group("verb") or "").lower()
+            if not verb or not (m.group("draft") or verb in ("send", "forward")):
+                continue
+            clause = colon or ends
+            if clause is None or not _mail_follows(doc, block, masked, clause.end()):
+                continue
+        scope = "" if exempt_in else " (reported in every doc type)"
+        add("chat_residue", start, m.end(),
+            f'Assistant chat "{_show(plain[start:m.end()])}" left in the text: delete the preamble; it '
+            f"speaks to the requester, not the reader{scope}.", exempt_in)
 
 
 def _list_message(rule: str, match: str, note: str) -> str:
