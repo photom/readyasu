@@ -189,7 +189,7 @@ CONTRAST_DENIED = _rx(r"\bnot\s+(?:just\s+|only\s+|merely\s+|simply\s+)?"
                       r"(?:(?:by|in|on|at|for|from|with|into|via|through|during|over|under)\s+"
                       r"|to\s+(?=(?:the|an?|our|their|your|its|his|her|my)\s))?"
                       r"(?:an?\s+|the\s+|about\s+|our\s+|their\s+|your\s+|its\s+|his\s+|her\s+|my\s+)?"
-                      r"([a-z][\w-]{2,}|\d[\d.,:]*\d|\d)"
+                      r"((?-i:[A-Z]{2,5})(?![\w-])|[a-z][\w-]{2,}|\d[\d.,:]*\d|\d)"
                       r"|\b(?:instead\s+of|rather\s+than)\s+(?:an?\s+|the\s+)?([a-z][\w-]{2,})")
 CONDITION = _rx(r"\b(?:if|unless|until|till|whenever|when|while|after|before|as\s+soon\s+as|provided(?:\s+that)?"
                 r"|as\s+long\s+as|in\s+case|except\s+(?:when|if)|at\s+launch|at\s+first|initially|for\s+now"
@@ -259,7 +259,7 @@ UNIT_CODES = {"KB", "MB", "GB", "TB", "PB", "KIB", "MIB", "GIB", "TIB", "USD", "
               "CNY", "INR", "AM", "PM", "UTC", "GMT", "PST", "PDT", "EST", "EDT", "CET", "CEST", "JST", "IST"}
 VERBISH = re.compile(r"\s+(?:[a-z]+(?:ed|s)|will|would|can|could|must|should|may|might|had|said|told|wrote|led|ran|took|"
                      r"made|did|sent|built|found|got|gave|went|knew|saw)\b")
-CLOSING_HEADING = _rx(r"^[#*_\s]*(?:conclusions?|in\s+conclusion|final\s+thoughts|closing\s+thoughts|summary|in\s+summary|wrapping\s+up|"
+CLOSING_HEADING = _rx(r"^[#*_\s]*(?:(?:\d+|[IVX]+)[.):]?\s+)?(?:conclusions?|in\s+conclusion|final\s+thoughts|closing\s+thoughts|summary|in\s+summary|wrapping\s+up|"
                       r"wrap-up|key\s+takeaways|takeaways|tl;?dr|recap|in\s+closing)\b")
 QUANTIFIER = _rx(r"(?<!\bthe\s)(?<!\bat\s)\b(?:a\s+few|a\s+couple\s+of|some|most|many|few|several|all|every|each)\b"
                  r"(?=\s+(?:of\s+)?[a-z])")
@@ -283,9 +283,10 @@ CONNECTIVE_OPENER = _rx(r"(?:on\s+the\s+other\s+hand|for\s+example|for\s+instanc
                         r"|in\s+turn|on\s+the\s+contrary|in\s+essence|in\s+a\s+nutshell|in\s+reality|in\s+light\s+of\s+(?:this|that)"
                         r"|for\s+starters|in\s+closing|in\s+summary|in\s+conclusion|on\s+balance|in\s+any\s+case|at\s+the\s+same\s+time"
                         r"|in\s+general|for\s+now|at\s+first)\b")
-_FT_VALUE = (r"(?:(?:about|roughly|approximately|around|nearly|~)\s*)?[$€£]?[\w.,:%]+"
+_FT_VALUE = (r"(?:(?:about|roughly|approximately|around|nearly|~)\s*)?[$€£]?[\w.,:%]+(?:-[A-Za-z]+)?"
              r"(?:\s+(?!to\b|and\b|in\b|on\b|at\b|for\b|by\b|with\b)[A-Za-z]{1,14}(?=[\s.,;:)]|$))?")
-FROM_TO = re.compile(r"\bfrom\s+(" + _FT_VALUE + r")\s+to\s+(" + _FT_VALUE + r")", re.IGNORECASE)
+FROM_TO = re.compile(r"\bfrom\s+(?:an?\s+|the\s+)?(" + _FT_VALUE + r")\s+to\s+(?:an?\s+|the\s+)?(" + _FT_VALUE + r")",
+                     re.IGNORECASE)  # "from an annual review to a semi-annual review"
 STOCK_OPENER = _rx(r"in\s+today['’]s\b|in\s+an?\s+(?:era|world|age|landscape)\b|at\s+the\s+end\s+of\s+the\s+day\b"
                    r"|in\s+(?:the\s+)?(?:ever-|rapidly\s+)?(?:evolving|changing)\b|for\s+(?:many|most)\s+(?:teams|organizations|people)\b")
 PRIORITY_WORDS = _rx(r"\b(?:focus\w*|priorit\w*|first|both|as\s+well\s+as|in\s+addition\s+to|along\s+with|and|plus|also)\b")
@@ -580,6 +581,12 @@ def negation_profile(text: str) -> Counter[str]:
     return Counter({name: len(rx.findall(text)) for name, rx in NEG_GROUPS if rx.search(text)})
 
 
+def _has_word(word: str, text: str) -> bool:
+    """The word appears in the text; an acronym ("IT") must keep its case."""
+    flags = 0 if re.fullmatch(r"[A-Z]{2,5}", word) else re.IGNORECASE
+    return bool(re.search(r"\b" + re.escape(word) + r"\b", text, flags))
+
+
 def denied_words(text: str) -> set[str]:
     """Words denied by "not (the) X", "rather than X", "instead of X", leaving out "not just/only X" (which affirms X)."""
     found: set[str] = set()
@@ -589,7 +596,11 @@ def denied_words(text: str) -> set[str]:
         if m.group(1) and re.search(r"\b(?:do|does|did|will|would|can|could|should|must|may|might)\s+$",
                                     text[max(0, m.start() - 12):m.start()], re.IGNORECASE):
             continue  # "do not use X": the verb is not the denied side
-        word = (m.group(1) or m.group(2) or "").lower()
+        word = (m.group(1) or m.group(2) or "")
+        if re.fullmatch(r"[A-Z]{2,5}", word):
+            found.add(word)  # "not IT": an acronym keeps its case, so it is not the pronoun "it"
+            continue
+        word = word.lower()
         if m.group(1) and (word.endswith(("ed", "en")) or word in ("due", "sent", "made", "done", "run", "owned", "built")):
             # "was not caused by the deploy", "not due to the vendor": the noun after the preposition is denied
             agent = re.match(r"\s+(?:by|to|from|for|with|in|on|at)\s+(?:(?:the|an?|our|their|your|its|his|her|my)\s+)?"
@@ -627,6 +638,7 @@ def frequencies(text: str) -> Counter[str]:
     text = re.sub(r"\b(?:wait|just|hang\s+on|give\s+(?:me|us)|take|in|for|half)\s+an?\s+(?:second|minute|moment)\b", " ", text,
                   flags=re.IGNORECASE)  # idioms, not durations
     text = DURATION_A.sub(" ", text)  # "lasts an hour" is a duration of 1, compared as a number
+    text = re.sub(r"\b(semi|bi)-(annual(?:ly)?|weekly)\b", r"\1\2", text, flags=re.IGNORECASE)  # "semi-annual"
     text = re.sub(r"\bARR\b", "annual", re.sub(r"\bMRR\b", "monthly", text))  # spelled out in a rewrite
     text = re.sub(r"\bon\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)s\b", r"every \1", text,
                   flags=re.IGNORECASE)  # "on Mondays" is weekly
@@ -1301,8 +1313,8 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
     else:
         prof_o, prof_r = negation_profile(o_neg), negation_profile(r_neg)
         den_o, den_r = denied_words(o), denied_words(r)
-        swapped_o = {w for w in den_o - den_r if re.search(r"\b" + re.escape(w) + r"\b", r, re.IGNORECASE)}
-        swapped_r = {w for w in den_r - den_o if re.search(r"\b" + re.escape(w) + r"\b", o, re.IGNORECASE)}
+        swapped_o = {w for w in den_o - den_r if _has_word(w, r)}
+        swapped_r = {w for w in den_r - den_o if _has_word(w, o)}
         if prof_o != prof_r:
             gone = ", ".join(sorted((prof_o - prof_r).elements()))
             new = ", ".join(sorted((prof_r - prof_o).elements()))
@@ -1504,6 +1516,8 @@ def compare_chunk(ch: Chunk, doc_type: Optional[str], risks: list[Risk], reviews
     if len(cond_o) > len(cond_r) and all(w.lower() == "while" for w in cond_o if w.lower() not in
                                          {x.lower() for x in cond_r}) and len(contrast.findall(r)) > len(contrast.findall(o)):
         pass  # concessive "while" rewritten as "but" / "although"
+    elif len(cond_o) > len(cond_r) and _step_made_imperative(o, r):
+        pass  # "(you should see 2.4.1 when you run `x --version`)" -> "Run `x --version` ...; you should see 2.4.1"
     elif len(cond_o) > len(cond_r):
         gone_c = next((w for w in cond_o if w.lower() not in {x.lower() for x in cond_r}), cond_o[0])
         risk("condition", True, f'Condition, limit or qualifier removed: "{gone_c}". Check that the sentence did not '
@@ -1671,6 +1685,17 @@ point link connect subscribe report refer listen look turn change roll revert lo
 commit forward send submit post publish deploy ship compare convert set reset map assign delegate transfer append attach
 bring take give explain introduce adapt adjust contribute default limit navigate prepare proceed react relate stay keep
 hold scale lean pin rebase redirect route save upload download export import reach email ping ask tell remind""".split())
+
+
+def _step_made_imperative(o: str, r: str) -> bool:
+    """A "when/once/after you <verb> X" clause became the step's own instruction ("Run X ...")."""
+    m = re.search(r"\b(?:when|once|after|as\s+soon\s+as)\s+you\s+([a-z]+)\b(.{0,40})", o, re.IGNORECASE)
+    if not m or re.search(r"\b(?:when|once|after|as\s+soon\s+as)\s+you\s+" + re.escape(m.group(1)), r, re.IGNORECASE):
+        return False
+    target = re.search(r"\x00|`[^`]+`|[A-Za-z][\w-]{2,}", m.group(2))
+    lead = r"(?:^|[.;:]\s+|\d+[.)]\s+|[-*]\s+)\s*(?:\*\*[^*]+\*\*:?\s*)?"
+    return bool(re.search(lead + re.escape(m.group(1)) + r"\b", r.strip(), re.IGNORECASE)) and \
+        (target is None or target.group(0) in r)
 
 
 def _clauses_swapped(o: str, r: str, old: str, new: str) -> bool:
@@ -1899,6 +1924,7 @@ def _item_names(line: str, lower_words: set[str]) -> set[str]:
 def added_actors(orig: tx.Document, rev: tx.Document, materials: str, chunks: list[Chunk]) -> list[Review]:
     o_all = " ".join(s.masked for s in orig.sentences) + "\n" + materials
     o_low = o_all.lower()
+    orig_low = " ".join(s.masked for s in orig.sentences).lower()
     o_names = set(names(o_all)) | {w for w in re.findall(r"\b[A-Z][A-Za-z0-9'-]+\b", materials)}
     o_names |= set(re.findall(r"\b[A-Z][A-Za-z0-9'-]+\b", o_all))
     lower_words = lower_word_set(o_all, " ".join(s.masked for s in rev.sentences))
@@ -1922,6 +1948,13 @@ def added_actors(orig: tx.Document, rev: tx.Document, materials: str, chunks: li
                 result.append(Review("actor_added", f'"{role}" is not in the original or material. Check that the '
                                      "rewrite did not create an actor, owner or recipient.", s.line, s.text))
             for name in names(s.masked, lower_words=lower_words):
+                if name not in seen and materials and name.lower() in materials.lower() and \
+                        name.lower() not in orig_low and not _word_forms(name) & lower_words:
+                    seen.add(name)
+                    result.append(Review("actor_added", f'Name "{name}" comes from the material, not the original. '
+                                         "Check that names may go to this reader (fact-recovery.md section 5: no personal "
+                                         "names in external documents) and report it as a fill.", s.line, s.text))
+                    continue
                 if name in seen or name in o_names or name.lower() in o_low or _word_forms(name) & lower_words:
                     continue
                 seen.add(name)
@@ -2033,7 +2066,9 @@ def energy(orig: tx.Document, rev: tx.Document, doc_type: Optional[str],
     return items, reference
 
 
-_GAP_EXCLUDE = re.compile(r"(?<![A-Za-z-])\d|\b(?:may|might|could|possibly|perhaps|likely|probably|appears?|seems?|plan(?:s|ned)?|"
+_GAP_EXCLUDE = re.compile(r"(?<![A-Za-z-])\d|\b(?:two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|thirty|"
+                          r"forty|fifty|hundred|thousand|million|billion|once|twice|"
+                          r"may|might|could|possibly|perhaps|likely|probably|appears?|seems?|plan(?:s|ned)?|"
                           r"expect\w*|if|when|unless|hope|aim\w*|goal|target)\b", re.IGNORECASE)
 _BUILTIN_GAPS = [
     ("reference", r"\b(?:before|by|until|after)\s+the\s+(?:deadline|agreed\s+date|cutoff|due\s+date)\b|\bas\s+(?:discussed|agreed)\b|\bthe\s+(?:date|deadline|time|amount)\s+we\s+(?:discussed|agreed\s+on|agreed)\b|\bthe\s+(?:appropriate|relevant|responsible|designated)\s+(?:team\s+lead|team|person|owner|lead|manager|contact|party|department|channel|group|stakeholders?|approver)\b|\b(?:in\s+a\s+timely\s+manner|in\s+due\s+course|at\s+the\s+appropriate\s+time)\b"),
@@ -2091,6 +2126,10 @@ def fact_gaps(doc: tx.Document) -> tuple[list[Review], str]:
             if excluded and kind != "reference":
                 continue
             m = pattern.search(text)
+            if m and kind == "reference" and re.match(r"\s*(?:of|on|at|is|was|:|,|\(|—|-)\s*(?:\d|(?:mon|tues|wednes|thurs|fri|"
+                                                     r"satur|sun)day|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)",
+                                                     text[m.end():], re.IGNORECASE):
+                continue  # "before the deadline of Friday, December 18" gives the value
             if m:
                 result.append(Review(kind, f'"{m.group(0)}": {GAP_HINTS[kind]}', s.line, s.text))
                 break
@@ -2383,7 +2422,11 @@ def compare(orig_text: str, rev_text: str, doc_type: Optional[str] = None, reade
             reported_o.update(numbers(r.original))
             reported_r.update(numbers(r.revised))
     # sets, not counts: deleting a sentence that only repeats a number that stays elsewhere is not a change
-    lost = sorted(n for n in set(o_nums) - set(r_nums) if not reported_o.get(n))
+    # the section number of a removed closing heading ("## 7. Conclusion") goes with the section
+    closing_r = set(_trailing_closing([b.lines[0].content for b in rev.blocks if b.kind == "heading"]))
+    closing_nums = numbers(" ".join(h for h in _trailing_closing([b.lines[0].content for b in orig.blocks
+                                                                  if b.kind == "heading"]) if h not in closing_r))
+    lost = sorted(n for n in set(o_nums) - set(r_nums) if not reported_o.get(n) and not closing_nums.get(n))
     gained = sorted(n for n in set(r_nums) - set(o_nums) if not reported_r.get(n))
     if lost or gained:
         risks.append(Risk("number", True, "Number missing from or added to the whole text: "
