@@ -5,6 +5,7 @@ The lint and diff scripts read these files. One phrase per line; an optional TAB
 - Matching ignores case. A space matches any run of whitespace, including a line break inside a paragraph.
 - A word ending with `*` matches any word ending (`delv*` matches delve, delves, delving, delved).
 - An apostrophe matches both ' and ’.
+- A phrase matches inside underscore emphasis (`_seamless_`, `__leverage__`), but not inside a snake_case name (`enable_seamless_mode`).
 - Matches inside code and URLs are ignored. Block quotations are ignored too, except callouts (`> **Note:**`, `> [!WARNING]`, `> 💡 **Tip:**`, `> **⚠️ Warning:**`, `> *Note:*`), which are the writer's own text.
 - When matches overlap, lint reports one of them: the more severe one, then a project word, then the longer phrase ("plays a crucial role" rather than "crucial" inside it). A match exempted by `--doc-type` does not hide an overlapping match that is reported.
 - The document title (the first level-1 heading) is not checked against these lists.

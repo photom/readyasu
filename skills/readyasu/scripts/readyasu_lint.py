@@ -330,6 +330,42 @@ _BUT_NOUN_PHRASE = (
     r"(?:rather\s+)?(?:(?:a|an|the|about|my|our|your|his|her|its|their|one|something)\s+[\w'’-]+"
     r"|(?!(?:it|we|they|he|she|i|you|there|this|that|these|those|nobody|everyone|someone|none|nothing)\b)"
     r"[\w'’-]+(?=\s*(?:[.;:!?,)]|$)))")
+# The noun phrase after "but" must end the clause within a few words or go on with a preposition or a relative
+# clause ("but a platform for building products", "but a feature we built"). A verb after it makes "but" open a
+# new clause, a concession: "not a blocker, but the team should review it", "but our largest customer noticed it",
+# "but the default timeout went from 30s to 10s", "but the tests pass".
+_NP_GOES_ON = frozenset((
+    "of", "for", "in", "on", "with", "from", "at", "by", "to", "into", "onto", "that", "which", "who", "whom",
+    "whose", "where", "and", "or", "than", "like", "about", "across", "over", "under", "within", "without",
+    "between", "through", "per", "beyond", "we", "you", "they", "i"))
+_CLAUSE_VERBS = frozenset("""
+will would should could can may might must shall is are was were am be been being has have had does do did
+gets got seems seemed looks looked went came took made gave found said saw ran began broke brought built bought
+caught chose drew drove fell felt fought flew forgot grew heard held kept knew left lost meant met paid rose sent
+sold spent stood stole struck taught thought told understood won wrote became spoke threw wore ate sank shook
+still also already never always just now really probably actually usually often rarely finally quickly
+eventually suddenly
+""".split())
+_NP_TOKENS = re.compile(r"[\w'’-]+|[^\w\s]")
+
+
+def _noun_phrase_ends(text: str, pos: int, last: str) -> bool:
+    """True if the noun phrase after "but" whose word `last` ends at pos ends its clause soon (see above)."""
+    prev = last.lower()
+    for count, m in enumerate(_NP_TOKENS.finditer(text, pos, min(len(text), pos + 80))):
+        word = m.group(0).lower()
+        if not word[0].isalnum():
+            return True  # punctuation ends the clause
+        plural = len(prev) > 3 and prev.endswith("s") and not prev.endswith(("ss", "us", "is", "ics"))
+        if word in _NP_GOES_ON:
+            return not (plural and word == "to")  # "the team needs to review it"
+        if word in _CLAUSE_VERBS or word.endswith(("n't", "n’t")) or plural or count >= 3 or (
+                len(word) > 3 and word.endswith("ed") and not word.endswith("eed") and not prev.endswith("ly")):
+            return False
+        prev = word
+    return True
+
+
 # Clauses that make a negation a condition, a time or a concession: "If the value is not set, it is read from the
 # environment", "Although the API is not stable, it is widely used".
 _SUBORDINATORS = frozenset((
@@ -342,7 +378,7 @@ _NEG_BE = (r"(?:['’]s\s+not|\s+is\s+not|\s+was\s+not|\s+are\s+not|\s+were\s+no
 _NEG_CONTRAST = (
     re.compile(
         r"\b(?:(?:this|that|these|those|the|our|your|its|their|my)\s+[\w-]+(?:\s+[\w-]+)?|"
-        r"it|this|that|these|they|which|he|she)" + _NEG_BE + r"\s+"
+        r"it|this|that|these|they|which|he|she|(?-i:[A-Z][\w.+#-]*))" + _NEG_BE + r"\s+"  # "React isn't ..."
         r"(?:just\s+|only\s+|merely\s+|simply\s+|about\s+)?[^.;:!?\n]{1,80}?[,;—–]\s*"
         r"(?:it|this|that|they|he|she)(?:['’]s|\s+is|\s+was|\s+are|\s+were|['’]re)\b", re.IGNORECASE),
     re.compile(r"\bnot\s+(?:just|only|merely|simply)\b[^.;!?\n]{1,60}?,?\s*\bbut\s+(?:also\s+)?[\w'’-]+",
@@ -353,21 +389,27 @@ _NEG_CONTRAST = (
     re.compile(
         r"(?:\b(?:is|was|are|were)\s+not|\b(?:isn|wasn|aren|weren)['’]t|['’](?:s|re)\s+not)\s+"
         r"(?:a|an|the|about)\s+[^.;:!?,\n]{1,40}?,?\s+but\s+" + _BUT_NOUN_PHRASE, re.IGNORECASE),
-    re.compile(r"\b(?:doesn['’]t|don['’]t|didn['’]t|does\s+not|do\s+not|isn['’]t|aren['’]t)\s+(?:just|only|merely|simply)\s+"
+    re.compile(r"\b(?:doesn['’]t|don['’]t|didn['’]t|does\s+not|do\s+not|isn['’]t|aren['’]t|wasn['’]t|weren['’]t|"
+               r"(?:is|are|was|were)\s+not)\s+(?:just|only|merely|simply)\s+"
                r"[^.;:!?\n]{1,60}?[,;—–]\s*(?:it|they|this|we|he|she)\b", re.IGNORECASE),
     re.compile(r"\b(?:isn['’]t|is\s+not)\s+(?:just\s+|really\s+)?about\b[^.;!?\n]{1,60}?[.;,—–]\s*"
                r"(?:it['’]s|it\s+is)\s+about\b", re.IGNORECASE),
 )
 _NOT_JUST_BUT = 1  # index of the "not just X but also Y" pattern, which is reported also inside a condition
-# A heading that is "Not X, but Y" ("## Not a linter, but a formatter").
+_NOT_A_BUT = 2  # index of the "not a X, but Y" pattern, whose noun phrase after "but" is checked
+# A heading that is "Not X, but Y" ("## Not a linter, but a formatter"), with an article, "about" or "just" after
+# "not", like the sentence form: "## Not supported, but planned" and "## Not now, but soon" are not contrasts.
 _HEADING_CONTRAST = re.compile(
-    r"^[*_\s]*not\s+[^.;:!?,\n]{1,40}?,?\s+but\s+(?:also\s+)?" + _BUT_NOUN_PHRASE, re.IGNORECASE)
+    r"^[*_\s]*not\s+(?:a|an|the|about|just|only|merely|simply)\s+[^.;:!?,\n]{1,40}?,?\s+but\s+(?:also\s+)?"
+    + _BUT_NOUN_PHRASE, re.IGNORECASE)
 
 # Two sentences: "It isn't a tool. It's a philosophy." / "We didn't need a new tool. We needed a shared way."
 # The second sentence has the same subject and the same verb (a form of "be", or the verb that was denied); the
 # checks are in _two_sentence_contrast.
 _NEG_TWO = re.compile(
-    r"(?:^|(?<=[.!?]\s))(?P<s1>It|This|That|They|These|Those|We|I|You|The\s+\w+(?:\s+\w+)?|What\s+\w+\s+\w+)"
+    r"(?:^|(?<=[.!?]\s))(?P<s1>It|This|That|They|These|Those|We|I|You|"
+    r"(?:The|This|That|These|Those|Our|Your|Their|My)\s+\w+(?:\s+\w+)?|What\s+\w+\s+\w+|"
+    r"[A-Z][\w.+#-]*)"  # a name: "Kubernetes isn't just a scheduler. It's a platform."
     r"(?:\s+(?:isn['’]t|is\s+not|wasn['’]t|was\s+not|aren['’]t|are\s+not|weren['’]t|were\s+not|am\s+not)|"
     r"['’](?:s|re|m)\s+not"
     r"|\s+(?:doesn['’]t|don['’]t|didn['’]t|does\s+not|do\s+not|did\s+not)\s+(?P<v1>[a-z]+))\b"
@@ -378,9 +420,26 @@ _SUBJECT_GROUPS = ({"it", "this", "that"}, {"they", "these", "those"}, {"we"}, {
 
 def _same_subject(first: str, second: str) -> bool:
     a, b = first.lower(), second.lower()
-    if a.startswith(("the ", "what ")):  # "The fix isn't ... It's ...", "The tools aren't ... They're ..."
+    if not any(a in group for group in _SUBJECT_GROUPS):
+        # A noun phrase or a name: "The fix isn't ... It's ...", "The tools aren't ... They're ...", "React ..."
         return b in ("it", "this", "that", "they", "these", "those")
     return any(a in group and b in group for group in _SUBJECT_GROUPS)
+
+
+# Common irregular verbs: "We didn't build a new tool. We built a shared process."
+_IRREGULAR = {
+    "begin": "began begun", "break": "broke broken", "bring": "brought",
+    "build": "built", "buy": "bought", "catch": "caught", "choose": "chose chosen", "come": "came",
+    "become": "became", "do": "did done does", "drive": "drove driven", "fall": "fell fallen", "feel": "felt",
+    "find": "found", "forget": "forgot forgotten", "get": "got gotten", "give": "gave given",
+    "go": "went gone", "grow": "grew grown", "have": "had has", "hear": "heard", "hold": "held",
+    "keep": "kept", "know": "knew known", "lead": "led", "leave": "left", "lose": "lost", "make": "made",
+    "mean": "meant", "meet": "met", "pay": "paid", "run": "ran", "say": "said says", "see": "saw seen",
+    "sell": "sold", "send": "sent", "speak": "spoke spoken", "spend": "spent", "stand": "stood",
+    "take": "took taken", "teach": "taught", "tell": "told", "think": "thought", "understand": "understood",
+    "win": "won", "write": "wrote written",
+}
+_DOUBLES = re.compile(r"(?:^|[^aeiou])[aeiou][bdgklmnprt]$")  # stop → stopped, plan → planning
 
 
 def _verb_forms(verb: str) -> set[str]:
@@ -390,6 +449,9 @@ def _verb_forms(verb: str) -> set[str]:
         forms.add(v[:-1] + "ing")
     if v.endswith("y"):
         forms |= {v[:-1] + "ies", v[:-1] + "ied"}
+    if _DOUBLES.search(v):
+        forms |= {v + v[-1] + "ed", v + v[-1] + "ing"}
+    forms.update(_IRREGULAR.get(v, "").split())
     return forms
 
 
@@ -398,6 +460,8 @@ def _verb_forms(verb: str) -> set[str]:
 _STATUS_WORDS = frozenset((
     "sure", "ready", "done", "available", "able", "aware", "certain", "finished", "complete", "here", "there",
     "back", "home", "around", "free", "busy", "online", "offline", "late", "involved", "allowed", "going", "yet"))
+# Where someone is: "I'm not in the office today. I'm at the dentist."
+_STATUS_PLACES = frozenset(("in", "on", "at", "off", "out", "away"))
 _SKIP_ADVERBS = frozenset(("really", "quite", "yet", "actually", "entirely", "fully", "totally", "completely",
                            "very", "so", "too", "always"))
 _NEXT_WORDS = re.compile(r"[A-Za-z'’]+")
@@ -411,6 +475,10 @@ def _first_word(text: str, pos: int = 0, skip: frozenset[str] = frozenset()) -> 
     return ""
 
 
+def _progressive(word: str) -> bool:
+    return len(word) > 4 and word.endswith("ing") and not word.endswith("thing")
+
+
 def _two_sentence_contrast(text: str) -> Iterator[re.Match[str]]:
     for m in _NEG_TWO.finditer(text):
         if not _same_subject(m.group("s1"), m.group("s2")):
@@ -418,10 +486,9 @@ def _two_sentence_contrast(text: str) -> Iterator[re.Match[str]]:
         if m.group("v1") is None and m.group("be2") is not None:
             first = _first_word(m.group("rest1"), 0, _SKIP_ADVERBS)
             second = _first_word(text, m.end(), _SKIP_ADVERBS)
-            progressive = len(second) > 4 and second.endswith("ing") and not second.endswith("thing")
-            if first in _STATUS_WORDS or second in _STATUS_WORDS or second in ("still", "currently", "now") \
-                    or progressive:
-                continue
+            if any(word in _STATUS_WORDS or word in _STATUS_PLACES or _progressive(word) for word in (first, second)) \
+                    or second in ("still", "currently", "now", "not", "never"):
+                continue  # "They're not coming to the offsite. They're on leave.", "It isn't X. It is not Y."
             yield m
         elif m.group("v1") is not None and m.group("v2") is not None \
                 and m.group("v2").lower() in _verb_forms(m.group("v1")):
@@ -433,15 +500,17 @@ _PERSON_SUBJECT = (r"(?:code|codebase|data|dataset|tool|system|function|method|c
                    r"framework|api|metrics?|numbers|graph|chart|compiler|tests?|errors?|repository|repo|pipeline|"
                    r"model|algorithm|database|schema|spreadsheet|dashboard|platform|app|application|script|"
                    r"service|server|daemon|scheduler|linter|cache|engine|library|plugin|bot|monitor|software|"
-                   r"program|cli|sdk|workflow)")
+                   r"program|cli|sdk|workflow|logic|parser|module|component)")
 # "feels" is left out: "The dashboard feels faster" is perception, not a feeling.
 _PERSON_VERB = (r"(?:tells?(?:\s+a\s+story)?|speaks?(?:\s+volumes)?|whispers?|screams?|sings?|knows?|wants?|loves?|"
                 r"hates?|cares?|believes?|remembers?|forgets?|understands?|thinks?|refuses?|insists?|begs?|"
                 r"cries|craves?|longs?|dreams?|deserves?|demands?|breathes?|yearns?|resents?|watch(?:es)?\s+over|"
-                r"gladly|happily|tirelessly|patiently|eagerly|cheerfully|(?:chooses?|chose|decides?|decided)\s+to|"
+                r"gladly|happily|tirelessly|patiently|eagerly|cheerfully|lovingly|proudly|stubbornly|dutifully|"
+                r"graciously|kindly|politely|bravely|(?:chooses?|chose|decides?|decided)\s+to|"
                 r"has\s+a\s+(?:story|mind\s+of\s+its\s+own)|is\s+(?:happy|unhappy|angry|eager|reluctant))")
 _PERSON_ADVERB = (r"(?:itself|quietly|silently|now|always|really|never|carefully|faithfully|dutifully|lovingly|"
-                  r"gladly|happily|tirelessly|patiently|eagerly|cheerfully)")
+                  r"gladly|happily|tirelessly|patiently|eagerly|cheerfully|proudly|stubbornly|graciously|kindly|"
+                  r"politely|bravely)")
 _PERSONIFICATION = re.compile(
     r"\b(?:the|this|that|your|our|its|each|every|my)\s+(?:\w+\s+)?" + _PERSON_SUBJECT +
     r"\s+(?:(?:will|would)\s+)?(?:" + _PERSON_ADVERB + r"\s+)?"
@@ -517,22 +586,29 @@ _DATE = (r"\d{4}-\d{1,2}-\d{1,2}(?:T\d{1,2}:\d{2}(?::\d{2})?Z?)?|\d{1,2}/\d{1,2}
          r"\d{4}/\d{1,2}/\d{1,2}|\d{1,2}\.\d{1,2}\.\d{2,4}|"
          + _MONTH + r"\s+\d{1,2}(?:st|nd|rd|th)?(?:,?\s+\d{4})?|\d{1,2}(?:st|nd|rd|th)?\s+" + _MONTH
          + r"(?:\s+\d{4})?|" + _MONTH + r"\s+\d{4}|" + _WEEKDAY + r"|(?:19|20)\d{2}|q[1-4](?:\s+\d{4})?|"
-         r"(?:day|week|sprint|phase)\s+\d+|t\s*[+-]\s*\d+\s*(?:min|m|h|d|s)?")
+         r"t\s*[+-]\s*\d+\s*(?:min|m|h|d|s)?|"
+         # "Day 2", "Step 1", "Part II", "Option A"
+         r"(?:day|week|sprint|phase|step|part|chapter|lesson|module|stage|option)\s+"
+         r"(?:\d+(?:\.\d+)*[a-z]?|(?-i:[IVX]{1,4}|[A-Za-z]))(?![\w.])")
 _ZONE = r"(?:\s*\(?(?:utc|gmt|[a-z]{1,3}[sd]?t)(?:\s*[+-]\s*\d{1,2}(?::?\d{2})?)?\)?)?"
 _VERSION = (r"(?:(?:version|revision|rev\.?|release|v)\s*\d+(?:\.\d+)*[a-z]?|"
-            r"\d+\.\d+(?:\.\d+)*(?:-[\w.]+)?)")  # "1.2.0 — Added dedup", "2.0.0-rc1"
+            # "1.2.0 — Added dedup", "2.0.0-rc1"; "9.30" is left to _TIME, so a run of them has one reading
+            r"(?!\d{1,2}\.\d{2}(?![\d.-]))\d+\.\d+(?:\.\d+)*(?:-[\w.]+)?)")
 _STAMP_LABEL = (r"(?:(?:effective|updated|last\s+updated|last\s+revised|revised|published|released|issued|dated?)"
                 r"(?:\s+on)?:?\s+)?")
 _ONE_STAMP = r"(?:" + _STAMP_LABEL + r"(?:" + _TIME + "|" + _DATE + r")" + _ZONE + "|" + _VERSION + r")"
 _RANGE_END = r"(?:(?:" + _TIME + "|" + _DATE + r")" + _ZONE + r"|\d{1,2}(?:st|nd|rd|th)?)"  # "Dec 3–5"
-_STAMP = re.compile(r"^[\s*_\[(]*(?:" + _ONE_STAMP + r"[\s,]*)+"
-                    r"(?:(?:[-–—]|to\b)\s*" + _RANGE_END + r"[\s,]*(?:" + _ONE_STAMP + r"[\s,]*)*)?"
-                    r"[*_\])]*\s*$", re.IGNORECASE)
+# Stamps in a row need a separator, so a long run of digits and dots ("1.11.11.1...") cannot be split in
+# exponentially many ways. No "^": the line starts at pos, which is after a line break for a later line.
+_STAMPS = _ONE_STAMP + r"(?:[\s,]+" + _ONE_STAMP + r")*"
+_STAMP = re.compile(r"[\s*_\[(]*" + _STAMPS + r"(?:[\s,]*(?:[-–—]|to\b)\s*" + _RANGE_END
+                    + r"(?:[\s,]+" + _STAMPS + r")?)?[\s,]*[*_\])]*\s*$", re.IGNORECASE)
 # A field label after a dash: "Fix the alert — Owner: Marco Ruiz — Due: Dec 5".
 _FIELD_AFTER = re.compile(r"\s*[*_]*[A-Z][\w/&-]*(?:[ \t]+[\w/&-]+){0,2}[*_]*:[*_]*(?:\s|$)")
 # A paragraph that is only an image or display math still follows a colon.
 _FIGURE_LINE = re.compile(r"^(?:\[?!\[[^\]]*\](?:\([^()]*\)|\[[^\]]*\])(?:\]\([^()]*\))?\s*)+$|^\$\$|^\\\[")
-_EMOJI_CANDIDATE = re.compile("[\u2190-\u2BFF\U0001F000-\U0001FAFF]")  # every code point tx.is_emoji accepts
+# Every code point tx.is_emoji accepts, and the keycap mark of 1️⃣ and #️⃣.
+_EMOJI_CANDIDATE = re.compile("[\u2190-\u2BFF\u20E3\U0001F000-\U0001FAFF]")
 
 _BOLD_LABEL = re.compile(r"^\s*(?:\*\*|__)([^*_\n]{1,60}?)(?::\s*(?:\*\*|__)|(?:\*\*|__)\s*:)(?:\s|$)")
 # The text inside cannot contain the delimiter, so an unclosed ** stops at the next one (linear time).
@@ -542,6 +618,30 @@ _LINK_DEFINITION = re.compile(r"^\s*\[[^\]]+\]:\s*\S")
 # A letter's salutation on a line of its own ends with a colon in US business letters.
 _SALUTATION = re.compile(r"^\s*(?:dear\b|to\s+whom\s+it\s+may\s+concern\b|(?:ladies\s+and\s+)?gentlemen\b|"
                          r"(?:hello|hi|greetings)\b[^.!?]{0,40}:\s*$)", re.IGNORECASE)
+# A mail's greeting on a line of its own ("Hi Ana,", "Dear Mr. Lee:", "Hello team"). After it, "Here's a draft reply
+# you can send to the customer:" is the writer's own mail, not an assistant's preamble.
+_GREETING = re.compile(r"^\s*(?:hi|hello|hey|dear|greetings|good\s+(?:morning|afternoon|evening)|"
+                       r"to\s+whom\s+it\s+may\s+concern)\b(?:[^.!?:\n]|(?<=mr|ms|dr)\.|(?<=mrs)\.){0,40}[,:!]?\s*$",
+                       re.IGNORECASE)
+# Underscores that open or close emphasis, not those inside a snake_case_name.
+_EMPHASIS_UNDERSCORE = re.compile(r"(?<!\w)_+|_+(?!\w)")
+
+
+def _words_view(masked: str) -> str:
+    """masked with emphasis underscores as spaces (same offsets), so that word lists, project words and the
+    pattern rules see the words in "_seamless_", "__leverage__" and "_may potentially_"."""
+    if "_" not in masked:
+        return masked
+    return _EMPHASIS_UNDERSCORE.sub(lambda m: " " * len(m.group(0)), masked)
+
+
+def _strip_end(sentence: str) -> str:
+    """The sentence without the closing quotes, brackets, emphasis and emoji at its end ("Happy restoring! 🎉")."""
+    stripped = sentence.rstrip("\"'”’)*_ ")
+    spans = tx.emoji_spans(stripped)
+    while spans and spans[-1][1] == len(stripped):
+        stripped = stripped[:spans.pop()[0]].rstrip("\"'”’)*_ ")
+    return stripped
 
 
 def _after_timestamp(text: str, pos: int) -> bool:
@@ -557,14 +657,50 @@ def _range_dash(text: str, start: int, end: int) -> bool:
     return bool(_RANGE_BEFORE.search(text, max(0, start - 24), start) and _RANGE_AFTER.match(text, end))
 
 
+# What may sit around the code or URLs of one term (masked to spaces): emphasis, link brackets, and the comma,
+# slash or "or" between aliases. Matched with fullmatch, which stops at the first other character.
+_TERM_GLUE = re.compile(r"(?:[\s*_\[\]()|,/]|(?<!\w)or\b)*")
+
+
 def _term_dash(masked: str, plain: str, start: int) -> bool:
     """True if only inline code or a URL (with emphasis, or as a link) comes before the dash on its line.
 
     "- `--threads N` — number of workers" is an option list: the dash separates a term from its description.
-    A link with words ("[Guide](guide.md) — ...") is still checked.
+    Aliases joined by a comma, a slash or "or" count as one term ("- `-h`, `--help` — show help"). A link with
+    words ("[Guide](guide.md) — ...") is still checked.
     """
     line = masked.rfind("\n", 0, start) + 1
-    return bool(plain[line:start].strip()) and not masked[line:start].strip(" \t*_[]()")
+    return bool(plain[line:start].strip()) and bool(_TERM_GLUE.fullmatch(masked, line, start))
+
+
+def _line_at(text: str, pos: int) -> tuple[int, int]:
+    """(start, end) of the line of text that holds pos."""
+    end = text.find("\n", pos)
+    return text.rfind("\n", 0, pos) + 1, len(text) if end < 0 else end
+
+
+def _dash_bullet(text: str, start: int, end: int) -> bool:
+    """True if the dash at text[start:end] is a bullet in plain text ("Decisions:" then "– Budget approved").
+
+    The dash starts its line, and the line before ends with a colon or the line before or after starts with the
+    same dash.
+    """
+    line = start
+    while line > 0 and text[line - 1] in " \t":
+        line -= 1
+    if line > 0 and text[line - 1] != "\n":
+        return False  # checked first, so a long line with many dashes is not scanned for each
+    line_end = _line_at(text, start)[1]
+    dash = text[start:end]
+
+    def bulleted(other: str) -> bool:
+        return other.startswith(dash) and other[len(dash):len(dash) + 1] not in _DASH_ONLY
+
+    if line > 0:
+        prev = text[_line_at(text, line - 1)[0]:line - 1].strip()
+        if prev.rstrip("*_").endswith(":") or bulleted(prev):
+            return True
+    return line_end < len(text) and bulleted(text[line_end + 1:_line_at(text, line_end + 1)[1]].strip())
 
 
 def _attribution(text: str, pos: int) -> bool:
@@ -688,6 +824,7 @@ def lint(text: str, doc_type: Optional[str] = None, reader: Optional[str] = None
         flags.append((name, replacement, pattern, is_phrase, _first_key(name) if is_phrase else ""))
     title = _title_block(doc)
     first_prose = -1
+    greeted = False  # a greeting line came before this block
 
     for bi, block in enumerate(doc.blocks):
         if block.kind == "quote":
@@ -700,11 +837,17 @@ def lint(text: str, doc_type: Optional[str] = None, reader: Optional[str] = None
             continue
         if first_prose < 0 and block.kind in ("para", "list", "callout"):
             first_prose = bi
-        flat = masked.replace("\n", " ")  # hard-wrapped lines read as one line; same offsets
+        seen = _words_view(masked)  # emphasis underscores as spaces; for words and pattern rules
+        flat = seen.replace("\n", " ")  # hard-wrapped lines read as one line; same offsets
         locate = _Locator(block, starts)
-        low: Optional[str] = masked.lower()
-        if low is not None and len(low) != len(masked):
+        low: Optional[str] = seen.lower()
+        if low is not None and len(low) != len(seen):
             low = None
+        # The offset after which a drafted mail's text follows its greeting (0: a greeting came in an earlier
+        # block; -1: none yet).
+        greeting = block.kind == "para" and bool(_GREETING.match(block.lines[0].content))
+        after_greeting = 0 if greeted else (starts[1][0] if greeting and len(starts) > 1 else -1)
+        greeted = greeted or greeting
         is_title = bi == title  # the document title is not changed: only emoji and bold markup are reported
         quotes: Optional[_Quotes] = None
 
@@ -719,7 +862,7 @@ def lint(text: str, doc_type: Optional[str] = None, reader: Optional[str] = None
         # word lists
         for rule, name, entries in ([] if is_title else lists):
             for entry, key, types in entries:
-                for m in _scan(entry.pattern, key, masked, low):
+                for m in _scan(entry.pattern, key, seen, low):
                     shown = plain[m.start():m.end()]
                     if words.allowed(shown):
                         continue
@@ -732,7 +875,7 @@ def lint(text: str, doc_type: Optional[str] = None, reader: Optional[str] = None
                     note = entry.note or RULES[rule][1]
                     add(rule, m.start(), m.end(), _list_message(rule, shown, note), types)
         for name, replacement, pattern, is_phrase, key in ([] if is_title else flags):
-            for m in _scan(pattern, key, masked, low):
+            for m in _scan(pattern, key, seen, low):
                 shown = plain[m.start():m.end()]
                 if not shown.strip() or words.allowed(shown):
                     continue
@@ -742,7 +885,7 @@ def lint(text: str, doc_type: Optional[str] = None, reader: Optional[str] = None
                     f"Project word {label}{arrow}. Rewrite the sentence, not just the word.")
 
         if not is_title:
-            _expression_rules(flat, masked, plain, bold_view, block, bi == first_prose, add)
+            _expression_rules(flat, masked, plain, bold_view, block, bi == first_prose, add, after_greeting)
 
         # emoji
         if _EMOJI_CANDIDATE.search(masked):
@@ -768,8 +911,7 @@ def lint(text: str, doc_type: Optional[str] = None, reader: Optional[str] = None
         if block.kind in ("para", "list", "callout"):
             spans = tx.split_sentences(view)
             for s, e in spans:
-                sent = masked[s:e].rstrip()
-                stripped = sent.rstrip("\"'”’)*_ ")
+                stripped = _strip_end(masked[s:e])
                 if stripped.endswith("!"):
                     bang = s + len(stripped) - 1
                     add("exclamation", bang, bang + 1,
@@ -810,6 +952,12 @@ def lint(text: str, doc_type: Optional[str] = None, reader: Optional[str] = None
 _Add = Callable[..., None]
 
 
+def _but_noun_phrase(text: str, m: re.Match[str]) -> bool:
+    """True if the noun phrase after "but" at the end of match m ends its clause (_noun_phrase_ends)."""
+    last = re.search(r"[\w'’-]+$", m.group(0))
+    return last is None or _noun_phrase_ends(text, m.end(), last.group(0))
+
+
 def _after_subordinator(text: str, start: int) -> bool:
     """True if the clause that ends at start opens with, or ends with, if/when/although/because ..."""
     words = _CLAUSE_WORD.findall(_clause_prefix(text, start))
@@ -817,12 +965,13 @@ def _after_subordinator(text: str, start: int) -> bool:
 
 
 def _expression_rules(flat: str, masked: str, plain: str, letters: str, block: tx.Block, first: bool,
-                      add: _Add) -> None:
+                      add: _Add, after_greeting: int = -1) -> None:
     """Pattern rules on one block (not the title): hedges, dashes, negative contrast, personification, counts,
     the looser "in today's ..." opener and an assistant's preamble.
 
-    flat is masked with line breaks as spaces, letters is plain with code, URLs and tags as letters; all have the
-    offsets of plain.
+    flat is masked with emphasis underscores and line breaks as spaces, letters is plain with code, URLs and tags
+    as letters; all have the offsets of plain. after_greeting is the offset after a greeting line in this or an
+    earlier block, or -1.
     """
     for m in _HEDGE_STACK.finditer(flat):
         if _MODAL_ADVERB.match(m.group(0)) and _rhetorical_hedge(flat, m.start()):
@@ -841,39 +990,45 @@ def _expression_rules(flat: str, masked: str, plain: str, letters: str, block: t
         ds = m.start() + len(m.group(0)) - len(m.group(0).lstrip())
         de = ds + (2 if letters.startswith("--", ds) else 1)
         if _after_timestamp(masked, ds) or _FIELD_AFTER.match(masked, m.end()) or _attribution(masked, ds) \
-                or _range_dash(masked, ds, de) or _term_dash(masked, plain, ds):
-            continue  # timelines, "— Owner: ..." fields, "— Jeff Atwood", "Monday – Friday", "`-v` — verbose"
+                or _range_dash(masked, ds, de) or _term_dash(masked, plain, ds) or _dash_bullet(masked, ds, de):
+            continue  # timelines, "— Owner: ..." fields, "— Jeff Atwood", "Monday – Friday", "`-v` — verbose",
+            # "Decisions:" then "– Budget approved"
         add("em_dash", ds, de,
             f'Dash in "{_context(plain, ds, de)}" used to splice or insert a clause. Use a comma, colon, parentheses '
             "or a period that keeps the same scope (keep ranges, quotations and fiction dialogue).")
     contrasts: list[re.Match[str]] = []
     for k, pattern in enumerate(_NEG_CONTRAST):
         for m in pattern.finditer(flat):
+            if k == _NOT_A_BUT and not _but_noun_phrase(flat, m):
+                continue
             if k == _NOT_JUST_BUT or not _after_subordinator(flat, m.start()):
                 contrasts.append(m)
     contrasts.extend(_two_sentence_contrast(flat))
     if block.kind == "heading":
-        contrasts.extend(_HEADING_CONTRAST.finditer(flat))
+        contrasts.extend(m for m in _HEADING_CONTRAST.finditer(flat) if _but_noun_phrase(flat, m))
     for m in contrasts:
         shown = _show(plain[m.start():m.end()])
         add("negative_contrast", m.start(), m.end(),
             f'Negative contrast "{tx.display_width_cut(shown, 70)}". Remove the denied part only if '
-            "the claim stays the same; keep it when it corrects a likely misreading.")
-    for m in _PERSONIFICATION.finditer(masked):
+            'the claim stays the same ("not just X" affirms X; keep X); keep it when it corrects a likely misreading.')
+    for m in _PERSONIFICATION.finditer(flat):
         add("personification", m.start(), m.end(),
             f'"{_show(plain[m.start():m.end()])}" gives a tool or idea a will or feelings. Say what it does, '
             "unless the function is obvious or the subject is an identifier in a developer document.")
     for pattern in _COUNT:
-        for m in pattern.finditer(masked):
+        for m in pattern.finditer(flat):
             add("count_announcement", m.start(), m.end(),
                 f'Count announcement "{_show(plain[m.start():m.end()])}". Check that the count matches the '
                 "items; keep the count and items as they are and ask if they differ.")
-    for m in _TODAYS_OPENER.finditer(masked):
+    for m in _TODAYS_OPENER.finditer(flat):
         add("stock_phrase", m.start(), m.end(), _list_message("stock_phrase", plain[m.start():m.end()],
                                                               "delete the opener"))
     for m in _PREAMBLE.finditer(flat):
         # Only a preamble: a clause that ends with a colon before the drafted text, or a first paragraph that holds
-        # nothing else ("Here's a draft you can use for the deck. I added the numbers." is the writer's mail).
+        # nothing else ("Here's a draft you can use for the deck. I added the numbers." is the writer's mail), and
+        # not after a greeting ("Hi Ana," then "Here's a draft reply you can send to the customer:").
+        if 0 <= after_greeting <= m.start():
+            continue
         rest = flat[m.end():]
         if re.match(r"[^.!?:]{0,80}:", rest) or (first and re.fullmatch(r"[^.!?:]{0,80}[.!]?\s*", rest)):
             add("chat_residue", m.start(), m.end(),
@@ -892,7 +1047,8 @@ def _list_message(rule: str, match: str, note: str) -> str:
     if rule == "wordy_phrase":
         return f'Wordy phrase "{m}": {note}, if the meaning and register stay the same.'
     if rule == "metaphor_verb":
-        return f'Metaphorical verb "{m}": {note}. Do not replace it with a vague benefit.'
+        return (f'Metaphorical verb "{m}": {note}. Use only what the original or material says; otherwise keep it '
+                "and ask. Do not replace it with a vague benefit.")
     if rule == "intensifier":
         return f'Intensifier "{m}": {note}.'
     return f'Jargon "{m}": {note}.'
