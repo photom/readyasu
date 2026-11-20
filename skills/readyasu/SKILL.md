@@ -4,7 +4,7 @@ description: Revises AI-generated English prose so it reads like a careful human
 license: MIT
 allowed-tools: Bash(python3 ${CLAUDE_SKILL_DIR}/scripts/readyasu_lint.py *) Bash(python3 ${CLAUDE_SKILL_DIR}/scripts/readyasu_check.py *) Bash(python ${CLAUDE_SKILL_DIR}/scripts/readyasu_lint.py *) Bash(python ${CLAUDE_SKILL_DIR}/scripts/readyasu_check.py *) Bash(py -3 ${CLAUDE_SKILL_DIR}/scripts/readyasu_lint.py *) Bash(py -3 ${CLAUDE_SKILL_DIR}/scripts/readyasu_check.py *)
 metadata:
-  version: "0.1.0"
+  version: "0.2.0"
 ---
 
 # readyasu
