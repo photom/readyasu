@@ -130,3 +130,91 @@ Put a folder named `.readyasu-words/` at the top of the git repository (the work
 | `flag-patterns.txt` | `name<TAB>regular expression` per line | Reported as `project_term` with the matched text and the name. Python regular expression syntax; case-sensitive unless the pattern says `(?i)` |
 
 Lines starting with `#` and blank lines are ignored. Each file may have up to 10,000 lines. A third TAB column in `flag.txt`, a longer replacement, a line in `flag-patterns.txt` without exactly one TAB, an invalid regular expression, or a file that is not UTF-8 stops lint, diff and check with exit 2 and names the file and line (for a file that is not UTF-8, also the byte offset of the first bad byte).
+
+## Lint detection details
+
+The patterns behind the gaps in [limitations.md](./limitations.md#known-gaps-in-lint), with examples of what is missed and what is still reported. review-points.md section 3 describes each rule from the reviewer's side.
+
+### Negative contrast
+
+| Part of the pattern | What is checked | Missed, or reported by mistake |
+| --- | --- | --- |
+| "Not X, but Y" | An article or "about" after "not" (in a heading also "just", "only", "merely" or "simply"); after "but", a noun phrase that starts with an article, a possessive, "about" or "rather", or a single word that ends the clause | "## Not supported, but planned" is not reported; "not a bug, but intended behavior" is missed |
+| The noun phrase after "but" | It must end the clause within about four words or go on with a preposition, "that", "which" or a pronoun ("but a platform for building products"); a verb after it makes the sentence a concession, which is not reported | Concessions: "not a blocker, but the team should review it", "but the default timeout went from 30s to 10s", "but the tests pass", "but the patch works" |
+| The verb test | A guess from word shapes: modals, a short list of irregular past forms, -ed words, a word after a plural, an -s word that ends the clause after a word that does not look like an adjective or a determiner | A real contrast with such a word is missed ("but a feature requested by users", "but the sales team", "but the user needs."); a concession whose noun looks like an adjective is reported ("but the initiative helps.") |
+| Clauses | A negation in a clause that opens with if, when, although, because, since, while, once, until, as and similar words is not reported | A real contrast inside such a clause is missed |
+| Subject in lower case | Checked only as a pronoun right after a colon when a noun phrase, "just" or a verb is denied ("The truth is simple: it isn't a tool. It's a mindset."), or as a noun of one or two words after a reminder that opens the sentence ("Remember, onboarding isn't a sprint; it's a marathon.") | "Here's the thing: it's not hard. It's barely even cooking." is missed; the reminder form after "To be clear," or "But" is missed |
+| Start of a sentence | A capitalized word at the start of a line counts as the start of a sentence, after emoji too ("**The big shift**" then "This isn't a tool. It's a mindset.") | In hard-wrapped text, a line that starts mid-sentence with a capitalized subject is checked as a sentence |
+| Subject of the one-sentence form | A capitalized word before the negation, or one to three words that start the sentence ("React isn't a framework; it's a library.", "Remote work isn't a perk; it's a paradigm shift."); the two subjects must agree (he and he, a noun phrase and it or they) | Any short opening is checked the same way ("Honestly the fix isn't slow, it's ..."); a longer subject without a determiner is missed ("Working from home every day isn't a perk; it's ...") |
+| Subject and verb of the two-sentence form | The same subject (a pronoun, or one to three words that start the sentence, followed by "it" or "they"; any short opening before the negation counts, "In practice it isn't X. It's Y.") and the same verb (common irregular and doubled past forms included: "build" and "built", "stop" and "stopped"; "just", "simply", "merely", "only" or "really" may come before the denied verb) | A longer subject is missed ("The new billing service isn't slow. It's ...") |
+| Imperatives | A sentence that opens with please, just, never, kindly, always, simply or do is an imperative, not a subject | |
+| Passives and a dummy "it" | Neither form is reported for "it's" and a past participle, or for a dummy "it" before one of a short list of adjectives (clear, possible, likely, easy, known, necessary and similar) and a to-, that- or wh-clause | A passive with "it's" is missed ("This isn't a bug. It's designed to work this way."); "It isn't enough to ship features. It's ..." is still reported |
+| Status, place, -ing, "still", "not", "also" | Neither form is reported when either part states a status or a place (sure, ready, done, available, affected, active, enabled, expired, open, fixed, deployed and similar; in, on, at, off), goes on with an -ing form, or the second part goes on with "still", "not" or "also"; in the one-sentence form, "just", "only", "merely" or "simply" after the negation keeps it reported | Not reported: "It's not a bug. It's working as designed.", "It isn't in the cloud, it's on your laptop.", "The API isn't stable yet; it's still in beta." |
+| Change over time | The two-sentence form is not reported when the first sentence ends with "at first", "back then", "at the time", "until recently" or "... ago", or the second ends within a few words with now, today, anymore, these days or again ("I didn't like it at first. I like it now.") | A real contrast that ends that way is missed ("We don't sell software. We sell outcomes now.") |
+
+### Personification
+
+| What is checked | Missed |
+| --- | --- |
+| Software and document subjects (the tool, the system, the code, the logic) after a determiner (the, this, these, their and similar) and up to two other words | A longer subject: "The new customer survey data tells a story" |
+| "the agent" and "the assistant" are left out, because they are often people; "server" and "class" count only after a software word ("the web server", "the base class") | "The server knows which client sent the request" |
+| Of the negated forms, only "doesn't care" ("The scheduler doesn't care that rows went missing") | "doesn't know", "doesn't remember" and "doesn't understand" usually state what a program has no data for, so their personifying uses are missed |
+
+### Assistant preambles (chat_residue)
+
+| Case | Reported when | Missed, or reported by mistake |
+| --- | --- | --- |
+| Without an interjection | Only in the first paragraph. A revision lead-in needs a colon after it; an offer of a drafted mail ("Here's a reply you can send to Jordan:") needs a greeting, quotation, code block or `Subject:` line after it (a revision lead-in in mail needs one too); a mail noun without a verb ("Here's a draft email:") and a revision of something that is not a text ("Here's the updated invitation:") need a greeting or `Subject:` line. A thematic break between the preamble and the mail is skipped | A preamble that ends with a period before the revised text, or one later in the document |
+| A mail noun without a verb | Needs a sign that it is offered as a draft: "a", "an", "your", possible, suggested, proposed, draft, revised | "Here's the email:" before a drafted mail |
+| A noun followed by "from ..." or by a clause with its own subject and a past-tense verb | Never reported (one with "for you" is still reported) | "Here's a draft I wrote based on your notes:" |
+| A lead-in whose paragraph goes on with another sentence | After an interjection, only when a greeting or `Subject:` line follows the paragraph or the paragraph ends with a colon | Without an interjection: "Here's a draft email you can send to your landlord. I kept it polite but firm." then "Dear Mr. Lee," |
+| After an interjection with no greeting or `Subject:` line after it | A noun that is not a text needs an offering verb ("you can use", "you can adapt"); in mail, only an offer of a drafted mail with a verb is reported | "Sure! Here are the updated slides:" and "Sure! Here's the updated invitation:" before a drafted text without a greeting; in mail, "Sure! Here's a polished version of your email:" directly above the mail body |
+| The noun phrase | Up to five words may come before the noun | A longer noun phrase |
+| "Below is", "Below are", "I've revised (rewritten, polished, edited ...) your <text>" | Without an interjection, only when a greeting or `Subject:` line follows its colon | One before a drafted post or bio: "Below is a polished version of your LinkedIn post:" |
+| Genres, without an interjection | Only the genres the pattern knows | "Here's a LinkedIn post celebrating your promotion:", "Here are the release notes for version 3.2.0:", even before `---` |
+| A writer's own first paragraph | | Reported: "Here is the revised version of the config:" or "Here's an updated version of your function:" in a PR or a forum answer |
+
+### Offers about a drafted text (chat_residue)
+
+- In mail, an offer about the drafted mail ("Let me know if you'd like me to adjust the tone") is reported only after the mail's sign-off (a closing such as "Best," with a comma or a name line after it) or in the paragraph right after a thematic break, and only when the sentence names the tone, the wording, the formality, a shorter or another version, "adjust it" or "make it more ...". An offer at the end of the mail's last paragraph is missed, and a writer's postscript about the tone after the sign-off is reported.
+- A greeting or a header line (`From:` or `Sent:` at the start of a paragraph line, `On ... wrote:`, `-----Original Message-----`, `---------- Forwarded message ----------`) starts a new message, so a writer's offer after an earlier message in a pasted thread is not reported, also when the quoted text follows the header in the same paragraph. A message in a thread with neither a greeting nor such a header (only a name and a date above it) still counts the earlier sign-off.
+- Outside mail, after a thematic break with no greeting or sign-off before it, an offer needs words that name a draft ("this draft", "adjust the tone", "a shorter version of the email", "edit the message") or the assistant offering to change the text itself ("want me to", "would you like me to", "I can also"), unless the paragraph already has assistant chat. So "Feel free to personalize it with your own projects!" alone after a drafted post is missed, and a template's closing "Feel free to edit the message to fit your incident." is reported.
+
+### Sentence splitting
+
+- Words that are also abbreviations before a number (no, max, fig, Dec) end a sentence unless a digit follows.
+- A single capital letter is treated as an initial only before a capitalized word that does not usually start a sentence ("John F. Kennedy", but "Plan B. It was cheaper."), so "Plan B. Kennedy approved it." stays one sentence.
+- An abbreviation right after a number ("450 ms.", "5 p.m.") ends a sentence only before a capitalized word that usually starts one, other than "I". "Meet at 5 p.m. The room is booked." is two sentences; "at 5 p.m. Smith joined" and "At 9 a.m. I restarted the service." are one, so "We left at 5 p.m. I stayed." is one sentence too.
+- Emoji right after the end mark stay with the sentence when a new sentence or the end follows ("We shipped v2! 🎉" then "Thanks to everyone."), so the exclamation mark is still found.
+- Inline code or a URL after sentence-ending punctuation counts as a capitalized word and starts a new sentence ("The fix? `retry()` now wraps every call." is two sentences), also after an unlisted abbreviation.
+
+### em_dash
+
+| Skipped | Examples | Missed, or still reported |
+| --- | --- | --- |
+| A time, date, version or numbered label at the start of any line or item, alone or as a range, also on a hard-wrapped line | "09:12", "Dec 5", "2025-12-03", "2025/12/03", "03.12.2025", "2026-11-13 (Fri)", "Day 2", "Step 1", "Part II", "Option A", "Slide 1", "Section 3", "Act II", "10:00–10:15", "9–10 am", "Dec 3–5", "Version 2.1", "1.2.0", "v1.0–v1.4", "2.0.0 – 2.3.1", "Last updated: March 2026", a weekday with a date in parentheses ("Monday (Mar 3)", "Tue (11/12)") | Missed: "We met at" then "10:00 — it was short." |
+| A spaced dash between two range endpoints: numbers with a currency sign, %, am/pm or a common unit (kg, GB, ms, days, cups), versions, Q1–Q4, noon, midday, midnight, capitalized month and weekday names as whole words | "2019 – 2021", "9 am – noon" | Checked: "3 bugs — Janet". Missed: "We grew 20% – 30 new customers signed" |
+| Inline code or a URL (also in bold or as link text) that is all that comes before the dash on its line, alone or as aliases joined by a comma, a slash or "or"; also with placeholders in capitals or angle brackets after it, or one note in parentheses without a dash | "`-h`, `--help` — show help", "`--level` LEVEL — show only ...", "`timeout` (float) – HTTP timeout" | Missed: "`retry()` (new) – it wraps every call", "`retry()` API — ..." |
+| A dash that starts a line in plain text after a line that ends with a colon, or next to a line that starts with the same dash | Bullets in plain-text minutes or mail | |
+| A capitalized label of up to three words with a colon after the dash | "— Owner: Marco" | |
+| A line that is only a dash and a capitalized name after a sentence | "— Jeff Atwood", "— Plato, Republic" | |
+| On a line with no sentence end after the dash: a dash after any capitalized word and a number at the start of the line | "## Milestone 2 — Beta" | Missed: "Apollo 11 — the mission". Reported: "Python 3.9 – the oldest we support – is end of life." |
+| On a line with no sentence end after the dash: a dash after an all-capitals label of up to four words (a stage direction) | "**[COLD OPEN — ambient sound]**" | Missed: "NOTE — this one is fine". Reported: "[UPDATE — the fix is now live.]" |
+| On a line with no sentence end after the dash: a screenplay scene heading that starts with "INT.", "EXT.", "INT./EXT." or "I/E." | "INT. KITCHEN — NIGHT" | Reported: "INT Kitchen — Night" (no period, mixed case) |
+| A dash after only names on the paragraph under a man page's `NAME` heading | "logsift — filter log files" | |
+| A dash before a date, a due time or, in a list item, an owner (one to a few capitalized names or @handles) that ends a list item or a title line (a heading, or the first line of a paragraph with no sentence end before the dash, no period after and no lower-case continuation on the next line) | Due times: next meeting, this week, by Friday, due Fri 20 Nov, ETA: Friday, by 5 pm on Friday, before the HR meeting, EOD | Missed: "- We rebuilt the parser — Huge Win", "Our launch slipped — next week". Reported: "On-call handoff — notes" in a paragraph, a title alone on the first line, "Rafa – here's the deck" |
+| A mail's `Subject:` line, a title block that opens the document (two or more short lines, the first starting with a capital, none ending with a sentence or clause mark) and a table cell with no sentence end, unless "and", "but", "or", "yet", "so" or "plus" follows the dash | "Subject: Resignation — last day December 5" | Missed: "\| Cache \| slower — we fixed it \|" |
+| A dash after only a capitalized name that opens a list item, when lower case follows with no sentence end | "- Ana — draft the notice" | Missed: "- Honestly — it was fine" |
+| A dash after a short label that starts a line, when a date or time follows | "Christmas Eve – 6pm (family Mass)" | |
+| Speech that breaks off: a dash right before a closing quotation mark, or "I wasn't — we weren't" in a speaker's turn or a quotation | | Other dashes in dialogue, transcribed speech and quotations are reported |
+| A dash after a news dateline that opens a paragraph, when a capitalized word follows it (a place in capitals, optionally with a state, a date and an agency) | "HARBOR CITY — Andrés ...", "SAN FRANCISCO, March 3, 2025 — Acme ...", "WASHINGTON (AP) — ..." | Missed: a clause dash after other words in capitals that open a paragraph, unless one of them is a common label word ("GREEN LIGHT — The board approved the budget."). Reported: "UPDATE — The fix is live.", "BIG NEWS — We launched." |
+
+### Markdown parsing
+
+- Headings: ATX and setext.
+- Lists: a line indented at least to an item's text belongs to the item, even after a blank line or a fence. As in CommonMark, a new list interrupts a paragraph only with a bullet or "1.", so a wrapped line that starts with "1998." continues the paragraph, also inside a list item, while a sibling item ("2." after "1.") still starts an item. Inside an item, a fence indented four or more columns past the item's text after a blank line is indented code, and a fence may open on the marker line (`1. ```bash`).
+- Block quotes, with lazy continuation lines and fenced code inside. A block quote indented four or more spaces inside a list item is checked as text.
+- Tables, and fenced and indented code. Indented code is recognized also right after a heading, a rule, a table, or the line that ends a `<pre>` block or an HTML comment, but not right after a paragraph line, which it continues, or inside an HTML block such as `<div>` or `<p>`, which runs to a blank line. An indented line without `|` right after a table row is code, not a row.
+- HTML comments, and `<pre>`, `<script>`, `<style>` and `<textarea>` blocks: their content, up to the line with the closing tag, is treated as code. A block that is never closed runs to the end of the document, as in CommonMark; inside a list item the opening tag may be indented up to three columns past the item's text.
+- YAML or TOML front matter, only with a key or comment on line 2 and a closing line.
+- Raw HTML: a line that starts with a block-level tag (`<div>`, `<p>`, `<details>`) or holds a single tag is skipped, but text on the lines between `<div>` and `</div>` is checked, indented or not.
